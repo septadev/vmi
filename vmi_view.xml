@@ -1,0 +1,122 @@
+<?xml version="1.0"?>
+<openerp>
+	<data> 
+<!-- Product Normal Form (inherit)-->
+		<record id="product_normal_form_inherit" model="ir.ui.view">
+			<field name="name">vmi.product.form.inherit</field>
+			<field name="model">product.product</field>
+			<field name="inherit_id" ref="product.product_normal_form_view" />
+			<field eval="5" name="priority"/>
+			<field name="arch" type="xml">
+				<field name="name" invisible="1" />
+				<field name="default_code" position="after">
+				  <field name="vendor_part_number" />
+				</field>
+		  </field>
+		</record>
+	       <!-- Product Suppliers (inherit)-->
+		<record id="view_product_supplier_inherit" model="ir.ui.view">
+				<field name="name">product.normal.supplier.form.inherit</field>
+				<field name="model">product.product</field>
+				<field name="inherit_id" ref="product.product_normal_form_view"/>
+				<field name="arch" type="xml">
+						<group name="procurement" position="after">
+								 <separator string="Suppliers"/>
+								 <field name="seller_ids" context="{'uom_id': uom_id}"/>
+						</group>
+				</field>
+		</record> 
+    <!-- Audit Wizard -->
+		<record id="view_stock_move_audit_wizard" model="ir.ui.view">
+				<field name="name">Audit Move</field>
+				<field name="model">stock.move.audit</field>
+				<field name="arch" type="xml">
+						<form string="Audit Move" version="7.0">
+								<separator string="Audit Products"/>
+								<group>
+										<field name="product_id"  readonly="1"/>
+										<label for="product_qty"/>
+										<div>
+												<field name="product_qty" class="oe_inline"/>
+												<field name="product_uom" class="oe_inline" readonly="1" groups="product.group_uom"/>
+										</div>
+										<field name="location_id" string="Location" widget="selection"
+												domain="[('usage','!=','view')]" groups="stock.group_locations"/> 
+								</group>
+								<footer>
+										<button name="move_audited" string="Ok" type="object" class="oe_highlight"  />
+										or
+										<button string="Cancel" class="oe_link" special="cancel" />
+								</footer>
+						</form>
+				</field>
+		</record>
+		<!-- Audit Wizard Action -->        
+		<record id="move_audit" model="ir.actions.act_window">
+				<field name="name">Audit Move</field>
+				<field name="type">ir.actions.act_window</field>
+				<field name="res_model">stock.move.audit</field>
+				<field name="view_type">form</field>
+				<field name="view_mode">form</field>
+				<field name="target">new</field>
+		</record>
+<!-- Stock Move Tree (inherit)-->
+		<record id="stock_move_tree2_inherit" model="ir.ui.view">
+			<field name="name">stock.move.tree2.inherit</field>
+			<field name="model">stock.move</field>
+			<field name="inherit_id" ref="stock.view_move_tree_reception_picking" />
+			<field eval="5" name="priority"/>
+			<field name="arch" type="xml">
+				<tree position="attributes">
+					  <attribute name="colors">blue:audit=='true'</attribute>
+					  <attribute name="colors">red:audit_fail=='true'</attribute>
+				</tree>
+				<field name="date" position="after">
+				  <field name="audit" invisible="1" />
+				  <field name="audit_fail" invisible="1" />
+				</field>
+				<field name="product_qty" position="after">
+				  <button name="%(vmi.move_audit)d" icon="gtk-find" type="action" colspan="1" help="Audit" attrs="{'invisible': ['|',('state','=','done'),('audit','&lt;&gt;', True)]}" />
+				  <button name="fail_audit" icon="gtk-dialog-warning" type="object" colspan="1" help="Failed Audit" attrs="{'invisible': [('audit_fail','&lt;&gt;', True)]}" />
+				</field>
+			</field>
+		</record>
+<!-- Stock Move Form (inherit)-->
+		<record id="stock_move_form_inherit" model="ir.ui.view">
+			<field name="name">stock.move.form.inherit</field>
+			<field name="model">stock.move</field>
+			<field name="inherit_id" ref="stock.view_move_form" />
+			<field eval="5" name="priority"/>
+			<field name="arch" type="xml">
+				<field name="date" position="after">
+				  <field name="audit" invisible="1" />
+				  <field name="audit_fail" invisible="1" />
+				  <field name="note" />
+				</field>
+				<field name="product_uom" position="after">
+				  <button name="%(vmi.move_audit)d" icon="gtk-find" type="action" class="oe_highlight" string="Audit" help="Audit" attrs="{'invisible': ['|',('state','=','done'),('audit','&lt;&gt;', True)]}" />
+				  <button name="fail_audit" icon="gtk-dialog-warning" type="object" class="oe_highlight" string="Failed Audit" help="Failed Audit" attrs="{'invisible': [('audit_fail','&lt;&gt;', True)]}" />			  
+				</field>
+		  </field>
+		</record>
+		<!-- Stock Picking Move Tree -->
+    <record id="view_move_picking_tree_inherit" model="ir.ui.view">
+				<field name="name">stock.move.tree.inherit</field>
+				<field name="model">stock.move</field>
+				<field name="inherit_id" ref="stock.view_move_picking_tree" />
+				<field eval="4" name="priority"/>
+				<field name="arch" type="xml">
+					<tree position="attributes">
+					  <attribute name="colors">blue:audit=='true'</attribute>
+					  <attribute name="colors">red:audit_fail=='true'</attribute>
+					</tree>
+							<field name="product_qty" position="after">
+							  <field name="audit" invisible="1" />
+							  <field name="audit_fail" invisible="1" />
+							  <button name="%(vmi.move_audit)d" icon="gtk-find" type="action" colspan="1" help="Audit" attrs="{'invisible': ['|',('state','=','done'),('audit','&lt;&gt;', True)]}" />
+							  <button name="fail_audit" icon="gtk-dialog-warning" type="object" colspan="1" help="Failed Audit" attrs="{'invisible': [('audit_fail','&lt;&gt;', True)]}" />
+							</field>
+				</field>
+		</record>
+	</data>			  
+</openerp>	
