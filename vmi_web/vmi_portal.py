@@ -21,7 +21,105 @@ import openerp
 from openerp.tools.translate import _
 import openerp.addons.web.http as vmiweb
 
+# -----------------------------------------------| VMI Session Object.
+class Session(vmiweb.Controller):
+    _cp_path = "/vmi/client/session"
 
+    def session_info(self, req):
+        req.session.ensure_valid()
+        uid = req.session._uid
+        args = req.httprequest.args
+        request_id = str(req.jsonrequest['id'])
+        _logger.debug('JSON Request ID: %s', request_id)
+        res = {}
+        if request_id == 'DBE': # Check to see if user is a DBE vendor
+            try:                                                                # Get vendor ID for session
+                vendor = get_vendor_id(req, uid)['records'][0]
+            except IndexError:
+                _logger.debug('Vendor not found for user ID: %s', uid)
+                return {'error': _('No Vendor found for this User ID!'), 'title': _('Vendor Not Found')}
+            res = {
+            "session_id": req.session_id,
+            "uid": req.session._uid,
+            "user_context": req.session.get_context() if req.session._uid else {},
+            "db": req.session._db,
+            "username": req.session._login,
+            "vendor_id": vendor['id'],
+            "company": vendor['company'],
+            }
+        elif request_id == 'VMI': # Check to see if user is a VMI vendor
+            try:                                                                                # Get Partner ID for session
+                vendor = get_partner_id(req, uid)['records'][0]
+            except IndexError:
+                _logger.debug('Partner not found for user ID: %s', uid)
+                return {'error': _('No Partner found for this User ID!'), 'title': _('Partner Not Found')}
+            company = ""
+            if vendor.has_key('company'):
+                company = vendor['company']
+            res = {
+            "session_id": req.session_id,
+            "uid": req.session._uid,
+            "user_context": req.session.get_context() if req.session._uid else {},
+            "db": req.session._db,
+            "username": req.session._login,
+            "partner_id": vendor['partner_id'][0],
+            "company": vendor['partner_id'][1],
+            }
+        else: # Allow login for valid user without Vendor or Partner such as Admin or Manager
+            res = {
+            "session_id": req.session_id,
+            "uid": req.session._uid,
+            "user_context": req.session.get_context() if req.session._uid else {},
+            "db": req.session._db,
+            "username": req.session._login,
+            }
+        return res
+
+    @vmiweb.jsonrequest
+    def get_session_info(self, req):
+        return self.session_info(req)
+
+    @vmiweb.jsonrequest
+    def authenticate(self, req, db, login, password, base_location=None):
+        wsgienv = req.httprequest.environ
+        env = dict(
+            base_location=base_location,
+            HTTP_HOST=wsgienv['HTTP_HOST'],
+            REMOTE_ADDR=wsgienv['REMOTE_ADDR'],
+        )
+        req.session.authenticate(db, login, password, env)
+
+        return self.session_info(req)
+
+    @vmiweb.jsonrequest
+    def change_password(self, req, fields):
+        old_password, new_password, confirm_password = operator.itemgetter('old_pwd', 'new_password', 'confirm_pwd')(
+            dict(map(operator.itemgetter('name', 'value'), fields)))
+        if not (old_password.strip() and new_password.strip() and confirm_password.strip()):
+            return {'error': _('You cannot leave any password empty.'), 'title': _('Change Password')}
+        if new_password != confirm_password:
+            return {'error': _('The new password and its confirmation must be identical.'),
+                    'title': _('Change Password')}
+        try:
+            if req.session.model('res.users').change_password(
+                    old_password, new_password):
+                return {'new_password': new_password}
+        except Exception:
+            return {'error': _('The old password you provided is incorrect, your password was not changed.'),
+                    'title': _('Change Password')}
+        return {'error': _('Error, password not changed !'), 'title': _('Change Password')}
+
+
+    @vmiweb.jsonrequest
+    def check(self, req):
+        req.session.assert_valid()
+        return None
+
+    @vmiweb.jsonrequest
+    def destroy(self, req):
+        req.session._suicide = True
+
+# -----------------------------------------------| VMI Controller Methods.
 class VmiController(vmiweb.Controller):
     _cp_path = '/vmi'
 
@@ -38,7 +136,7 @@ $(document).ready(function(){
 	if (username && password) { // values are not empty
 		$.ajax({
 		type: "POST",
-		url: "/vmi/client/session/authenticate", // URL of OpenERP Authentication Handler
+		url: "/vmi/session/authenticate", // URL of OpenERP Authentication Handler
 		contentType: "application/json; charset=utf-8",
 		dataType: "json",
 		// send username and password as parameters to OpenERP
