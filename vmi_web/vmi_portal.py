@@ -21,6 +21,8 @@ import openerp
 from openerp.tools.translate import _
 import openerp.addons.web.http as vmiweb
 
+_logger = logging.getLogger(__name__)
+
 # -----------------------------------------------| VMI Session Object.
 class Session(vmiweb.Controller):
     _cp_path = "/vmi/session"
