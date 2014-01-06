@@ -23,7 +23,7 @@ import openerp.addons.web.http as vmiweb
 
 # -----------------------------------------------| VMI Session Object.
 class Session(vmiweb.Controller):
-    _cp_path = "/vmi/client/session"
+    _cp_path = "/vmi/session"
 
     def session_info(self, req):
         req.session.ensure_valid()
