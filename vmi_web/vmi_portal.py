@@ -23,6 +23,141 @@ import openerp.addons.web.http as vmiweb
 
 _logger = logging.getLogger(__name__)
 
+# -----------------------------------------------| VMI Global Methods.
+
+
+def fields_get(req, model):
+    Model = req.session.model(model)
+    fields = Model.fields_get(False, req.context)
+    #_logger.debug('fields: %s', fields)
+    return fields
+
+#				 (req, 'dbe.vendor', ['id', 'company'], 0, False, [('vuid', '=', uid)], None)
+def do_search_read(req, model, fields=False, offset=0, limit=False, domain=None, sort=None):
+    """ Performs a search() followed by a read() (if needed) using the
+provided search criteria
+
+:param req: a JSON-RPC request object
+:type req: vmiweb.JsonRequest
+:param str model: the name of the model to search on
+:param fields: a list of the fields to return in the result records
+:type fields: [str]
+:param int offset: from which index should the results start being returned
+:param int limit: the maximum number of records to return
+:param list domain: the search domain for the query
+:param list sort: sorting directives
+:returns: A structure (dict) with two keys: ids (all the ids matching
+                    the (domain, context) pair) and records (paginated records
+                    matching fields selection set)
+:rtype: list
+"""
+    Model = req.session.model(model)
+
+    ids = Model.search(domain, offset or 0, limit or False, sort or False,
+                       req.context)
+    if limit and len(ids) == limit:
+        length = Model.search_count(domain, req.context)
+    else:
+        length = len(ids) + (offset or 0)
+    if fields and fields == ['id']:
+        # shortcut read if we only want the ids
+        return {
+        'length': length,
+        'records': [{'id': id} for id in ids]
+        }
+
+    records = Model.read(ids, fields or False, req.context)
+    records.sort(key=lambda obj: ids.index(obj['id']))
+    return {
+    'length': length,
+    'records': records
+    }
+
+
+def newSession(req):
+    """ create admin session for testing purposes only """
+    db = 'dev_main'
+    login = 'admin'
+    password = 'openerp'
+    uid = req.session.authenticate(db, login, password)
+    return uid
+
+
+def check_partner_parent(pid):
+    res = None
+    parent_id = None
+    try:
+        res = do_search_read(req, 'res.partner', ['active', 'parent_id'], 0, False, [('id', '=', pid)], None)
+    except Exception:
+        _logger.debug('Session expired or Partner not found for partner ID: %s', pid)
+
+    if res:
+        record = res['records'][0]
+        if record['parent_id'] and record['active']:
+            parent_id = record['parent_id']
+        else:
+            raise Exception("AccessDenied")
+    else:
+        return False
+
+    return parent_id
+
+
+def get_partner(req, pid):
+    partner = None
+    fields = fields_get(req, 'res.partner')
+    try:
+        partner = do_search_read(req, 'res.partner', fields, 0, False, [('id', '=', pid)], None)
+    except Exception:
+        _logger.debug('Partner not found for ID: %s', pid)
+
+    if not partner:
+        raise Exception("AccessDenied")
+
+    return partner
+
+
+def get_vendor_id(req, uid=None, **kwargs):
+    """ Find the vendor associated to the current logged-in user """
+    vendor_ids = None
+    try:
+        vendor_ids = do_search_read(req, 'dbe.vendor', ['id', 'company'], 0, False, [('vuid.id', '=', uid)], None)
+    except Exception:
+        _logger.debug('Session expired or Vendor not found for user ID: %s', uid)
+
+    if not vendor_ids:
+        raise Exception("AccessDenied")
+
+    _logger.debug('Vendor ID: %s',
+                  vendor_ids) #{'records': [{'company': u'Gomez Electrical Supply', 'id': 3}], 'length': 1}
+    return vendor_ids
+
+def get_partner_id(req, uid=None, **kwargs):
+    """ Find the partner associated to the current logged-in user """
+    partner_ids = None
+    try:
+        partner_ids = do_search_read(req, 'res.users', ['partner_id'], 0, False, [('id', '=', uid)], None)
+    except Exception:
+        _logger.debug('Session expired or Partner not found for user ID: %s', uid)
+
+    if not partner_ids:
+        raise Exception("AccessDenied")
+
+    record = partner_ids['records'][0]
+    pid = record['partner_id'][0]
+    parent_id = check_partner_parent(pid)
+    if parent_id:
+        p = get_partner(parent_id)
+        parent = p['records'][0]
+        record['company'] = parent['name']
+        record['company_id'] = parent['id']
+        partner_ids['records'].append(record)
+        partner_ids.pop(0)
+
+    _logger.debug('Partner ID: %s',
+                  partner_ids) #{'records': [{'groups_id': [3, 9, 19, 20, 24, 27], 'partner_id': (20, u'Partner'), 'id': 13, 'name': u'Partner'}], 'length': 1}
+    return partner_ids
+
 # -----------------------------------------------| VMI Session Object.
 class Session(vmiweb.Controller):
     _cp_path = "/vmi/session"
