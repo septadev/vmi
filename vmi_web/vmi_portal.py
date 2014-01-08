@@ -259,6 +259,7 @@ class Session(vmiweb.Controller):
 # -----------------------------------------------| VMI Controller Methods.
 class VmiController(vmiweb.Controller):
     _cp_path = '/vmi'
+    import csv
     _packing_slip_fields = ('month',
                             'day',
                             'year',
@@ -319,6 +320,186 @@ class VmiController(vmiweb.Controller):
             args.update({'error': e.faultCode})
         return args
 
+    def _validate_products(self, req, csv_rows, pid):
+        res = {}
+        results = {}
+        prod_list = []
+        fields = ['id', 'default_code', 'uom_id']
+        default_codes = []
+        for row in csv_rows:
+            prod_list.append(row['septa_part_number'].strip())
+
+        if len(prod_list) == 0:
+            _logger.debug('<_validate_products> Packing slip missing part numbers for partner: %s', str(pid))
+            raise IndexError("<_validate_products> Product not found in (%r)!" % str(prod_list))
+        else:
+            #try:
+            res = do_search_read(req, 'product.product', fields, 0, False, [('default_code', 'in', prod_list)], None)
+            #except Exception:
+            _logger.debug('<_validate_products> Error finding products in: %s', res['records'])
+
+            if res is not None:
+                for record in res['records']:
+                    default_codes.append(record['default_code'])
+            else:
+                raise IndexError("<_validate_products> No products returned from search: (%r)!" % str(res))
+
+            _logger.debug('<_validate_products> default_codes: %s', default_codes)
+            _logger.debug('<_validate_products> prod_list: %s', prod_list)
+            if cmp(default_codes, prod_list) == 0:
+                results.update({'records': res['records'], 'length': len(res), 'valid': True})
+            else:
+                bad_products = [x for x in prod_list if x not in default_codes]
+                results.update({'records': bad_products, 'length': len(bad_products), 'valid': False})
+                _logger.debug('<_validate_products> Invalid products found in packing slip: %s', str(bad_products))
+
+        return results
+
+
+    def _validate_csv_file(self, filedata, fields):
+    #validator = CSVValidator(fields)
+    ## basic header and record length checks
+    #validator.add_header_check('EX1', 'bad header')
+    #validator.add_record_length_check('EX2', 'unexpected record length')
+    #data = csv.reader(StringIO(filedata.read()), delimiter='\t')
+    #problems = validator.validate(data)
+    #if problems:
+    #_logger.debug('<_validate_csv_file> CSV file could not be validated: %s', filedata.filename)
+        return True
+
+    def _csv_reader(self, filedata, fields):
+        res = []
+        csv = self.csv
+        csv.register_dialect('escaped', escapechar='\\', doublequote=False, quoting=csv.QUOTE_NONE)
+        csv.register_dialect('singlequote', quotechar="'", quoting=csv.QUOTE_ALL)
+        sniffer = csv.Sniffer()
+        validated = False
+        try:
+            validated = self._validate_csv_file(filedata, fields)
+        except Exception, e:
+            errors = {'error': e.message, 'method': '_csv_reader 1'}
+            _logger.debug('<_csv_reader> CSV file could not be validated: %s', errors)
+            return errors
+
+        if validated:
+            dialect = sniffer.sniff(filedata.readline(), delimiters=',')
+            filedata.seek(0)
+            reader = csv.DictReader(filedata.readlines(), dialect=csv.excel) # fieldnames=fields,
+            try:
+                for row in reader:
+                    res.append(row)
+                    _logger.debug('<_csv_reader> CSV file: %s', str(row))
+            except csv.Error as e:
+                _logger.debug('<_csv_reader> CSV file could not be read: %s', e.message)
+                errors = {'error': e.message, 'method': '_csv_reader 2'}
+                return errors
+
+        return {'records': res, 'length': len(res)}
+
+    def _create_stock_picking(self, req, csv_rows, pid):
+        model_name = 'stock.picking.in'
+        Model = req.session.model(model_name)
+        res = []
+        if len(csv_rows) > 0:
+            for row in csv_rows:
+                delivery_date = str(row['year']).strip() + '/' + str(row['month']).strip() + '/' + str(
+                    row['day']).strip()
+                #_logger.debug('<_create_stock_picking> CSV file: %s', str(row))
+                picking_id = Model.create({
+                                          'name': row['packing_list_number'].strip() + '-' + delivery_date,
+                                          'date': delivery_date,
+                                          'partner_id': pid,
+                                          'origin': row['packing_list_number'].strip(),
+                                          'invoice_state': 'none',
+                                          'note': row['purchase_order'].strip()
+                                          }, req.context)
+                res.append({'picking_id': picking_id, 'packing_list': row['packing_list_number'].strip()})
+
+        return res
+
+    def _create_move_line(self, req, csv_rows, pid):
+        moves = []
+        model_name = 'stock.move'
+        Model = req.session.model(model_name)
+        location_id = None
+        location_partner = None
+        locations = get_stock_locations(req, pid)
+        products = self._validate_products(req, csv_rows, pid)
+        if len(csv_rows) > 0 and products['valid']:
+            product = None
+            for csv_row in csv_rows:
+                for prod in products['records']:
+                    _logger.debug('<_create_move_line> Current product: %s', prod['default_code'])
+                if prod['default_code'] == csv_row['septa_part_number'].strip():
+                    product = prod
+                    break
+
+                for location in locations['records']:
+                    if location['name'] == str(csv_row['destination']).strip():
+                        location_id = location['id']
+                        location_partner = location['partner_id'][0]
+                        _logger.debug('<_create_move_line> location: %s', str(location_id))
+                        break
+
+                if not location_id:
+                    raise ValueError(
+                        "(%r) is not a proper value for destination location!" % str(csv_row['destination']))
+                delivery_date = str(csv_row['year']).strip() + '/' + str(csv_row['month']).strip() + '/' + str(
+                    csv_row['day']).strip()
+                move_id = Model.create({
+                'product_id': product['id'],
+                'name': csv_row['packing_list_number'].strip() + '|' + delivery_date,
+                'product_uom': product['uom_id'][0],
+                'product_qty': float(csv_row['quantity_shipped']),
+                'location_dest_id': location_id,
+                'location_id': 8,
+                'partner_id': location_partner,
+                'picking_id': csv_row['picking_id'],
+                'date': delivery_date,
+                })
+                moves.append(move_id)
+
+        else:
+            _logger.debug('<_create_move_line> Moves not created due to bad products: %s', products['records'])
+
+        return moves
+
+
+    def _parse_packing_slip(self, req, filedata, pid):
+        ps_vals = {}
+        ps_lines = []
+        fields = self._packing_slip_fields
+        res = self._csv_reader(filedata, fields)
+        if res.has_key('error'):
+            _logger.debug('<_parse_packing_slip> CSV reader returned an error: %s', res['error'])
+            return res
+        else:
+            #res['records'].sort(cmp=lambda x,y : cmp(x['packing_list_number'], y['packing_list_number']))
+            unique_slips = []
+            pickings = []
+            for record in res['records']:
+                ps_lines.append(record.copy())
+                if record['packing_list_number'] not in unique_slips:
+                    unique_slips.append(record['packing_list_number'])
+                    pickings.append(record)
+
+            picked = self._create_stock_picking(req, pickings, pid)
+            for pick in picked:
+                attached = self._create_attachment(req, 'stock.picking.in', pick['picking_id'], pick['packing_list'],
+                                                   filedata)
+                if attached.has_key('error'):
+                    _logger.debug('<_parse_packing_slip> _create_attachment returned an error: %s', attached['error'])
+
+            for line in ps_lines:
+                for pick in picked:
+                    if pick['packing_list'] == line['packing_list_number']:
+                        line.update(pick)
+                        #del line['packing_list_number']
+                        break
+
+            moves = self._create_move_line(req, ps_lines, pid)
+
+        return True
 
     @vmiweb.httprequest
     def index(self, req, mod=None, **kwargs):
@@ -411,3 +592,76 @@ $(document).ready(function(){
         output = cStringIO.StringIO()
         template.expand(context, output)
         return output.getvalue()
+
+    @vmiweb.httprequest
+    def invoice(self, req, mod=None, **kwargs):
+        input = open(
+            '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/vmi_invoice.html', 'r')
+        template = simpleTAL.compileHTMLTemplate(input)
+        input.close()
+
+        context = simpleTALES.Context()
+        # Add a string to the context under the variable title
+        context.addGlobal("title", "SEPTA VMI Invoice")
+        context.addGlobal("script", "")
+        context.addGlobal("header", "Invoice")
+
+        output = cStringIO.StringIO()
+        template.expand(context, output)
+        return output.getvalue()
+
+    @vmiweb.httprequest
+    def upload_vmi_document(self, req, sid, pid, uid, doc_type, callback, ufile):
+        #session_data = Session.session_info(req.session)
+        args = {}
+        picking_id = None
+        form_flag = True
+        req.session.ensure_valid()
+        uid = newSession(req)
+        model = None
+        input = None
+        if doc_type == 'PS':
+        #try:
+            picking_id = self._parse_packing_slip(req, ufile, pid)
+            #except Exception, e:
+            #	args = {'error': e.message}
+
+            input = open(
+                '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/vmi_packing_slip.html',
+                'r')
+        elif doc_type == 'IV':
+            model = 'account.invoice'
+            Model = req.session.model(model)
+            fields = _invoice_fields
+            try:
+                parsedata = self._parse_invoice(req, ufile)
+            except Exception, e:
+                args = {'error': e.message}
+
+            input = open(
+                '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/vmi_invoice.html',
+                'r')
+
+        template = simpleTAL.compileHTMLTemplate(input)
+        input.close()
+        context = simpleTALES.Context()
+
+        #try:
+        #attachment_id = Model.create(parsedata, req.context)
+        #except xmlrpclib.Fault, e:
+        #args = {'error':e.faultCode }
+        #if args['error']:
+        #	form_flag = False
+        req.session._suicide = True
+        script = """var callback = %s; \n var return_args = %s;""" % (
+        simplejson.dumps(callback), simplejson.dumps(args))
+        context.addGlobal("title", "SEPTA VMI Invoice")
+        context.addGlobal("script", script)
+        context.addGlobal("header", "Invoice")
+        context.addGlobal("picking_id", picking_id)
+        context.addGlobal("form_flag", form_flag)
+
+        output = cStringIO.StringIO()
+        template.expand(context, output)
+        return output.getvalue()
+

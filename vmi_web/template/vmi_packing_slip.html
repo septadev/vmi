@@ -112,7 +112,7 @@ Header
 </p>
 <h3 tal:condition="picking_id" tal:content="picking_id"></h3>
   <div id="uploader" tal:condition="form_flag" class="info">
-    <form class="form_binary_form" action="/web/vmi/upload_vmi_document" method="post" enctype="multipart/form-data">
+    <form class="form_binary_form" action="/vmi/upload_vmi_document" method="post" enctype="multipart/form-data">
       <input type="hidden" name="callback" value="debug">
       <input type="hidden" name="doc_type" value="PS">
       <input type="hidden" name="uid" tal:attributes="value uid" value="">
