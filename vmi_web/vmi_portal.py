@@ -259,6 +259,66 @@ class Session(vmiweb.Controller):
 # -----------------------------------------------| VMI Controller Methods.
 class VmiController(vmiweb.Controller):
     _cp_path = '/vmi'
+    _packing_slip_fields = ('month',
+                            'day',
+                            'year',
+                            'vendor_part_number',
+                            'bin',
+                            'item_description',
+                            'uom',
+                            'quantity_ordered',
+                            'quantity_shipped',
+                            'quantity_backordered',
+                            'septa_part_number',
+                            'line_number',
+                            'purchase_order',
+                            'supplier',
+                            'packing_list_number',
+                            'destination',
+                            'shipment_type'
+    )
+
+    _invoice_fields = ('month',
+                       'day',
+                       'year',
+                       'vendor_part_number',
+                       'item_description',
+                       'septa_part_number',
+                       'quantity_shipped',
+                       'uom',
+                       'unit_price',
+                       'line_total',
+                       'line_number',
+                       'purchase_order',
+                       'supplier',
+                       'packing_list_number',
+                       'invoice_number',
+                       'payment_terms',
+                       'destination'
+    )
+
+    def _create_attachment(self, req, model, id, descr, ufile):
+        uid = newSession(req)
+        Model = req.session.model('ir.attachment')
+        args = {}
+        ufile.seek(0)
+        try:
+            attachment_id = Model.create({
+                                         'name': descr + '_' + ufile.filename,
+                                         'datas': base64.encodestring(ufile.read()),
+                                         'datas_fname': str(id) + '_' + ufile.filename,
+                                         'description': descr,
+                                         'res_model': model,
+                                         'res_id': int(id)
+                                         }, req.context)
+            args.update({
+            'filename': ufile.filename,
+            'id': attachment_id
+            })
+        except xmlrpclib.Fault, e:
+            args.update({'error': e.faultCode})
+        return args
+
 
     @vmiweb.httprequest
     def index(self, req, mod=None, **kwargs):
@@ -324,6 +384,30 @@ $(document).ready(function(){
         context.addGlobal("title", "SEPTA VMI Client")
         context.addGlobal("script", js)
 
+        output = cStringIO.StringIO()
+        template.expand(context, output)
+        return output.getvalue()
+
+    @vmiweb.httprequest
+    def packing_slip(self, req, mod=None, **kwargs):
+        input = open(
+            '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/vmi_packing_slip.html',
+            'r')
+        template = simpleTAL.compileHTMLTemplate(input)
+        input.close()
+        form_flag = True
+        sid = req.session_id
+        uid = 17 #req.context['uid']
+        pid = 9
+        context = simpleTALES.Context()
+        # Add a string to the context under the variable title
+        context.addGlobal("title", "SEPTA VMI Packing Slip")
+        context.addGlobal("script", "")
+        context.addGlobal("header", "Packing Slip")
+        context.addGlobal("form_flag", form_flag)
+        context.addGlobal("sid", sid)
+        context.addGlobal("pid", pid)
+        context.addGlobal("uid", uid)
         output = cStringIO.StringIO()
         template.expand(context, output)
         return output.getvalue()
