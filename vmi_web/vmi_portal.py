@@ -572,7 +572,7 @@ $(document).ready(function(){
     @vmiweb.httprequest
     def packing_slip(self, req, mod=None, **kwargs):
         input = open(
-            '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/vmi_packing_slip.html',
+            '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/upload.html',
             'r')
         template = simpleTAL.compileHTMLTemplate(input)
         input.close()

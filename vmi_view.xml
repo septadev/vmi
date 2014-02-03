@@ -14,7 +14,7 @@
 				</field>
 		  </field>
 		</record>
-	       <!-- Product Suppliers (inherit)-->
+	       <!-- Product Suppliers (inherit)
 		<record id="view_product_supplier_inherit" model="ir.ui.view">
 				<field name="name">product.normal.supplier.form.inherit</field>
 				<field name="model">product.product</field>
@@ -25,7 +25,7 @@
 								 <field name="seller_ids" context="{'uom_id': uom_id}"/>
 						</group>
 				</field>
-		</record> 
+		</record> -->
     <!-- Audit Wizard -->
 		<record id="view_stock_move_audit_wizard" model="ir.ui.view">
 				<field name="name">Audit Move</field>

@@ -1,0 +1,42 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html><head>
+<meta content="text/html; charset=ISO-8859-1" http-equiv="content-type"><title>VMI Packing Slip Upload</title>
+
+		<style type="text/css" media="screen">
+			@import "/vmi/static/src/js/datatables/extras/TableTools/media/css/TableTools.css";
+			div.dataTables_wrapper { font-size: 13px; }
+			table.display thead th, table.display td { font-size: 13px; }
+		</style>
+
+<script src="/vmi/static/src/js/jquery.min.js"></script>
+<script src="/vmi/static/src/js/jquery.csv-0.71.js"></script>
+<script src="/vmi/static/src/js/csv.js"></script>
+<script type="text/javascript" src="/vmi/static/src/js/datatables/media/js/jquery.dataTables.js"></script>
+<script type="text/javascript" src="/vmi/static/src/js/datatables/extras/TableTools/media/js/TableTools.min.js"></script>
+</head><body>
+<br>
+<div id="contactContent" class="container">
+<!-- Vendor contacts Data Template Begin -->
+<p>SEPTA VMI Packing Slip</p>
+<p>Packing Slip</p>
+<div id="uploader" class="info">
+<form class="form_binary_form" action="/vmi/upload_vmi_document" method="post" enctype="multipart/form-data">
+<fieldset><legend>Select Packing Slip File</legend>
+<input name="callback" value="debug" type="hidden">
+<input name="doc_type" value="PS" type="hidden">
+<input value="17" name="uid" type="hidden">
+<input value="9" name="pid" type="hidden">
+<input value="aa3f712b3b354f9d9c9c24c55bae9078" name="sid" type="hidden">
+<input class="form_binary_file" id="files" name="ufile" type="file"><br>
+</fieldset>
+<hr>
+<output id="list"></output>
+<hr>
+<table id="contents" style="width: 100%;" cellpadding="0" cellspacing="0" border="0" class="display">
+</table>
+</form>
+<br>
+</div>
+<script type="text/javascript"></script>
+<!-- Vendor contacts Data Template End --></div>
+</body></html>
