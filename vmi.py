@@ -27,6 +27,7 @@ class vmi_client_page(osv.osv):
         'form_legend': fields.char('Form Legend', size=64, translate=False, required=True, readonly=False),
         'template_path': fields.char('Path To Template', size=357, translate=False, required=True, readonly=False),
         'template_name': fields.char('Template Name', size=128, translate=False, required=True, readonly=False),
+        'mode': fields.selection([('N', 'Normal'), ('D', 'Debug'), ('T', 'Test')], 'Mode', help="Select the mode for this controller."),
 
     }
 
