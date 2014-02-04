@@ -11,6 +11,25 @@ import functools
 
 _logger = logging.getLogger(__name__)
 
+class vmi_client_page(osv.osv):
+    """object to hold dynamic values inserted into client side templates"""
+    _name = 'vmi.client.page'
+    _table = 'vmi_client_pages'
+    _description = 'VMI Client Page'
+    _log_access = True
+
+    _columns = {
+        'name': fields.char('Name', size=128, translate=False, required=True, readonly=False),
+        'title': fields.char('Title', size=128, translate=False, required=True, readonly=False),
+        'header': fields.text('Header'),
+        'form_action': fields.char('Form Action', size=64, translate=False, required=True, readonly=False),
+        'form_flag': fields.boolean('Enable Forms'),
+        'form_legend': fields.char('Form Legend', size=64, translate=False, required=True, readonly=False),
+        'template_path': fields.char('Path To Template', size=357, translate=False, required=True, readonly=False),
+        'template_name': fields.char('Template Name', size=128, translate=False, required=True, readonly=False),
+
+    }
+
 
 class vmi_product(osv.osv):
     """Override of product.product"""

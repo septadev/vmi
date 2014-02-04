@@ -38,6 +38,7 @@ output += '<span style="font-weight:bold;">' + escape(file.name) + '</span><br /
 output += ' - FileType: ' + (file.type || 'n/a') + '<br />\n';
 output += ' - FileSize: ' + file.size + ' bytes<br />\n';
 output += ' - LastModified: ' + (file.lastModifiedDate ? file.lastModifiedDate.toLocaleDateString() : 'n/a') + '<br />\n';
+    // append submit button for upload form
 output += ' <button class="oe_button oe_field_button" type="submit" id="OBEY"><span title="Start the upload of the selected file.">Upload File</span></button>'
 // read the file contents
 printTable(file);

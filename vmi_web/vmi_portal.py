@@ -158,6 +158,8 @@ def get_partner_id(req, uid=None, **kwargs):
                   partner_ids) #{'records': [{'groups_id': [3, 9, 19, 20, 24, 27], 'partner_id': (20, u'Partner'), 'id': 13, 'name': u'Partner'}], 'length': 1}
     return partner_ids
 
+def get_client_page(page):
+    return True
 # -----------------------------------------------| VMI Session Object.
 class Session(vmiweb.Controller):
     _cp_path = "/vmi/session"
@@ -257,6 +259,9 @@ class Session(vmiweb.Controller):
         req.session._suicide = True
 
 # -----------------------------------------------| VMI Controller Methods.
+
+
+
 class VmiController(vmiweb.Controller):
     _cp_path = '/vmi'
     import csv
@@ -297,6 +302,10 @@ class VmiController(vmiweb.Controller):
                        'payment_terms',
                        'destination'
     )
+
+    def _get_vmi_client_page(self, page):
+
+        return get_client_page(page)
 
     def _create_attachment(self, req, model, id, descr, ufile):
         uid = newSession(req)
@@ -503,6 +512,7 @@ class VmiController(vmiweb.Controller):
 
     @vmiweb.httprequest
     def index(self, req, mod=None, **kwargs):
+        vmi_client_page = self.get_vmi_client_page('index')
         js = """
 
 $(document).ready(function(){
@@ -571,6 +581,7 @@ $(document).ready(function(){
 
     @vmiweb.httprequest
     def packing_slip(self, req, mod=None, **kwargs):
+        vmi_client_page = self.get_vmi_client_page('upload')
         input = open(
             '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/upload.html',
             'r')
@@ -595,6 +606,7 @@ $(document).ready(function(){
 
     @vmiweb.httprequest
     def invoice(self, req, mod=None, **kwargs):
+        vmi_client_page = self.get_vmi_client_page('invoice')
         input = open(
             '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/vmi_invoice.html', 'r')
         template = simpleTAL.compileHTMLTemplate(input)
@@ -611,36 +623,27 @@ $(document).ready(function(){
         return output.getvalue()
 
     @vmiweb.httprequest
-    def upload_vmi_document(self, req, sid, pid, uid, doc_type, callback, ufile):
+    def upload_vmi_document(self, req, pid, uid, contents_length, callback, ufile):
         #session_data = Session.session_info(req.session)
+        vmi_client_page = self.get_vmi_client_page('upload')
         args = {}
         picking_id = None
         form_flag = True
+        title = '...page title goes here...'
+        header = '...brief instructions go here...'
         req.session.ensure_valid()
         uid = newSession(req)
         model = None
         input = None
-        if doc_type == 'PS':
+        if contents_length:
         #try:
             picking_id = self._parse_packing_slip(req, ufile, pid)
             #except Exception, e:
             #	args = {'error': e.message}
 
             input = open(
-                '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/vmi_packing_slip.html',
-                'r')
-        elif doc_type == 'IV':
-            model = 'account.invoice'
-            Model = req.session.model(model)
-            fields = _invoice_fields
-            try:
-                parsedata = self._parse_invoice(req, ufile)
-            except Exception, e:
-                args = {'error': e.message}
+                '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/upload.html', 'r')
 
-            input = open(
-                '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/vmi_invoice.html',
-                'r')
 
         template = simpleTAL.compileHTMLTemplate(input)
         input.close()
@@ -655,9 +658,9 @@ $(document).ready(function(){
         req.session._suicide = True
         script = """var callback = %s; \n var return_args = %s;""" % (
         simplejson.dumps(callback), simplejson.dumps(args))
-        context.addGlobal("title", "SEPTA VMI Invoice")
+        context.addGlobal("title", title)
         context.addGlobal("script", script)
-        context.addGlobal("header", "Invoice")
+        context.addGlobal("header", header)
         context.addGlobal("picking_id", picking_id)
         context.addGlobal("form_flag", form_flag)
 
