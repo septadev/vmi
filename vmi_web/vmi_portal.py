@@ -1,19 +1,15 @@
 # -*- encoding: utf-8 -*-
 
-import glob
-import itertools
-import json
+import random
+import string
 import operator
 import os.path
 import cStringIO
-import urllib
-import urllib2
 import xmlrpclib
-import zlib
 import simplejson
 import base64
 import logging
-from xml.etree import ElementTree
+from types import *
 from simpletal import simpleTAL, simpleTALES
 import werkzeug.utils
 import werkzeug.wrappers
@@ -174,6 +170,35 @@ def get_stock_locations(req, pid, **kwargs):
 
 def get_client_page(page):
     return True
+
+
+def random_string(size, format):
+
+    """
+    Generate some random characters of length size=n.
+    @param size: Int (Size of random string returned.)
+    @param format: String (hex, letters, digits)
+    @type size: IntType
+    @type format: StringType
+    @return: String
+    """
+    formats = ('hex', 'letters', 'digits')
+    assert type(size) is IntType, "size is not an integer: %r" % size
+    assert type(format) is StringType, "format is not a string: %r" % format
+    if format in formats:
+        allowed = ''
+        if format == formats[1]:   # Generate string comprised of random letters.
+            allowed = string.ascii_letters
+        elif format == formats[0]: # Generate string comprised of random letters and numbers.
+            allowed = string.hexdigits
+        elif format == formats[2]: # Generate string comprised of random numbers.
+            allowed = string.digits
+
+    else:
+        raise TypeError
+
+    return ''.join([allowed[random.randint(0, len(allowed) - 1)] for x in xrange(size)])
+
 # -----------------------------------------------| VMI Session Object.
 class Session(vmiweb.Controller):
     _cp_path = "/vmi/session"
