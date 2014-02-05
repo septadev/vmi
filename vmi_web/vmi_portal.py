@@ -185,6 +185,7 @@ def random_string(size, format):
     formats = ('hex', 'letters', 'digits')
     assert type(size) is IntType, "size is not an integer: %r" % size
     assert type(format) is StringType, "format is not a string: %r" % format
+    format = format.lower()
     if format in formats:
         allowed = ''
         if format == formats[1]:   # Generate string comprised of random letters.
@@ -451,11 +452,12 @@ class VmiController(vmiweb.Controller):
         res = []
         if len(csv_rows) > 0:
             for row in csv_rows:
+                rnd = random_string(8, 'hex')
                 delivery_date = str(row['year']).strip() + '/' + str(row['month']).strip() + '/' + str(
                     row['day']).strip()
                 #_logger.debug('<_create_stock_picking> CSV file: %s', str(row))
                 picking_id = Model.create({
-                                          'name': row['packing_list_number'].strip() + '-' + delivery_date,
+                                          'name': row['packing_list_number'].strip() + '.' + delivery_date + '.' + rnd,
                                           'date': delivery_date,
                                           'partner_id': pid,
                                           'origin': row['packing_list_number'].strip(),
