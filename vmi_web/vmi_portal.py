@@ -4,7 +4,7 @@ import glob
 import itertools
 import json
 import operator
-import os
+import os.path
 import cStringIO
 import urllib
 import urllib2
@@ -158,6 +158,20 @@ def get_partner_id(req, uid=None, **kwargs):
                   partner_ids) #{'records': [{'groups_id': [3, 9, 19, 20, 24, 27], 'partner_id': (20, u'Partner'), 'id': 13, 'name': u'Partner'}], 'length': 1}
     return partner_ids
 
+
+def get_stock_locations(req, pid, **kwargs):
+    stock_locations = None
+    fields = ['name', 'id', 'location_id', 'partner_id']
+    try:
+        stock_locations = do_search_read(req, 'stock.location', fields, 0, False, [], None)
+    except Exception:
+        _logger.debug('stock locations not found for partner ID: %s', pid)
+
+    if not stock_locations:
+        raise Exception("AccessDenied")
+    _logger.debug('stock locations: %s', str(stock_locations['records']))
+    return stock_locations
+
 def get_client_page(page):
     return True
 # -----------------------------------------------| VMI Session Object.
@@ -259,6 +273,7 @@ class Session(vmiweb.Controller):
         req.session._suicide = True
 
 # -----------------------------------------------| VMI Controller Methods.
+
 
 
 
@@ -512,7 +527,7 @@ class VmiController(vmiweb.Controller):
 
     @vmiweb.httprequest
     def index(self, req, mod=None, **kwargs):
-        vmi_client_page = self.get_vmi_client_page('index')
+        vmi_client_page = self._get_vmi_client_page('index')
         js = """
 
 $(document).ready(function(){
@@ -581,7 +596,7 @@ $(document).ready(function(){
 
     @vmiweb.httprequest
     def packing_slip(self, req, mod=None, **kwargs):
-        vmi_client_page = self.get_vmi_client_page('upload')
+        vmi_client_page = self._get_vmi_client_page('upload')
         input = open(
             '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/upload.html',
             'r')
@@ -606,7 +621,7 @@ $(document).ready(function(){
 
     @vmiweb.httprequest
     def invoice(self, req, mod=None, **kwargs):
-        vmi_client_page = self.get_vmi_client_page('invoice')
+        vmi_client_page = self._get_vmi_client_page('invoice')
         input = open(
             '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/vmi_invoice.html', 'r')
         template = simpleTAL.compileHTMLTemplate(input)
@@ -625,7 +640,7 @@ $(document).ready(function(){
     @vmiweb.httprequest
     def upload_vmi_document(self, req, pid, uid, contents_length, callback, ufile):
         #session_data = Session.session_info(req.session)
-        vmi_client_page = self.get_vmi_client_page('upload')
+        vmi_client_page = self._get_vmi_client_page('upload')
         args = {}
         picking_id = None
         form_flag = True
