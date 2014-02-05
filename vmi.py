@@ -28,9 +28,14 @@ class vmi_client_page(osv.osv):
         'template_path': fields.char('Path To Template', size=357, translate=False, required=True, readonly=False),
         'template_name': fields.char('Template Name', size=128, translate=False, required=True, readonly=False),
         'mode': fields.selection([('N', 'Normal'), ('D', 'Debug'), ('T', 'Test')], 'Mode', help="Select the mode for this controller."),
+        'active': fields.boolean('Enable Controller')
 
     }
-
+    _defaults = {
+        'active': lambda *a: True,
+        'mode': lambda *a: "N",
+        'form_flag': lambda *a: True,
+    }
 
 class vmi_product(osv.osv):
     """Override of product.product"""
