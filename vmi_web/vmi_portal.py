@@ -622,6 +622,7 @@ $(document).ready(function(){
     @vmiweb.httprequest
     def packing_slip(self, req, mod=None, **kwargs):
         vmi_client_page = self._get_vmi_client_page('upload')
+        js = 'var csvFields = new Array%s;' str(self._packing_slip_fields)
         input = open(
             '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/upload.html',
             'r')
@@ -634,7 +635,7 @@ $(document).ready(function(){
         context = simpleTALES.Context()
         # Add a string to the context under the variable title
         context.addGlobal("title", "SEPTA VMI Packing Slip")
-        context.addGlobal("script", "")
+        context.addGlobal("script", js)
         context.addGlobal("header", "Packing Slip")
         context.addGlobal("form_flag", form_flag)
         context.addGlobal("sid", sid)
