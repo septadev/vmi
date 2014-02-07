@@ -58,15 +58,15 @@ provided search criteria
     if fields and fields == ['id']:
         # shortcut read if we only want the ids
         return {
-        'length': length,
-        'records': [{'id': id} for id in ids]
+            'length': length,
+            'records': [{'id': id} for id in ids]
         }
 
     records = Model.read(ids, fields or False, req.context)
     records.sort(key=lambda obj: ids.index(obj['id']))
     return {
-    'length': length,
-    'records': records
+        'length': length,
+        'records': records
     }
 
 
@@ -128,6 +128,7 @@ def get_vendor_id(req, uid=None, **kwargs):
                   vendor_ids) #{'records': [{'company': u'Gomez Electrical Supply', 'id': 3}], 'length': 1}
     return vendor_ids
 
+
 def get_partner_id(req, uid=None, **kwargs):
     """ Find the partner associated to the current logged-in user """
     partner_ids = None
@@ -168,12 +169,30 @@ def get_stock_locations(req, pid, **kwargs):
     _logger.debug('stock locations: %s', str(stock_locations['records']))
     return stock_locations
 
-def get_client_page(page):
-    return True
+
+def get_client_page(req, page):
+    """
+
+
+    @param req:
+    @param page: string
+    @return: dict
+    """
+    client = None
+    fields = fields_get(req, 'vmi.client.page')
+    try:
+        client = do_search_read(req, 'vmi.client.page', fields, 0, False, [('name', '=', page)], None)
+    except Exception:
+        _logger.debug('VMI Page not found for ID: %s', page)
+
+    if not client:
+        raise Exception("AccessDenied")
+
+    return client
+
 
 
 def random_string(size, format):
-
     """
     Generate some random characters of length size=n.
     @param size: Int (Size of random string returned.)
@@ -218,13 +237,13 @@ class Session(vmiweb.Controller):
                 _logger.debug('Vendor not found for user ID: %s', uid)
                 return {'error': _('No Vendor found for this User ID!'), 'title': _('Vendor Not Found')}
             res = {
-            "session_id": req.session_id,
-            "uid": req.session._uid,
-            "user_context": req.session.get_context() if req.session._uid else {},
-            "db": req.session._db,
-            "username": req.session._login,
-            "vendor_id": vendor['id'],
-            "company": vendor['company'],
+                "session_id": req.session_id,
+                "uid": req.session._uid,
+                "user_context": req.session.get_context() if req.session._uid else {},
+                "db": req.session._db,
+                "username": req.session._login,
+                "vendor_id": vendor['id'],
+                "company": vendor['company'],
             }
         elif request_id == 'VMI': # Check to see if user is a VMI vendor
             try:                                                                                # Get Partner ID for session
@@ -236,21 +255,21 @@ class Session(vmiweb.Controller):
             if vendor.has_key('company'):
                 company = vendor['company']
             res = {
-            "session_id": req.session_id,
-            "uid": req.session._uid,
-            "user_context": req.session.get_context() if req.session._uid else {},
-            "db": req.session._db,
-            "username": req.session._login,
-            "partner_id": vendor['partner_id'][0],
-            "company": vendor['partner_id'][1],
+                "session_id": req.session_id,
+                "uid": req.session._uid,
+                "user_context": req.session.get_context() if req.session._uid else {},
+                "db": req.session._db,
+                "username": req.session._login,
+                "partner_id": vendor['partner_id'][0],
+                "company": vendor['partner_id'][1],
             }
         else: # Allow login for valid user without Vendor or Partner such as Admin or Manager
             res = {
-            "session_id": req.session_id,
-            "uid": req.session._uid,
-            "user_context": req.session.get_context() if req.session._uid else {},
-            "db": req.session._db,
-            "username": req.session._login,
+                "session_id": req.session_id,
+                "uid": req.session._uid,
+                "user_context": req.session.get_context() if req.session._uid else {},
+                "db": req.session._db,
+                "username": req.session._login,
             }
         return res
 
@@ -306,6 +325,9 @@ class Session(vmiweb.Controller):
 class VmiController(vmiweb.Controller):
     _cp_path = '/vmi'
     import csv
+
+    _modes = ('N', 'D', 'T')
+    _error_page = '/vmi/error'
     _packing_slip_fields = ('month',
                             'day',
                             'year',
@@ -343,10 +365,46 @@ class VmiController(vmiweb.Controller):
                        'payment_terms',
                        'destination'
     )
+    # These fields from vmi.client.page.
+    _template_keys = ('title',
+                      'header',
+                      'form_flag',
+                      'form_action',
+                      'form_legend',
+                      'template_path',
+                      'template_name',
+                      'mode'
+    )
+    _html_template = """<!DOCTYPE html>
+        <html style="height: 100%%">
+            <head>
+                <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"/>
+                <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+                <title>SEPTA VMI</title>
+                <link rel="shortcut icon" href="/vmi/static/src/img/favicon.ico" type="image/x-icon"/>
+                <link rel="stylesheet" href="/vmi/static/src/css/main.css" />
+                %(css)s
+                %(js)s
+                <script type="text/javascript">
+                  %(script)s
+                </script>
+            </head>
+            <body>
+               %(body)s
+            </body>
+        </html>
+        """
+    def _get_vmi_client_page(self, req, page):
 
-    def _get_vmi_client_page(self, page):
+        """
 
-        return get_client_page(page)
+
+        @param req:
+        @param page: string
+        @return: search object
+        """
+
+        return get_client_page(req, page)
 
     def _create_attachment(self, req, model, id, descr, ufile):
         uid = newSession(req)
@@ -355,16 +413,16 @@ class VmiController(vmiweb.Controller):
         ufile.seek(0)
         try:
             attachment_id = Model.create({
-                                         'name': descr + '_' + ufile.filename,
-                                         'datas': base64.encodestring(ufile.read()),
-                                         'datas_fname': str(id) + '_' + ufile.filename,
-                                         'description': descr,
-                                         'res_model': model,
-                                         'res_id': int(id)
+                                             'name': descr + '_' + ufile.filename,
+                                             'datas': base64.encodestring(ufile.read()),
+                                             'datas_fname': str(id) + '_' + ufile.filename,
+                                             'description': descr,
+                                             'res_model': model,
+                                             'res_id': int(id)
                                          }, req.context)
             args.update({
-            'filename': ufile.filename,
-            'id': attachment_id
+                'filename': ufile.filename,
+                'id': attachment_id
             })
         except xmlrpclib.Fault, e:
             args.update({'error': e.faultCode})
@@ -457,12 +515,13 @@ class VmiController(vmiweb.Controller):
                     row['day']).strip()
                 #_logger.debug('<_create_stock_picking> CSV file: %s', str(row))
                 picking_id = Model.create({
-                                          'name': row['packing_list_number'].strip() + '.' + delivery_date + '.' + rnd,
-                                          'date': delivery_date,
-                                          'partner_id': pid,
-                                          'origin': row['packing_list_number'].strip(),
-                                          'invoice_state': 'none',
-                                          'note': row['purchase_order'].strip()
+                                              'name': row[
+                                                          'packing_list_number'].strip() + '.' + delivery_date + '.' + rnd,
+                                              'date': delivery_date,
+                                              'partner_id': pid,
+                                              'origin': row['packing_list_number'].strip(),
+                                              'invoice_state': 'none',
+                                              'note': row['purchase_order'].strip()
                                           }, req.context)
                 res.append({'picking_id': picking_id, 'packing_list': row['packing_list_number'].strip()})
 
@@ -498,15 +557,15 @@ class VmiController(vmiweb.Controller):
                 delivery_date = str(csv_row['year']).strip() + '/' + str(csv_row['month']).strip() + '/' + str(
                     csv_row['day']).strip()
                 move_id = Model.create({
-                'product_id': product['id'],
-                'name': csv_row['packing_list_number'].strip() + '|' + delivery_date,
-                'product_uom': product['uom_id'][0],
-                'product_qty': float(csv_row['quantity_shipped']),
-                'location_dest_id': location_id,
-                'location_id': 8,
-                'partner_id': location_partner,
-                'picking_id': csv_row['picking_id'],
-                'date': delivery_date,
+                    'product_id': product['id'],
+                    'name': csv_row['packing_list_number'].strip() + '|' + delivery_date,
+                    'product_uom': product['uom_id'][0],
+                    'product_qty': float(csv_row['quantity_shipped']),
+                    'location_dest_id': location_id,
+                    'location_id': 8,
+                    'partner_id': location_partner,
+                    'picking_id': csv_row['picking_id'],
+                    'date': delivery_date,
                 })
                 moves.append(move_id)
 
@@ -554,7 +613,7 @@ class VmiController(vmiweb.Controller):
 
     @vmiweb.httprequest
     def index(self, req, mod=None, **kwargs):
-        vmi_client_page = self._get_vmi_client_page('index')
+        vmi_client_page = self._get_vmi_client_page(req, 'index')
         js = """
 
 $(document).ready(function(){
@@ -622,9 +681,68 @@ $(document).ready(function(){
         return output.getvalue()
 
     @vmiweb.httprequest
+    def upload(self, req, mod=None, **kwargs):
+        """
+        Controller for VMI Packing Slip Upload Page
+        @param req: request object
+        @param mod: mode selector (N, D, T)
+        @param kwargs:
+        @return: TAL Template
+        """
+        redirect_url = self._error_page
+        temp_globals = dict.fromkeys(self._template_keys, None)
+        vmi_client_page = self._get_vmi_client_page(req, 'upload')['records']
+        if vmi_client_page: # Set the mode for the controller and template.
+            for key in temp_globals:
+                temp_globals[key] = vmi_client_page[0][key]
+
+            if mod is None:
+                mod = vmi_client_page[0]['mode']
+
+        if mod is not None:
+            if mod not in self._modes:
+                raise KeyError
+
+        js = 'var csvFields = new Array%s;\n' %str(self._packing_slip_fields)
+        js += 'var mode = %s;\n' %mod
+        temp_location = os.path.join(vmi_client_page[0]['template_path'], vmi_client_page[0]['template_name'])
+        input = ''
+        try:
+            input = open(temp_location, 'r')
+        except IOError, e:
+            _logger.debug('opening the template file %s returned an error: %s, with message %s', e.filename, e.strerror, e.message)
+        finally:
+            input.close()
+
+        # If the template file not found or readable then redirect to error page.
+        if not input:
+            return req.not_found()
+
+        template = simpleTAL.compileHTMLTemplate(input)
+        input.close()
+        sid = req.session_id
+        uid = 17 #req.context['uid']
+        pid = 9
+        context = simpleTALES.Context()
+        # Add a string to the context under the variable title
+        context.addGlobal("title", temp_globals['title'])
+        context.addGlobal("script", js)
+        context.addGlobal("header", temp_globals['header'])
+        context.addGlobal("form_flag", temp_globals['form_flag'])
+        context.addGlobal("form_action", temp_globals['form_action'])
+        context.addGlobal("form_legend", temp_globals['form_legend'])
+        context.addGlobal("sid", sid)
+        context.addGlobal("pid", pid)
+        context.addGlobal("uid", uid)
+        context.addGlobal("mode", mod)
+        output = cStringIO.StringIO()
+        template.expand(context, output)
+        return output.getvalue()
+
+    @vmiweb.httprequest
     def packing_slip(self, req, mod=None, **kwargs):
-        vmi_client_page = self._get_vmi_client_page('upload')
-        js = 'var csvFields = new Array%s;' str(self._packing_slip_fields)
+        #vmi_client_page = self._get_vmi_client_page(req, 'upload')
+        js = 'var csvFields = new Array%s;' %str(self._packing_slip_fields)
         input = open(
             '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/upload.html',
             'r')
@@ -649,9 +767,10 @@ $(document).ready(function(){
 
     @vmiweb.httprequest
     def invoice(self, req, mod=None, **kwargs):
-        vmi_client_page = self._get_vmi_client_page('invoice')
+        vmi_client_page = self._get_vmi_client_page(req, 'invoice')
         input = open(
-            '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/vmi_invoice.html', 'r')
+            '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/vmi_invoice.html',
+            'r')
         template = simpleTAL.compileHTMLTemplate(input)
         input.close()
 
@@ -668,7 +787,7 @@ $(document).ready(function(){
     @vmiweb.httprequest
     def upload_vmi_document(self, req, pid, uid, contents_length, callback, ufile):
         #session_data = Session.session_info(req.session)
-        vmi_client_page = self._get_vmi_client_page('upload')
+        vmi_client_page = self._get_vmi_client_page(req, 'upload')
         args = {}
         picking_id = None
         form_flag = True
@@ -687,7 +806,6 @@ $(document).ready(function(){
             input = open(
                 '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/upload.html', 'r')
 
-
         template = simpleTAL.compileHTMLTemplate(input)
         input.close()
         context = simpleTALES.Context()
@@ -700,7 +818,7 @@ $(document).ready(function(){
         #	form_flag = False
         req.session._suicide = True
         script = """var callback = %s; \n var return_args = %s;""" % (
-        simplejson.dumps(callback), simplejson.dumps(args))
+            simplejson.dumps(callback), simplejson.dumps(args))
         context.addGlobal("title", title)
         context.addGlobal("script", script)
         context.addGlobal("header", header)
@@ -711,3 +829,37 @@ $(document).ready(function(){
         template.expand(context, output)
         return output.getvalue()
 
+    @vmiweb.httprequest
+    def saveas(self, req, model, field, id=None, filename_field=None, **kw):
+        """ Download link for files stored as binary fields.
+
+        If the ``id`` parameter is omitted, fetches the default value for the
+        binary field (via ``default_get``), otherwise fetches the field for
+        that precise record.
+
+        :param req: OpenERP request
+        :type req: :class:`web.common.http.HttpRequest`
+        :param str model: name of the model to fetch the binary from
+        :param str field: binary field
+        :param str id: id of the record from which to fetch the binary
+        :param str filename_field: field holding the file's name, if any
+        :returns: :class:`werkzeug.wrappers.Response`
+        """
+        Model = req.session.model(model)
+        fields = [field]
+        if filename_field:
+            fields.append(filename_field)
+        if id:
+            res = Model.read([int(id)], fields, req.context)[0]
+        else:
+            res = Model.default_get(fields, req.context)
+        filecontent = base64.b64decode(res.get(field, ''))
+        if not filecontent:
+            return req.not_found()
+        else:
+            filename = '%s_%s' % (model.replace('.', '_'), id)
+            if filename_field:
+                filename = res.get(filename_field, '') or filename
+            return req.make_response(filecontent,
+                [('Content-Type', 'application/octet-stream'),
+                 ('Content-Disposition', content_disposition(filename, req))])
