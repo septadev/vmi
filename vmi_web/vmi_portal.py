@@ -787,7 +787,7 @@ $(document).ready(function(){
     @vmiweb.httprequest
     def upload_vmi_document(self, req, pid, uid, contents_length, callback, ufile):
         #session_data = Session.session_info(req.session)
-        vmi_client_page = self._get_vmi_client_page(req, 'upload')
+        #vmi_client_page = self._get_vmi_client_page(req, 'upload')
         args = {}
         picking_id = None
         form_flag = True
@@ -798,10 +798,10 @@ $(document).ready(function(){
         model = None
         input = None
         if contents_length:
-        #try:
-            picking_id = self._parse_packing_slip(req, ufile, pid)
-            #except Exception, e:
-            #	args = {'error': e.message}
+            try:
+                picking_id = self._parse_packing_slip(req, ufile, pid)
+            except Exception, e:
+                args = {'error': e.message}
 
             input = open(
                 '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/upload.html', 'r')
@@ -814,8 +814,9 @@ $(document).ready(function(){
         #attachment_id = Model.create(parsedata, req.context)
         #except xmlrpclib.Fault, e:
         #args = {'error':e.faultCode }
-        #if args['error']:
-        #	form_flag = False
+        if args:
+            form_flag = False
+
         req.session._suicide = True
         script = """var callback = %s; \n var return_args = %s;""" % (
             simplejson.dumps(callback), simplejson.dumps(args))
