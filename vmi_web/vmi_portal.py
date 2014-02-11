@@ -157,6 +157,13 @@ def get_partner_id(req, uid=None, **kwargs):
 
 
 def get_stock_locations(req, pid, **kwargs):
+    """
+
+    @param req: object
+    @param pid: partner ID
+    @param kwargs:
+    @return: search result of all stock.location instances
+    """
     stock_locations = None
     fields = ['name', 'id', 'location_id', 'partner_id']
     try:
@@ -407,6 +414,15 @@ class VmiController(vmiweb.Controller):
         return get_client_page(req, page)
 
     def _create_attachment(self, req, model, id, descr, ufile):
+        """
+
+        @param req:
+        @param model:
+        @param id:
+        @param descr:
+        @param ufile:
+        @return:
+        """
         uid = newSession(req)
         Model = req.session.model('ir.attachment')
         args = {}
@@ -429,35 +445,46 @@ class VmiController(vmiweb.Controller):
         return args
 
     def _validate_products(self, req, csv_rows, pid):
+        """
+
+        @param req:
+        @param csv_rows:
+        @param pid:
+        @return: @raise IndexError:
+        """
         res = {}
         results = {}
-        prod_list = []
+        args = {}
+        csv_part_numbers = []
         fields = ['id', 'default_code', 'uom_id']
-        default_codes = []
+        db_part_numbers = []
         for row in csv_rows:
-            prod_list.append(row['septa_part_number'].strip())
+            csv_part_numbers.append(row['septa_part_number'].strip())
 
-        if len(prod_list) == 0:
+        if len(csv_part_numbers) == 0:
             _logger.debug('<_validate_products> Packing slip missing part numbers for partner: %s', str(pid))
-            raise IndexError("<_validate_products> Product not found in (%r)!" % str(prod_list))
+            raise IndexError("<_validate_products> Product not found in (%r)!" % str(csv_part_numbers))
         else:
-            #try:
-            res = do_search_read(req, 'product.product', fields, 0, False, [('default_code', 'in', prod_list)], None)
-            #except Exception:
-            _logger.debug('<_validate_products> Error finding products in: %s', res['records'])
+            unique_part_numbers = list(set(csv_part_numbers))
+            try:
+                res = do_search_read(req, 'product.product', fields, 0, False, [('default_code', 'in', unique_part_numbers)], None)
+            except xmlrpclib.Fault, e:
+                args.update({'error': e.faultCode})
+                _logger.debug('<_validate_products> Error finding products in: %s', str(unique_part_numbers))
+                return args
 
             if res is not None:
                 for record in res['records']:
-                    default_codes.append(record['default_code'])
+                    db_part_numbers.append(record['default_code'])
             else:
                 raise IndexError("<_validate_products> No products returned from search: (%r)!" % str(res))
 
-            _logger.debug('<_validate_products> default_codes: %s', default_codes)
-            _logger.debug('<_validate_products> prod_list: %s', prod_list)
-            if cmp(default_codes, prod_list) == 0:
+            _logger.debug('<_validate_products> db_part_numbers: %s', db_part_numbers)
+            _logger.debug('<_validate_products> csv_part_numbers: %s', unique_part_numbers)
+            if cmp(db_part_numbers.sort(), unique_part_numbers.sort()) == 0:
                 results.update({'records': res['records'], 'length': len(res), 'valid': True})
             else:
-                bad_products = [x for x in prod_list if x not in default_codes]
+                bad_products = [x for x in unique_part_numbers if x not in db_part_numbers]
                 results.update({'records': bad_products, 'length': len(bad_products), 'valid': False})
                 _logger.debug('<_validate_products> Invalid products found in packing slip: %s', str(bad_products))
 
@@ -476,6 +503,12 @@ class VmiController(vmiweb.Controller):
         return True
 
     def _csv_reader(self, filedata, fields):
+        """
+
+        @param filedata:
+        @param fields:
+        @return:
+        """
         res = []
         csv = self.csv
         csv.register_dialect('escaped', escapechar='\\', doublequote=False, quoting=csv.QUOTE_NONE)
@@ -505,12 +538,19 @@ class VmiController(vmiweb.Controller):
         return {'records': res, 'length': len(res)}
 
     def _create_stock_picking(self, req, csv_rows, pid):
+        """
+
+        @param req:
+        @param csv_rows:
+        @param pid:
+        @return:
+        """
         model_name = 'stock.picking.in'
         Model = req.session.model(model_name)
         res = []
         if len(csv_rows) > 0:
             for row in csv_rows:
-                rnd = random_string(8, 'hex')
+                rnd = random_string(8, 'digits')
                 delivery_date = str(row['year']).strip() + '/' + str(row['month']).strip() + '/' + str(
                     row['day']).strip()
                 #_logger.debug('<_create_stock_picking> CSV file: %s', str(row))
@@ -528,26 +568,36 @@ class VmiController(vmiweb.Controller):
         return res
 
     def _create_move_line(self, req, csv_rows, pid):
+        """
+        Create an OpenERP stock.move instance for each line item
+        within the packing slip.
+        @param req: object
+        @param csv_rows: lines from packing slip data
+        @param pid: Partner ID
+        @return: stock.move ID list
+        """
         moves = []
         model_name = 'stock.move'
         Model = req.session.model(model_name)
         location_id = None
         location_partner = None
         locations = get_stock_locations(req, pid)
-        products = self._validate_products(req, csv_rows, pid)
-        if len(csv_rows) > 0 and products['valid']:
+        validated_products = self._validate_products(req, csv_rows, pid)
+        if len(csv_rows) > 0 and validated_products['valid']:
             product = None
             for csv_row in csv_rows:
-                for prod in products['records']:
+                for prod in validated_products['records']:
                     _logger.debug('<_create_move_line> Current product: %s', prod['default_code'])
-                if prod['default_code'] == csv_row['septa_part_number'].strip():
-                    product = prod
-                    break
+                    if prod['default_code'] == csv_row['septa_part_number'].strip():
+                        product = prod
+                        break
 
                 for location in locations['records']:
-                    if location['name'] == str(csv_row['destination']).strip():
+                    if location['name'].upper() == str(csv_row['destination']).strip().upper():
                         location_id = location['id']
-                        location_partner = location['partner_id'][0]
+                        if location['partner_id']:
+                            location_partner = location['partner_id'][0]
+
                         _logger.debug('<_create_move_line> location: %s', str(location_id))
                         break
 
@@ -558,7 +608,7 @@ class VmiController(vmiweb.Controller):
                     csv_row['day']).strip()
                 move_id = Model.create({
                     'product_id': product['id'],
-                    'name': csv_row['packing_list_number'].strip() + '|' + delivery_date,
+                    'name': csv_row['packing_list_number'].strip() + '.' + delivery_date + '.' + random_string(8, 'digits'),
                     'product_uom': product['uom_id'][0],
                     'product_qty': float(csv_row['quantity_shipped']),
                     'location_dest_id': location_id,
@@ -570,7 +620,7 @@ class VmiController(vmiweb.Controller):
                 moves.append(move_id)
 
         else:
-            _logger.debug('<_create_move_line> Moves not created due to bad products: %s', products['records'])
+            _logger.debug('<_create_move_line> Moves not created due to bad products: %s', validated_products['records'])
 
         return moves
 
@@ -613,7 +663,7 @@ class VmiController(vmiweb.Controller):
 
     @vmiweb.httprequest
     def index(self, req, mod=None, **kwargs):
-        vmi_client_page = self._get_vmi_client_page(req, 'index')
+        #vmi_client_page = self._get_vmi_client_page(req, 'index')
         js = """
 
 $(document).ready(function(){
@@ -767,7 +817,7 @@ $(document).ready(function(){
 
     @vmiweb.httprequest
     def invoice(self, req, mod=None, **kwargs):
-        vmi_client_page = self._get_vmi_client_page(req, 'invoice')
+        #vmi_client_page = self._get_vmi_client_page(req, 'invoice')
         input = open(
             '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/vmi_invoice.html',
             'r')
@@ -798,10 +848,11 @@ $(document).ready(function(){
         model = None
         input = None
         if contents_length:
+            import pdb; pdb.set_trace()
             try:
-                picking_id = self._parse_packing_slip(req, ufile, pid)
+                self._parse_packing_slip(req, ufile, pid)
             except Exception, e:
-                args = {'error': e.message}
+                args = {'error': str(e) }
 
             input = open(
                 '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/upload.html', 'r')
