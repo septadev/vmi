@@ -848,7 +848,7 @@ $(document).ready(function(){
         model = None
         input = None
         if contents_length:
-            import pdb; pdb.set_trace()
+            #import pdb; pdb.set_trace()
             try:
                 self._parse_packing_slip(req, ufile, pid)
             except Exception, e:
