@@ -716,8 +716,14 @@ $(document).ready(function(){
 });
 
 		"""
-        input = open(
-            '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/index.html', 'r')
+        input = ''
+        try:
+            input = open('/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/index.html', 'r')
+        except IOError, e:
+            _logger.debug('opening the template file %s returned an error: %s, with message %s', e.filename, e.strerror, e.message)
+        finally:
+            pass
+
         template = simpleTAL.compileHTMLTemplate(input)
         input.close()
 
@@ -854,8 +860,12 @@ $(document).ready(function(){
             except Exception, e:
                 args = {'error': str(e) }
 
-            input = open(
-                '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/upload.html', 'r')
+            try:
+                input = open('/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/upload.html', 'r')
+            except IOError, e:
+                _logger.debug('opening the template file %s returned an error: %s, with message %s', e.filename, e.strerror, e.message)
+            finally:
+                pass
 
         template = simpleTAL.compileHTMLTemplate(input)
         input.close()
