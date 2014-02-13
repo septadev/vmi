@@ -118,5 +118,78 @@
 							</field>
 				</field>
 		</record>
+        <!-- VMI Client Page -->
+        <record id="vmi_client_page_form" model="ir.ui.view">
+            <field name="name">vmi.client.page.form</field>
+            <field name="model">vmi.client.page</field>
+            <field name="arch" type="xml">
+                <form string="Client Page" version="7.0">
+                  <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <label string="VMI Client Page: " />
+                            <field name="name" class="oe_inline" select="1"/>
+                        </h1>
+                    </div>
+                    <notebook colspan="4">
+                        <page string="Form">
+                            <label for="form_action" />
+                            <field name="form_action"/>
+                            <label for="form_legend" />
+                            <field name="form_legend"/>
+                        </page>
+                        <page string="Page">
+                            <label for="title" />
+                            <field name="title"/>
+                            <label for="header" />
+                            <field name="header"/>
+                        </page>
+                        <page string="Template">
+                            <label for="template_path" />
+                            <field name="template_path"/>
+                            <label for="template_name" />
+                            <field name="template_name"/>
+                        </page>
+                        <page string="Control">
+                            <label for="mode" />
+							<field name="mode" />
+                            <label for="form_flag" />
+                            <field name="form_flag"/>
+                            <label for="active" />
+							<field name="active"/>
+                        </page>
+                    </notebook>
+                    <group string="Record">
+						    <field name="write_date" />
+						    <field name="write_uid" />
+	         		</group>
+                  </sheet>
+                </form>
+            </field>
+        </record>
+        <record id="view_client_tree" model="ir.ui.view">
+            <field name="name">stock.client.tree</field>
+            <field name="model">vmi.client.page</field>
+            <field name="arch" type="xml">
+                <tree string="Client Pages">
+                    <field name="name"/>
+                    <field name="mode"/>
+                    <field name="active"/>
+                    <field name="write_date"/>
+                </tree>
+            </field>
+        </record>
+        <record id="action_client_form" model="ir.actions.act_window">
+            <field name="name">Client Pages</field>
+            <field name="res_model">vmi.client.page</field>
+            <field name="view_type">form</field>
+            <field name="view_mode">tree,form</field>
+            <field name="help" type="html">
+              <p class="oe_view_nocontent_create">
+                Click to define a new client page.
+              </p>
+            </field>
+        </record>
+        <menuitem action="action_client_form" id="menu_action_client_form" parent="stock.menu_stock_configuration" sequence="1"/>
 	</data>			  
 </openerp>	

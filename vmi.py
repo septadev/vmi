@@ -28,7 +28,9 @@ class vmi_client_page(osv.osv):
         'template_path': fields.char('Path To Template', size=357, translate=False, required=True, readonly=False),
         'template_name': fields.char('Template Name', size=128, translate=False, required=True, readonly=False),
         'mode': fields.selection([('N', 'Normal'), ('D', 'Debug'), ('T', 'Test')], 'Mode', help="Select the mode for this controller."),
-        'active': fields.boolean('Enable Controller')
+        'active': fields.boolean('Enable Controller'),
+        'write_date': fields.date('Last Update', required=False, readonly=True),
+        'write_uid': fields.many2one('res.users', 'Updated', readonly=True),
 
     }
     _defaults = {
