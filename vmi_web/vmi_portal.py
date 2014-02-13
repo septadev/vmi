@@ -179,9 +179,9 @@ def get_stock_locations(req, pid, **kwargs):
 
 def get_client_page(req, page):
     """
+    Search for vmi.client.page instances for client page.
 
-
-    @param req:
+    @param req: object
     @param page: string
     @return: dict
     """
@@ -745,15 +745,21 @@ $(document).ready(function(){
         @param kwargs:
         @return: TAL Template
         """
+        page_name = 'upload'
         redirect_url = self._error_page
+        req.session.ensure_valid()
+        uid = newSession(req)
         temp_globals = dict.fromkeys(self._template_keys, None)
-        vmi_client_page = self._get_vmi_client_page(req, 'upload')['records']
+        vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
         if vmi_client_page: # Set the mode for the controller and template.
             for key in temp_globals:
                 temp_globals[key] = vmi_client_page[0][key]
 
             if mod is None:
                 mod = vmi_client_page[0]['mode']
+        else:
+            _logger.debug('No vmi.client.page record found for page name %s!', page_name)
+            return req.not_found()
 
         if mod is not None:
             if mod not in self._modes:
@@ -768,7 +774,7 @@ $(document).ready(function(){
         except IOError, e:
             _logger.debug('opening the template file %s returned an error: %s, with message %s', e.filename, e.strerror, e.message)
         finally:
-            input.close()
+            pass
 
         # If the template file not found or readable then redirect to error page.
         if not input:
