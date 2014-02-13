@@ -141,8 +141,9 @@
                         <page string="Page">
                             <label for="title" />
                             <field name="title"/>
+                            <div class="oe_clear" />
                             <label for="header" />
-                            <field name="header"/>
+                            <field name="header" class="oe_inline"/>
                         </page>
                         <page string="Template">
                             <label for="template_path" />
