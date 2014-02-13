@@ -801,6 +801,68 @@ $(document).ready(function(){
         template.expand(context, output)
         return output.getvalue()
 
+    def result(self, req, mod=None, **kwargs):
+        """
+        Controller for upload result page.
+        @param req: request object
+        @param mod: mode selector (N, D, T)
+        @param kwargs:
+        @return: TAL Template
+        """
+        page_name = 'result'
+        redirect_url = self._error_page
+        req.session.ensure_valid()
+        uid = newSession(req)
+        temp_globals = dict.fromkeys(self._template_keys, None)
+        vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
+        if vmi_client_page: # Set the mode for the controller and template.
+            for key in temp_globals:
+                temp_globals[key] = vmi_client_page[0][key]
+
+            if mod is None:
+                mod = vmi_client_page[0]['mode']
+        else:
+            _logger.debug('No vmi.client.page record found for page name %s!', page_name)
+            return req.not_found()
+
+        if mod is not None:
+            if mod not in self._modes:
+                raise KeyError
+
+        temp_location = os.path.join(vmi_client_page[0]['template_path'], vmi_client_page[0]['template_name'])
+        input = ''
+        try:
+            input = open(temp_location, 'r')
+        except IOError, e:
+            _logger.debug('opening the template file %s returned an error: %s, with message %s', e.filename, e.strerror, e.message)
+        finally:
+            pass
+
+        # If the template file not found or readable then redirect to error page.
+        if not input:
+            return req.not_found()
+
+        template = simpleTAL.compileHTMLTemplate(input)
+        input.close()
+        sid = req.session_id
+        uid = 17 #req.context['uid']
+        pid = 9
+        context = simpleTALES.Context()
+        # Add a string to the context under the variable title
+        context.addGlobal("title", temp_globals['title'])
+        context.addGlobal("script", js)
+        context.addGlobal("header", temp_globals['header'])
+        context.addGlobal("form_flag", temp_globals['form_flag'])
+        context.addGlobal("form_action", temp_globals['form_action'])
+        context.addGlobal("form_legend", temp_globals['form_legend'])
+        context.addGlobal("sid", sid)
+        context.addGlobal("pid", pid)
+        context.addGlobal("uid", uid)
+        context.addGlobal("mode", mod)
+        output = cStringIO.StringIO()
+        template.expand(context, output)
+        return output.getvalue()
+
     @vmiweb.httprequest
     def packing_slip(self, req, mod=None, **kwargs):
         #vmi_client_page = self._get_vmi_client_page(req, 'upload')
