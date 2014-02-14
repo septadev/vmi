@@ -174,7 +174,9 @@
             <field name="arch" type="xml">
                 <tree string="Client Pages">
                     <field name="name"/>
+                    <field name="template_name"/>
                     <field name="mode"/>
+                    <field name="form_flag"/>
                     <field name="active"/>
                     <field name="write_date"/>
                 </tree>
