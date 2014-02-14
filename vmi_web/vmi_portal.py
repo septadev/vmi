@@ -199,13 +199,33 @@ def get_stock_location_by_id(req, ids, all=False):
     #_logger.debug('stock locations: %s', str(stock_locations['records']))
     return stock_locations
 
+
+def get_uom_by_id(req, ids):
+    """
+    Search for Units of Measure by specific ids.
+    @param req: object
+    @param ids: product.uom ids
+    @return: search result of product.uom record(s).
+    """
+    units = None
+    fields = fields_get(req, 'product.uom')
+    try:
+        units = do_search_read(req, 'product.uom', fields, 0, False, [('id', 'in', ids)], None)
+    except Exception:
+        _logger.debug('product uoms not found for ids: %s', ids)
+
+    if not units:
+        raise Exception("AccessDenied")
+
+    return units
+
 def get_product_by_id(req, ids, all=False):
     """
-
+    Search for products with specific ids.
     @param req: object
     @param ids: location_ids
-    @param kwargs:
-    @return: search result of specified product.product instances
+    @param all: selects all fields in result
+    @return: search result of specified product.product record(s).
     """
     products = None
     fields = ['name', 'id', 'default_code', 'vendor_part_number', 'description', 'categ_id', 'seller_ids']
@@ -243,24 +263,72 @@ def get_client_page(req, page):
     return client
 
 
-def get_upload_history(req, pid):
+def get_stock_moves_by_id(req, ids, all=False):
+    """
+    search stock.moves with specific ids.
+    @param req: object
+    @param ids: stock.move ids
+    @param all: selects all fields in result
+    """
+    moves = None
+    fields = ['id', 'origin', 'create_date', 'product_id', 'product_qty', 'product_uom', 'location_dest_id', 'note', 'audit_fail']
+    if all:
+        fields = fields_get(req, 'stock.move')
+
+    try:
+        moves = do_search_read(req, 'stock.move', fields, 0, False, [('id', 'in', ids)], None)
+    except Exception:
+        _logger.debug('moves not found for ids: %s', ids)
+
+    if not moves:
+        raise Exception("AccessDenied")
+
+    return moves
+
+def get_stock_pickings(req, pid, limit=100):
     """
     Search for last 100 packing slip uploads for the vendor.
-    @param req:
-    @param pid:
+    @param req: object
+    @param pid: partner_id
+    @param limit: number of records in result
     @return: dict
     """
-    history = None
+    pickings = None
     fields = ['date', 'origin', 'purchase_id', 'state', 'partner_id', 'move_lines', 'product_id']
     try:
-        history = do_search_read(req, 'stock.picking.in', fields, 0, 100, [('partner_id', '=', pid)], None)
+        pickings = do_search_read(req, 'stock.picking.in', fields, 0, limit, [('partner_id', '=', pid)], None)
     except Exception:
         _logger.debug('No stock.picking.in instances found for partner ID: %s', pid)
 
-    if not history:
+    if not pickings:
         raise Exception("AccessDenied")
 
-    return history
+
+def get_upload_history(req, pid):
+    """
+    Return the vendors packing slip submission history with associated moves details.
+    @param req: object
+    @param pid: partner_id
+    @return: search result object
+    """
+    res = {}
+    # Find the last 100 stock.picking.in records for current vendor.
+
+    # Find the associated stock.move records for the current picking.
+
+    # Find the associated products for the current move record.
+
+    # Find the associated location for the current move record.
+
+    # Find the associated UOM for the current move record/product.
+
+    # Append UOM, location and products to current move.
+
+    # Append current move to current picking.
+
+    # Shock the monkey
+
+    return res
 
 
 
