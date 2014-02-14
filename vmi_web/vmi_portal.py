@@ -176,6 +176,51 @@ def get_stock_locations(req, pid, **kwargs):
     _logger.debug('stock locations: %s', str(stock_locations['records']))
     return stock_locations
 
+def get_stock_location_by_id(req, ids, all=False):
+    """
+
+    @param req: object
+    @param ids: location_ids
+    @param kwargs:
+    @return: search result of specified stock.location instances
+    """
+    stock_locations = None
+    fields = ['name', 'id', 'location_id', 'partner_id']
+    if all:
+        fields = fields_get(req, 'stock.location')
+
+    try:
+        stock_locations = do_search_read(req, 'stock.location', fields, 0, False, [('id', 'in', ids)], None)
+    except Exception:
+        _logger.debug('stock locations not found for ids: %s', ids)
+
+    if not stock_locations:
+        raise Exception("AccessDenied")
+    #_logger.debug('stock locations: %s', str(stock_locations['records']))
+    return stock_locations
+
+def get_product_by_id(req, ids, all=False):
+    """
+
+    @param req: object
+    @param ids: location_ids
+    @param kwargs:
+    @return: search result of specified product.product instances
+    """
+    products = None
+    fields = ['name', 'id', 'default_code', 'vendor_part_number', 'description', 'categ_id', 'seller_ids']
+    if all:
+        fields = fields_get(req, 'product.product')
+
+    try:
+        products = do_search_read(req, 'product.product', fields, 0, False, [('id', 'in', ids)], None)
+    except Exception:
+        _logger.debug('products not found for ids: %s', ids)
+
+    if not products:
+        raise Exception("AccessDenied")
+    #_logger.debug('products: %s', str(products['records']))
+    return products
 
 def get_client_page(req, page):
     """
@@ -196,6 +241,26 @@ def get_client_page(req, page):
         raise Exception("AccessDenied")
 
     return client
+
+
+def get_upload_history(req, pid):
+    """
+    Search for last 100 packing slip uploads for the vendor.
+    @param req:
+    @param pid:
+    @return: dict
+    """
+    history = None
+    fields = ['date', 'origin', 'purchase_id', 'state', 'partner_id', 'move_lines', 'product_id']
+    try:
+        history = do_search_read(req, 'stock.picking.in', fields, 0, 100, [('partner_id', '=', pid)], None)
+    except Exception:
+        _logger.debug('No stock.picking.in instances found for partner ID: %s', pid)
+
+    if not history:
+        raise Exception("AccessDenied")
+
+    return history
 
 
 

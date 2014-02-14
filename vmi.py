@@ -143,6 +143,7 @@ class vmi_stock_picking_in(osv.osv):
     _name = 'stock.picking.in'
     _inherit = 'stock.picking.in'
     _table = "stock_picking"
+    _order = 'date desc'
 
     def _flag_next_audit(self, cr, uid, ids, last_audited, partner, location, context):
         """
