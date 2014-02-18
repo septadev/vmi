@@ -303,6 +303,8 @@ def get_stock_pickings(req, pid, limit=100):
     if not pickings:
         raise Exception("AccessDenied")
 
+    return pickings
+
 
 def get_upload_history(req, pid):
     """
