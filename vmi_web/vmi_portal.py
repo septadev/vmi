@@ -285,7 +285,7 @@ def get_stock_moves_by_id(req, ids, all=False):
 
     return moves
 
-def get_stock_pickings(req, pid, limit=100):
+def get_stock_pickings(req, pid, limit=10):
     """
     Search for last 100 packing slip uploads for the vendor.
     @param req: object
@@ -296,7 +296,7 @@ def get_stock_pickings(req, pid, limit=100):
     pickings = None
     fields = ['date', 'origin', 'purchase_id', 'state', 'partner_id', 'move_lines', 'product_id']
     try:
-        pickings = do_search_read(req, 'stock.picking.in', fields, 0, limit, [('partner_id', '=', pid)], None)
+        pickings = do_search_read(req, 'stock.picking.in', fields, 0, limit, [('partner_id.id', '=', pid)], None)
     except Exception:
         _logger.debug('No stock.picking.in instances found for partner ID: %s', pid)
 
@@ -305,32 +305,6 @@ def get_stock_pickings(req, pid, limit=100):
 
     return pickings
 
-
-def get_upload_history(req, pid):
-    """
-    Return the vendors packing slip submission history with associated moves details.
-    @param req: object
-    @param pid: partner_id
-    @return: search result object
-    """
-    res = {}
-    # Find the last 100 stock.picking.in records for current vendor.
-
-    # Find the associated stock.move records for the current picking.
-
-    # Find the associated products for the current move record.
-
-    # Find the associated location for the current move record.
-
-    # Find the associated UOM for the current move record/product.
-
-    # Append UOM, location and products to current move.
-
-    # Append current move to current picking.
-
-    # Shock the monkey
-
-    return res
 
 
 
@@ -548,6 +522,33 @@ class VmiController(vmiweb.Controller):
 
         return get_client_page(req, page)
 
+
+    def _get_upload_history(self, req, pid):
+        """
+        Return the vendors packing slip submission history with associated moves details.
+        @param req: object
+        @param pid: partner_id
+        @return: search result object
+        """
+        import pdb; pdb.set_trace()
+        res = get_stock_pickings(req, pid)['records'] # Find the last 100 stock.picking.in records for current vendor.
+        _logger.debug('_get_upload_history initial result count: %s', str(len(res)))
+        if res: # Find the associated stock.move records for the current picking.
+            for pick in res:
+                move_ids = pick['move_lines']
+                moves = get_stock_moves_by_id(req, move_ids)['records']
+                pick['line_items'] = moves         # Append moves/line items to current picking.
+                for line in pick['line_items']:    # Find + append the actual product record for each line item.
+                    prod_id = line['product_id'][0]
+                    line['product_details'] = get_product_by_id(req, [prod_id])['records']
+                    if line['audit_fail']:
+                        pick['audit_fail'] = True
+
+
+
+        _logger.debug('_get_upload_history final result: %s', str(res))
+        return res
+
     def _create_attachment(self, req, model, id, descr, ufile):
         """
 
@@ -712,6 +713,7 @@ class VmiController(vmiweb.Controller):
         @return: stock.move ID list
         """
         moves = []
+        all_locations = []
         model_name = 'stock.move'
         Model = req.session.model(model_name)
         location_id = None
@@ -730,6 +732,7 @@ class VmiController(vmiweb.Controller):
                 for location in locations['records']:
                     if location['name'].upper() == str(csv_row['destination']).strip().upper():
                         location_id = location['id']
+                        all_locations.append(location_id)
                         if location['partner_id']:
                             location_partner = location['partner_id'][0]
 
@@ -757,10 +760,11 @@ class VmiController(vmiweb.Controller):
         else:
             _logger.debug('<_create_move_line> Moves not created due to bad products: %s', validated_products['records'])
 
-        return moves
+        return {'moves': moves, 'locations': list(set(all_locations))}
 
 
     def _parse_packing_slip(self, req, filedata, pid):
+        result = {}
         ps_vals = {}
         ps_lines = []
         fields = self._packing_slip_fields
@@ -794,7 +798,34 @@ class VmiController(vmiweb.Controller):
 
             moves = self._create_move_line(req, ps_lines, pid)
 
-        return True
+        result.update({'stock_pickings': picked, 'move_lines': moves, 'pid': pid})
+        _logger.debug('<_parse_packing_slip> returned values: %s', str(result))
+        return result #{'stock_pickings': [{'picking_id': picking_id, 'packing_list': packing_list_number}],
+                      # 'move_lines': {'moves': [id], 'locations', [id]
+                      # 'pid': id}
+
+
+    def _call_methods(self, req, model, method, args, **kwargs):
+        """
+        For calling public methods on OpenERP models.
+        @param req: object
+        @param model: name of OpenERP model.
+        @param method: name of model method to be called.
+        @param args: list of arguments for called method.
+        @param kwargs: ? (Godzilla and Staypuft wrecking the city in an apocalyptic death match)
+        """
+        res = None
+        if hasattr(req.session.model(model), method):
+            func = getattr(req.session.model(model), method, None)
+            if callable(func):
+                res = func(*args, **kwargs)
+
+        else:
+            _logger.debug('<_call_methods> Method %s not found on model %s', method, model)
+            return req.not_found()
+
+        return res
+
 
     @vmiweb.httprequest
     def index(self, req, mod=None, **kwargs):
@@ -900,8 +931,8 @@ $(document).ready(function(){
             if mod not in self._modes:
                 raise KeyError
 
-        js = 'var csvFields = new Array%s;\n' %str(self._packing_slip_fields)
-        js += 'var mode = %s;\n' %mod
+        js = 'var csvFields = new Array%s;\n' % str(self._packing_slip_fields)
+        js += 'var mode = "%s";\n' % mod
         temp_location = os.path.join(vmi_client_page[0]['template_path'], vmi_client_page[0]['template_name'])
         input = ''
         try:
@@ -936,33 +967,47 @@ $(document).ready(function(){
         template.expand(context, output)
         return output.getvalue()
 
+    @vmiweb.httprequest
     def result(self, req, mod=None, **kwargs):
         """
         Controller for upload result page.
         @param req: request object
         @param mod: mode selector (N, D, T)
-        @param kwargs:
+        @param kwargs: Zombies, locusts, nuclear fallout, Richard Simmons!
         @return: TAL Template
         """
+
+        if mod is not None:
+            if mod not in self._modes:
+                raise KeyError
+
+        pid = None
+        local_vals = {}
+        if kwargs is not None:
+            local_vals.update(kwargs)
+            pid = local_vals.get('pid')
+        else:
+            try:    # Get Partner ID for session
+                pid = get_partner_id(req, req.session._uid)['records'][0]
+            except IndexError:
+                _logger.debug('Partner not found for user ID: %s', uid)
+                return {'error': _('No Partner found for this User ID!'), 'title': _('Partner Not Found')}
+
         page_name = 'result'
         redirect_url = self._error_page
         req.session.ensure_valid()
         uid = newSession(req)
         temp_globals = dict.fromkeys(self._template_keys, None)
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
-        if vmi_client_page: # Set the mode for the controller and template.
-            for key in temp_globals:
-                temp_globals[key] = vmi_client_page[0][key]
+        #if vmi_client_page: # Set the mode for the controller and template.
+        #    for key in temp_globals:
+        #        temp_globals[key] = vmi_client_page[0][key]
 
-            if mod is None:
-                mod = vmi_client_page[0]['mode']
-        else:
-            _logger.debug('No vmi.client.page record found for page name %s!', page_name)
-            return req.not_found()
-
-        if mod is not None:
-            if mod not in self._modes:
-                raise KeyError
+#            if mod is None:
+#                mod = vmi_client_page[0]['mode']
+#        else:
+#            _logger.debug('No vmi.client.page record found for page name %s!', page_name)
+#            return req.not_found()
 
         temp_location = os.path.join(vmi_client_page[0]['template_path'], vmi_client_page[0]['template_name'])
         input = ''
@@ -975,10 +1020,16 @@ $(document).ready(function(){
 
         # If the template file not found or readable then redirect to error page.
         if not input:
+            _logger.debug('No template found for page name %s!', page_name)
             return req.not_found()
 
         template = simpleTAL.compileHTMLTemplate(input)
         input.close()
+        history = simplejson.dumps(self._get_upload_history(req, pid))
+        js = 'var history_data = %s;\n' % history
+        js += 'var mode = "%s";\n' % mod
+        if 'audit_result' in local_vals:
+            js += 'var audit = "%s";\n' % simplejson.dumps(local_vals['audit_result'])
         sid = req.session_id
         uid = 17 #req.context['uid']
         pid = 9
@@ -1128,3 +1179,76 @@ $(document).ready(function(){
             return req.make_response(filecontent,
                 [('Content-Type', 'application/octet-stream'),
                  ('Content-Disposition', content_disposition(filename, req))])
+
+
+    @vmiweb.httprequest
+    def upload_document(self, req, pid, uid, contents_length, callback, ufile):
+
+        """
+
+        @param req: object
+        @param pid: partner ID
+        @param uid: user ID
+        @param contents_length:
+        @param callback:
+        @param ufile: file contents
+        @return:
+        """
+        page_name = 'upload_document'
+        #session_data = Session.session_info(req.session)
+        mod = None
+        args = {}
+        args.update({'pid': pid})
+        args.update({'uid': uid})
+        uid = newSession(req)
+        vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
+        if vmi_client_page: # Set the mode for the controller and template.
+            temp_globals = dict.fromkeys(self._template_keys, None)
+            for key in temp_globals:
+                temp_globals[key] = vmi_client_page[0][key]
+
+            if mod is None:
+                mod = vmi_client_page[0]['mode']
+        else:
+            _logger.debug('No vmi.client.page record found for page name %s!', page_name)
+            return req.not_found()
+
+        if mod is not None:
+            if mod not in self._modes:
+                _logger.debug('<upload_document>The mode is not set to a recognized value: %s!', str(mod))
+                raise KeyError
+#            else:
+#                args.update({'mod': mod})
+
+
+        req.session.ensure_valid()
+        uid = newSession(req)
+        if contents_length:
+            if ufile:
+                result = None
+                #import pdb; pdb.set_trace()
+                try:
+                    result = self._parse_packing_slip(req, ufile, pid) # Parse CSV file contents.
+                except Exception, e:
+                    args.update({'error': str(e) })
+                    _logger.debug('<upload_document>_parse_packing_slip failed: %s!', str(e))
+
+                args.update({'parse_result': result})
+            else:
+                args.update({'error': 'File is empty or invalid!'})
+
+        if 'error' not in args:
+            result = None
+            vals = args.copy()
+            #import pdb; pdb.set_trace()
+            try:
+                result = self._call_methods(req, 'stock.picking.in', 'action_flag_audit', [vals, None]) # Flag audits.
+            except Exception, e:
+                args.update({'error': str(e) })
+                _logger.debug('<upload_document>_call_methods failed: %s!', str(e))
+
+            args.update({'audit_result': result})
+
+
+        kwargs = args.copy()
+        return self.result(req, None, **kwargs)

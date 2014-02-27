@@ -162,7 +162,8 @@ class vmi_stock_picking_in(osv.osv):
             context = {}
         res = []
         i = 1
-        new_id = ids
+        date_format = "%Y-%m-%d %H:%M:%S"
+        now = datetime.datetime.now()
         sql_req = """
 			select 
 			m.id
@@ -170,17 +171,19 @@ class vmi_stock_picking_in(osv.osv):
 			from 
 			stock_move m
 			where 
-			(m.location_dest_id = %d)
+			(m.location_dest_id = %s)
 			and 
-			(m.partner_id = %d)
+			(m.partner_id = %s)
+			and
+			 (m.date between %s and %s)
 			order by date DESC ;
-			""" % (location, partner) # offset %d last_audited['id']
+			""" % (location, partner, last_audited['date'], now.strftime(date_format))
         cr.execute(sql_req)
         sql_res = cr.dictfetchall()
 
         if len(sql_res) > 0:
             while i < len(sql_res):
-                if sql_res[i]['id'] == last_audited:
+                if sql_res[i]['id'] == last_audited['id']:
                     i += 1
                     continue # Skip the offending last audited move.
 
@@ -204,94 +207,117 @@ class vmi_stock_picking_in(osv.osv):
 
 
 
-def _get_last_audited(self, cr, uid, ids, partner, location, context):
-    """
-    Retrieve the most recently audited moves for this location and vendor
-    @param self:
-    @param cr: 
-    @param uid:
-    @param ids:
-    @param partner:
-    @param location:
-    @param context:
-    @return:
-    """
-    if context is None:
-        context = {}
-    res = []
-    last_audited = None
-    if partner and location:
-        sql_req = """
-			SELECT
-			m.id
-			,m.date 
-			FROM
-			stock_move m
-			WHERE
-			m.audit = TRUE
-			AND
-			(m.location_dest_id = %d)
-			AND
-			(m.partner_id = %d)
-			ORDER BY date DESC LIMIT 1;
-			""" % (location, partner)
+    def _get_last_audited(self, cr, uid, ids, partner, location, context):
+        """
+        Retrieve the most recently audited moves for this location and vendor
+        @param self:
+        @param cr:
+        @param uid:
+        @param ids:
+        @param partner:
+        @param location:
+        @param context:
+        @return:
+        """
+        if context is None:
+            context = {}
+        res = []
+        last_audited = None
+        #import pdb; pdb.set_trace()
+        if partner and location:
+            sql_req = """
+                SELECT
+                m.id
+                ,m.date
+                FROM
+                stock_move m
+                WHERE
+                m.audit = TRUE
+                AND
+                (m.location_dest_id = %s)
+                AND
+                (m.partner_id = %s)
+                ORDER BY date DESC LIMIT 1;
+                """ % (location, partner)
 
-        cr.execute(sql_req)
-        sql_res = cr.dictfetchone()
-        if sql_res:
-            res.append({'id': sql_res['id'], 'date': sql_res['date']})
+            cr.execute(sql_req)
+            sql_res = cr.dictfetchone()
+            if sql_res:
+                res.append({'id': sql_res['id'], 'date': sql_res['date']})
 
-        sql_req = """
-			select 
-			m.id 
-			,m.date
-			from 
-			stock_move m
-			where 
-			m.audit_fail = True 
-			and 
-			(m.location_dest_id = %d)
-			and 
-			(m.partner_id = %d)
-			order by date DESC limit 1;
-			""" % (location, partner)
+            sql_req = """
+                select
+                m.id
+                ,m.date
+                from
+                stock_move m
+                where
+                m.audit_fail = True
+                and
+                (m.location_dest_id = %s)
+                and
+                (m.partner_id = %s)
+                order by date DESC limit 1;
+                """ % (location, partner)
 
-        cr.execute(sql_req)
-        sql_res = cr.dictfetchone()
-        if sql_res:
-            res.append({'id': sql_res['id'], 'date': sql_res['date']})
+            cr.execute(sql_req)
+            sql_res = cr.dictfetchone()
+            if sql_res:
+                res.append({'id': sql_res['id'], 'date': sql_res['date']})
 
-        if len(res) > 0:
-            if len(res) > 1:
-                if res[0]['date'].date() < res[1]['date'].date():
-                    last_audited = res.pop(1)
+            if len(res) > 0:
+                if len(res) > 1:
+                    if res[0]['date'].date() < res[1]['date'].date():
+                        last_audited = res.pop(1)
+                    else:
+                        last_audited = res.pop(0)
                 else:
                     last_audited = res.pop(0)
-            else:
-                last_audited = res.pop(0)
 
-    _logger.debug('<_get_last_audited> %s : %s : %s', str(sql_res), str(location), str(partner))
-    return last_audited
+        _logger.debug('<_get_last_audited> %s : %s : %s', str(sql_res), str(location), str(partner))
+        return last_audited
+
+    def action_flag_audit(self, cr, user, vals, context=None):
+
+        """
+        args.parse_result:
+        {'stock_pickings': [{'picking_id': picking_id, 'packing_list': packing_list_number}],
+         'move_lines': {'moves': [id], 'locations', [id]
+         'pid': id}
+        @param self:
+        @param cr:
+        @param user:
+        @param vals:
+        @param context:
+        """
+        result = []
+        if 'pid' in vals:
+            pid = vals.get('pid')
+            if 'parse_result' in vals:
+                p = vals.get('parse_result')
+                for location in p['move_lines']['locations']:
+                    last_audited = self._get_last_audited(cr, user, None, pid, location, context)
+                    if last_audited:
+                        flagged = self._flag_next_audit(cr, user, None, last_audited, pid, location, context)
+                        flagged.update({'location': location})
+                        result.append(flagged.copy())
 
 
-def create(self, cr, user, vals, context=None):
-    if ('name' not in vals) or (vals.get('name') == '/'):
-        seq_obj_name = self._name
-        vals['name'] = self.pool.get('ir.sequence').get(cr, user, seq_obj_name)
-    new_id = super(vmi_stock_picking_in, self).create(cr, user, vals, context)
-    last_audited = self._get_last_audited(cr, user, new_id, vals['move_lines'][0][2]['partner_id'],
-                                          vals['move_lines'][0][2]['location_dest_id'], context)
-    _logger.debug('<CREATE> last_audited: %s', str(last_audited))
-    if last_audited is not None:
-        next_audit = self._flag_next_audit(cr, user, new_id, last_audited, vals['move_lines'][0][2]['partner_id'],
-                                           vals['move_lines'][0][2]['location_dest_id'], context)
-        _logger.debug('<CREATE> next_audit: %s', str(next_audit))
-    return new_id
+        _logger.debug('<action_flag_audit> next_audit: %s', str(result))
+        return result
+
+    def create(self, cr, user, vals, context=None):
+        if ('name' not in vals) or (vals.get('name') == '/'):
+            seq_obj_name = self._name
+            vals['name'] = self.pool.get('ir.sequence').get(cr, user, seq_obj_name)
+        new_id = super(vmi_stock_picking_in, self).create(cr, user, vals, context)
+
+        return new_id
 
 
-_defaults = {
-'invoice_state': 'none',
-}
+    _defaults = {
+    'invoice_state': 'none',
+    }
 
 vmi_stock_picking_in()
 
