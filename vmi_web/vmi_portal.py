@@ -530,7 +530,7 @@ class VmiController(vmiweb.Controller):
         @param pid: partner_id
         @return: search result object
         """
-        import pdb; pdb.set_trace()
+        #import pdb; pdb.set_trace()
         res = get_stock_pickings(req, pid)['records'] # Find the last 100 stock.picking.in records for current vendor.
         _logger.debug('_get_upload_history initial result count: %s', str(len(res)))
         if res: # Find the associated stock.move records for the current picking.
@@ -540,9 +540,9 @@ class VmiController(vmiweb.Controller):
                 pick['line_items'] = moves         # Append moves/line items to current picking.
                 for line in pick['line_items']:    # Find + append the actual product record for each line item.
                     prod_id = line['product_id'][0]
-                    line['product_details'] = get_product_by_id(req, [prod_id])['records']
+                    line['product_details'] = get_product_by_id(req, [prod_id])['records'] # Get product records.
                     if line['audit_fail']:
-                        pick['audit_fail'] = True
+                        pick['audit_fail'] = True # If any line item failed audit then the pick gets flagged as failed.
 
 
 
@@ -999,15 +999,15 @@ $(document).ready(function(){
         uid = newSession(req)
         temp_globals = dict.fromkeys(self._template_keys, None)
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
-        #if vmi_client_page: # Set the mode for the controller and template.
-        #    for key in temp_globals:
-        #        temp_globals[key] = vmi_client_page[0][key]
+        if vmi_client_page: # Set the mode for the controller and template.
+            for key in temp_globals:
+                temp_globals[key] = vmi_client_page[0][key]
 
 #            if mod is None:
 #                mod = vmi_client_page[0]['mode']
-#        else:
-#            _logger.debug('No vmi.client.page record found for page name %s!', page_name)
-#            return req.not_found()
+        else:
+            _logger.debug('No vmi.client.page record found for page name %s!', page_name)
+            return req.not_found()
 
         temp_location = os.path.join(vmi_client_page[0]['template_path'], vmi_client_page[0]['template_name'])
         input = ''
