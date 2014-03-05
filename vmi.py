@@ -277,6 +277,57 @@ class vmi_stock_picking_in(osv.osv):
         _logger.debug('<_get_last_audited> %s : %s : %s', str(sql_res), str(location), str(partner))
         return last_audited
 
+    def _flag_first_audit(self, cr, user, partner, location, context):
+        """
+        Method to begin auditing by selecting the 1st appropriate move record matching
+        partner and location criteria and setting the audit flag.
+        @param user:
+        @param pid:
+        @param location:
+        @param context:
+        """
+        if context is None:
+            context = {}
+        result = []
+        # Select the oldest record matching the criteria and flag it.
+        if partner and location:
+            sql_req = """
+                SELECT
+                m.id
+                ,m.date
+                FROM
+                stock_move m
+                WHERE
+                m.audit = FALSE
+                AND
+                (m.location_dest_id = %s)
+                AND
+                (m.partner_id = %s)
+                AND
+                (m.state != 'done')
+                ORDER BY date ASC LIMIT 1;
+                """ % (location, partner)
+            cr.execute(sql_req)
+            sql_res = cr.dictfetchone()
+            if sql_res: # Set the audit flag for move record obtained.
+                result.append(sql_res['id'])
+                update_sql = """
+                     update
+                       stock_move
+                     set
+                       audit = True
+                     where
+                       id = (%s);
+                    """ % result[0]
+                cr.execute(update_sql)
+                _logger.debug('<_flag_first_audit> First audit flagged: %s', str(result[0]))
+
+        if not result:
+            _logger.debug('<_flag_first_audit> No move records matching criteria exist: %s, %s', str(partner), str(location))
+
+        return result
+
+
     def action_flag_audit(self, cr, user, vals, context=None):
 
         """
@@ -301,6 +352,8 @@ class vmi_stock_picking_in(osv.osv):
                         flagged = self._flag_next_audit(cr, user, None, last_audited, pid, location, context)
                         flagged.update({'location': location})
                         result.append(flagged.copy())
+                    else: # If no previously flagged move record exists then begin audit process by flagging a record.
+                        result = self._flag_first_audit(cr, user, pid, location, context)
 
 
         _logger.debug('<action_flag_audit> next_audit: %s', str(result))

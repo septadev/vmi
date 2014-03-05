@@ -1240,6 +1240,7 @@ $(document).ready(function(){
         if 'error' not in args:
             result = None
             vals = args.copy()
+            vals['pid'] = 31
             #import pdb; pdb.set_trace()
             try:
                 result = self._call_methods(req, 'stock.picking.in', 'action_flag_audit', [vals, None]) # Flag audits.
@@ -1248,7 +1249,6 @@ $(document).ready(function(){
                 _logger.debug('<upload_document>_call_methods failed: %s!', str(e))
 
             args.update({'audit_result': result})
-
 
         kwargs = args.copy()
         return self.result(req, None, **kwargs)

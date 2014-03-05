@@ -12,8 +12,8 @@ $(document).ready(function(){
          {"mData": "date"},
          {"mData": "id"},
          {"mData": "origin"},
-         {"mData": "state"},
-         {"mData": "purchase_id"}
+         {"mData": "purchase_id"},
+         {"mData": "state"}
      ]
 } );
 });
