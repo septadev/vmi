@@ -175,12 +175,12 @@ class vmi_stock_picking_in(osv.osv):
 			and 
 			(m.partner_id = %s)
 			and
-			 (m.date between %s and %s)
+			 (m.date between '%s' and '%s')
 			order by date DESC ;
 			""" % (location, partner, last_audited['date'], now.strftime(date_format))
         cr.execute(sql_req)
         sql_res = cr.dictfetchall()
-
+        _logger.debug('<_flag_next_audit> sql_res: %s', str(sql_res))
         if len(sql_res) > 0:
             while i < len(sql_res):
                 if sql_res[i]['id'] == last_audited['id']:
@@ -191,17 +191,18 @@ class vmi_stock_picking_in(osv.osv):
                     res.append(sql_res[i]['id'])
                 i += 1
 
-            vals = ', '.join(str(x) for x in res)
-            _logger.debug('<_flag_next_audit> vals: %s', str(sql_res))
-            update_sql = """
-                 update
-                   stock_move
-                 set
-                   audit = True
-                 where
-                   id in (%s);
-                """ % vals
-            cr.execute(update_sql)
+            if res:
+                vals = ', '.join(str(x) for x in res)
+                _logger.debug('<_flag_next_audit> vals: %s', str(vals))
+                update_sql = """
+                     update
+                       stock_move
+                     set
+                       audit = True
+                     where
+                       id in (%s);
+                    """ % vals
+                cr.execute(update_sql)
 
         return res
 
