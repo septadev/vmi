@@ -351,8 +351,8 @@ class vmi_stock_picking_in(osv.osv):
                     last_audited = self._get_last_audited(cr, user, None, pid, location, context)
                     if last_audited:
                         flagged = self._flag_next_audit(cr, user, None, last_audited, pid, location, context)
-                        flagged.update({'location': location})
-                        result.append(flagged.copy())
+                        flagged.append({'location': location})
+                        result.append(flagged)
                     else: # If no previously flagged move record exists then begin audit process by flagging a record.
                         result = self._flag_first_audit(cr, user, pid, location, context)
 
