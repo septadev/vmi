@@ -49,18 +49,27 @@ function fnFormatDetails (oTable, nTr )
 {
 
     var aData = oTable.fnGetData( nTr );
+    var classRow = 'detailRow';
     var sOut = '<div class="innerDetails"><table cellpadding="5" cellspacing="0" border="0" style="padding-left:50px;">';
-    sOut += '<tr><td class="detailHead">SEPTA P/N</td>';
-    sOut += '<td class="detailHead">Quantity</td>';
-    sOut += '<td class="detailHead">U of M</td>';
-    sOut += '<td class="detailHead">Discrepency</td>';
-    sOut += '<td class="detailHead">Category</td>';
-    sOut += '<td class="detailHead">Location</td>';
-    sOut += '<td class="detailHead">Vendor P/N</td>';
-    sOut += '<td class="detailHead">Description</td></tr>\n';
+    sOut += '<tr class="detailHead"><td>SEPTA P/N</td>';
+    sOut += '<td>Quantity</td>';
+    sOut += '<td>U of M</td>';
+    sOut += '<td>Discrepency</td>';
+    sOut += '<td>Category</td>';
+    sOut += '<td>Location</td>';
+    sOut += '<td>Vendor P/N</td>';
+    sOut += '<td>Description</td></tr>\n';
     for(var i in aData.line_items){
         console.log(i);
-        sOut += '<tr><td>'+aData.line_items[i].product_details[0].default_code+'</td>';
+        if(aData.line_items[i].audit_fail == true){
+            classRow = 'badAudit'
+        }else{
+            classRow = 'detailRow'
+        }
+        if(i % 2 == 0){
+            classRow = 'detailRowOdd'
+        }
+        sOut += '<tr class="'+classRow+'"><td>'+aData.line_items[i].product_details[0].default_code+'</td>';
         sOut += '<td>'+aData.line_items[i].product_qty+'</td>';
         sOut += '<td>'+aData.line_items[i].product_uom[1]+'</td>';
         sOut += '<td>'+aData.line_items[i].audit_fail+'</td>';
