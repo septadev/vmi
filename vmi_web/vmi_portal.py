@@ -1263,7 +1263,7 @@ $(document).ready(function(){
                 for move in moves['moves']:
                     if move not in args['audit_result']:
                         unflagged.append(move)
-                import pdb; pdb.set_trace()
+                #import pdb; pdb.set_trace()
                 try:
                     result = self._call_methods(req, 'stock.move', 'action_done', [unflagged, None])
                 except Exception, e:
