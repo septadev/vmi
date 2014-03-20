@@ -1255,5 +1255,21 @@ $(document).ready(function(){
 
             args.update({'audit_result': result})
 
+        if 'audit_result' in args: # Call the Done method on moves that weren't flagged for audit.
+            if 'move_lines' in args['parse_result']:
+                result = None
+                moves = args['parse_result']['move_lines']
+                unflagged = []
+                for move in moves['moves']:
+                    if move not in args['audit_result']:
+                        unflagged.append(move)
+                import pdb; pdb.set_trace()
+                try:
+                    result = self._call_methods(req, 'stock.move', 'action_done', [unflagged, None])
+                except Exception, e:
+                    args.update({'error': str(e) })
+                    _logger.debug('<upload_document>_call_methods failed: %s!', str(e))
+
+
         kwargs = args.copy()
         return self.result(req, None, **kwargs)
