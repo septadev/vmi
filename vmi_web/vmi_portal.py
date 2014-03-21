@@ -1264,11 +1264,14 @@ $(document).ready(function(){
                     if move not in args['audit_result']:
                         unflagged.append(move)
                 #import pdb; pdb.set_trace()
+
                 try:
                     result = self._call_methods(req, 'stock.move', 'action_done', [unflagged, None])
                 except Exception, e:
                     args.update({'error': str(e) })
                     _logger.debug('<upload_document>_call_methods failed: %s!', str(e))
+
+                _logger.debug('<upload_document>unflagged moves set to done: %s!', str(unflagged))
 
 
         kwargs = args.copy()
