@@ -296,7 +296,9 @@ def get_stock_pickings(req, pid, limit=10):
     pickings = None
     fields = ['date', 'origin', 'purchase_id', 'state', 'partner_id', 'move_lines', 'product_id']
     try:
-        pickings = do_search_read(req, 'stock.picking.in', fields, 0, limit, [('partner_id.id', '=', pid)], None)
+        pickings = do_search_read(req, 'stock.picking.in', fields, 0, limit, [('partner_id.id', '=', pid),
+                                                                              ('type', '=', 'in')
+                                                                             ], None)
     except Exception:
         _logger.debug('No stock.picking.in instances found for partner ID: %s', pid)
 
