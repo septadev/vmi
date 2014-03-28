@@ -113,6 +113,25 @@ def get_partner(req, pid):
     return partner
 
 
+def get_vendor_by_name(req, name):
+    """
+    Find the partner record for the supplied vendor name.
+    @param req: object
+    @param name: string
+    @return: partner record
+    """
+    partner = None
+    fields = fields_get(req, 'res.partner')
+    try:
+        partner = do_search_read(req, 'res.partner', fields, 0, False, [('name', '=', name), ('supplier', '=', True)], None)
+    except Exception:
+        _logger.debug('Partner not found for ID: %s', name)
+
+    if not partner:
+        raise Exception("AccessDenied")
+
+    return partner
+
 def get_vendor_id(req, uid=None, **kwargs):
     """ Find the vendor associated to the current logged-in user """
     vendor_ids = None
@@ -690,6 +709,8 @@ class VmiController(vmiweb.Controller):
         if len(csv_rows) > 0:
             for row in csv_rows:
                 rnd = random_string(8, 'digits')
+                vendor = str(row['supplier']).strip()
+                partner = get_vendor_by_name(req, vendor)['records'][0]
                 delivery_date = str(row['year']).strip() + '/' + str(row['month']).strip() + '/' + str(
                     row['day']).strip()
                 #_logger.debug('<_create_stock_picking> CSV file: %s', str(row))
@@ -697,12 +718,12 @@ class VmiController(vmiweb.Controller):
                                               'name': row[
                                                           'packing_list_number'].strip() + '.' + delivery_date + '.' + rnd,
                                               'date': delivery_date,
-                                              'partner_id': pid,
+                                              'partner_id': partner['id'],
                                               'origin': row['packing_list_number'].strip(),
                                               'invoice_state': 'none',
                                               'note': row['purchase_order'].strip()
                                           }, req.context)
-                res.append({'picking_id': picking_id, 'packing_list': row['packing_list_number'].strip()})
+                res.append({'picking_id': picking_id, 'packing_list': row['packing_list_number'].strip(), 'partner': partner['id']})
 
         return res
 
@@ -754,7 +775,7 @@ class VmiController(vmiweb.Controller):
                     'product_uom': product['uom_id'][0],
                     'product_qty': float(csv_row['quantity_shipped']),
                     'location_dest_id': location_id,
-                    'location_id': 8,
+                    'location_id': csv_row['partner'],
                     'partner_id': location_partner,
                     'picking_id': csv_row['picking_id'],
                     'date': delivery_date,
