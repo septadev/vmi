@@ -446,6 +446,7 @@ class VmiController(vmiweb.Controller):
 
     _modes = ('N', 'D', 'T')
     _error_page = '/vmi/error'
+    _default_stock_location_suffix = ' Input' # This must match the naming convention for locations inside OpenERP.
     _packing_slip_fields = ('month',
                             'day',
                             'year',
@@ -725,25 +726,26 @@ class VmiController(vmiweb.Controller):
         if len(csv_rows) > 0 and validated_products['valid']:
             product = None
             for csv_row in csv_rows:
-                for prod in validated_products['records']:
+                for prod in validated_products['records']: # Verify products in CSV actually exist.
                     _logger.debug('<_create_move_line> Current product: %s', prod['default_code'])
                     if prod['default_code'] == csv_row['septa_part_number'].strip():
                         product = prod
                         break
 
-                for location in locations['records']:
-                    if location['name'].upper() == str(csv_row['destination']).strip().upper():
+                for location in locations['records']: # Find the matching stock.location id for the CSV location value.
+                    location_name = str(csv_row['destination']).strip() + self._default_stock_location_suffix
+                    if location['name'].upper() == location_name.upper():
                         location_id = location['id']
-                        all_locations.append(location_id)
                         if location['partner_id']:
                             location_partner = location['partner_id'][0]
-
-                        _logger.debug('<_create_move_line> location: %s', str(location_id))
+                        _logger.debug('<_create_move_line> Location Id: %s, Location Name: %s', str(location_id), location_name)
                         break
 
                 if not location_id:
-                    raise ValueError(
-                        "(%r) is not a proper value for destination location!" % str(csv_row['destination']))
+                    raise ValueError("(%r) is not a proper value for destination location!" % str(csv_row['destination']))
+                else:
+                    all_locations.append(location_id)
+
                 delivery_date = str(csv_row['year']).strip() + '/' + str(csv_row['month']).strip() + '/' + str(
                     csv_row['day']).strip()
                 move_id = Model.create({
