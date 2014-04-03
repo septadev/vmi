@@ -254,11 +254,37 @@ def get_product_by_id(req, ids, all=False):
     try:
         products = do_search_read(req, 'product.product', fields, 0, False, [('id', 'in', ids)], None)
     except Exception:
-        _logger.debug('products not found for ids: %s', ids)
+        _logger.debug('<get_product_by_id> products not found for ids: %s', ids)
 
     if not products:
         raise Exception("AccessDenied")
     #_logger.debug('products: %s', str(products['records']))
+    return products
+
+def search_products_by_pn(req, pn, all=False):
+    """
+    Search for products with specific part numbers.
+    @param req: object
+    @param pn: part number string
+    @param all: selects all fields in result
+    @return: search result of specified product.product record(s).
+    """
+    products = None
+    fields = ['name', 'id', 'default_code', 'vendor_part_number', 'description', 'categ_id', 'seller_ids']
+    if all:
+        fields = fields_get(req, 'product.product')
+
+    try: # Try finding records with SEPTA P/N.
+        products = do_search_read(req, 'product.product', fields, 0, False, [('default_code', 'ilike', pn)], None)
+    except Exception:
+        _logger.debug('<search_products_by_pn> products not found for SEPTA part number: %s', pn)
+
+    if not products:
+        try: # Try finding records with vendor P/N.
+            products = do_search_read(req, 'product.product', fields, 0, False, [('vendor_part_number', 'ilike', pn)], None)
+        except Exception:
+            _logger.debug('<search_products_by_pn> products not found for vendor part number: %s', pn)
+
     return products
 
 def get_client_page(req, page):
@@ -697,26 +723,25 @@ class VmiController(vmiweb.Controller):
 
     def _create_stock_picking(self, req, csv_rows, pid):
         """
-
-        @param req:
-        @param csv_rows:
-        @param pid:
-        @return:
+        Create stock.picking.in instances for each unique packing slip # in the CSV file data.
+        @param req: object
+        @param csv_rows: list (each line of CSV file)
+        @param pid: int
+        @return: list
         """
         model_name = 'stock.picking.in'
         Model = req.session.model(model_name)
         res = []
         if len(csv_rows) > 0:
-            for row in csv_rows:
+            for row in csv_rows: # Each unique packing slip number becomes a stock.picking.in instance.
                 rnd = random_string(8, 'digits')
                 vendor = str(row['supplier']).strip()
                 partner = get_vendor_by_name(req, vendor)['records'][0]
                 delivery_date = str(row['year']).strip() + '/' + str(row['month']).strip() + '/' + str(
-                    row['day']).strip()
-                #_logger.debug('<_create_stock_picking> CSV file: %s', str(row))
+                    row['day']).strip() # Construct date from individual M D Y fields in CSV data.
+                _logger.debug('<_create_stock_picking> CSV file: %s', str(row['packing_list_number']))
                 picking_id = Model.create({
-                                              'name': row[
-                                                          'packing_list_number'].strip() + '.' + delivery_date + '.' + rnd,
+                                              'name': row['packing_list_number'].strip() + '.' + delivery_date + '.' + rnd,
                                               'date': delivery_date,
                                               'partner_id': partner['id'],
                                               'origin': row['packing_list_number'].strip(),
@@ -1301,3 +1326,67 @@ $(document).ready(function(){
 
         kwargs = args.copy()
         return self.result(req, None, **kwargs)
+
+    @vmiweb.httprequest
+    def products(self, req, mod=None, **kwargs):
+        """
+        Controller for VMI Packing Slip Upload Page
+        @param req: request object
+        @param mod: mode selector (N, D, T)
+        @param kwargs:
+        @return: TAL Template
+        """
+        page_name = 'products'
+        redirect_url = self._error_page
+        req.session.ensure_valid()
+        uid = newSession(req)
+        temp_globals = dict.fromkeys(self._template_keys, None)
+        vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
+        if vmi_client_page: # Set the mode for the controller and template.
+            for key in temp_globals:
+                temp_globals[key] = vmi_client_page[0][key]
+
+            if mod is None:
+                mod = vmi_client_page[0]['mode']
+        else:
+            _logger.debug('No vmi.client.page record found for page name %s!', page_name)
+            return req.not_found()
+
+        if mod is not None:
+            if mod not in self._modes:
+                raise KeyError
+
+        js = 'var mode = "%s";\n' % mod
+        temp_location = os.path.join(vmi_client_page[0]['template_path'], vmi_client_page[0]['template_name'])
+        input = ''
+        try:
+            input = open(temp_location, 'r')
+        except IOError, e:
+            _logger.debug('opening the template file %s returned an error: %s, with message %s', e.filename, e.strerror, e.message)
+        finally:
+            pass
+
+        # If the template file not found or readable then redirect to error page.
+        if not input:
+            return req.not_found()
+
+        template = simpleTAL.compileHTMLTemplate(input)
+        input.close()
+        sid = req.session_id
+        uid = 17 #req.context['uid']
+        pid = 9
+        context = simpleTALES.Context()
+        # Add a string to the context under the variable title
+        context.addGlobal("title", temp_globals['title'])
+        context.addGlobal("script", js)
+        context.addGlobal("header", temp_globals['header'])
+        context.addGlobal("form_flag", temp_globals['form_flag'])
+        context.addGlobal("form_action", temp_globals['form_action'])
+        context.addGlobal("form_legend", temp_globals['form_legend'])
+        context.addGlobal("sid", sid)
+        context.addGlobal("pid", pid)
+        context.addGlobal("uid", uid)
+        context.addGlobal("mode", mod)
+        output = cStringIO.StringIO()
+        template.expand(context, output)
+        return output.getvalue()

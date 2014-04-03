@@ -1,0 +1,60 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<title tal:content="title">title</title>
+<meta content="text/html; charset=ISO-8859-1" http-equiv="content-type">
+
+		<style type="text/css" media="screen">
+			@import "/vmi/static/src/js/datatables/extras/TableTools/media/css/TableTools.css";
+			div.dataTables_wrapper { font-size: 13px; }
+			table.display thead th, table.display td { font-size: 13px; }
+		</style>
+
+<script src="/vmi/static/src/js/jquery.min.js"></script>
+<script src="/vmi/static/src/js/jquery.csv-0.71.js"></script>
+<script type="text/javascript" src="/vmi/static/src/js/datatables/media/js/jquery.dataTables.js"></script>
+<script type="text/javascript" src="/vmi/static/src/js/datatables/extras/TableTools/media/js/TableTools.min.js"></script>
+</head>
+<body>
+    <br>
+    <div id="main" class="container">
+        <!-- Product Search Template Begin -->
+        <p tal:content="title">
+          Title
+        </p>
+        <p tal:content="header">
+          Header
+        </p>
+        <div id="search" class="info" tal:condition="form_flag">
+            <form class="form_search_form" action="#" tal:attributes="action form_action" method="post" enctype="multipart/form-data">
+                <fieldset>
+                    <legend tal:content="form_legend">Search Products</legend>
+                    <input name="callback" value="debug" type="hidden">
+                    <input value="17" name="uid" type="hidden" tal:attributes="value uid">
+                    <input value="9" name="pid" type="hidden" tal:attributes="value pid">
+                    Enter P/N: <input name="search" value="" type="search"><br>
+                    <input type="submit">
+                </fieldset>
+
+                <hr><!-- Result of search or browse -->
+                <table id="contents" style="width: 100%;" cellpadding="0" cellspacing="0" border="0" class="display">
+                </table>
+            </form>
+            <br>
+        </div>
+          <div id="no_uploader" tal:condition="not:form_flag" class="notice">
+                <p> <!-- Notify user that they cannot search products -->
+                    <b>Product cannot be searched at this time!</b> <br />
+                </p>
+          </div>
+        <script type="text/javascript" tal:content="structure script">
+
+
+
+
+
+        </script>
+        <!-- Product Search Template End -->
+    </div>
+</body>
+</html>
