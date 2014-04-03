@@ -32,17 +32,18 @@
                     <input name="callback" value="debug" type="hidden">
                     <input value="17" name="uid" type="hidden" tal:attributes="value uid">
                     <input value="9" name="pid" type="hidden" tal:attributes="value pid">
-                    Enter P/N: <input name="search" value="" type="search"><br>
+                    Enter P/N: <input name="search" value="" type="search" tal:attributes="value search_string"><br>
                     <input type="submit">
                 </fieldset>
 
                 <hr><!-- Result of search or browse -->
-                <table id="contents" style="width: 100%;" cellpadding="0" cellspacing="0" border="0" class="display">
+                <h3 tal:condition="search_result">P/N Search Result</h3>
+                <table id="contents" style="width: 100%;" cellpadding="0" cellspacing="0" border="0" class="display" tal:condition="search_result">
                 </table>
             </form>
             <br>
         </div>
-          <div id="no_uploader" tal:condition="not:form_flag" class="notice">
+          <div id="no_search" tal:condition="not:form_flag" class="notice">
                 <p> <!-- Notify user that they cannot search products -->
                     <b>Product cannot be searched at this time!</b> <br />
                 </p>

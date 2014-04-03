@@ -1329,7 +1329,7 @@ $(document).ready(function(){
         return self.result(req, None, **kwargs)
 
     @vmiweb.httprequest
-    def products(self, req, mod=None, **kwargs):
+    def products(self, req, mod=None, search=None, **kwargs):
         """
         Controller for VMI Packing Slip Upload Page
         @param req: request object
@@ -1357,7 +1357,13 @@ $(document).ready(function(){
             if mod not in self._modes:
                 raise KeyError
 
+        search_result = None
+        if search is not None: # If a value is submitted for search perform the part number search.
+            search_result = search_products_by_pn(req, search)['records']
+
         js = 'var mode = "%s";\n' % mod
+        if search_result: # Add result of part number search to javascript scope.
+            js += 'var search_result = %s;\n' % simplejson.dumps(search_result)
         temp_location = os.path.join(vmi_client_page[0]['template_path'], vmi_client_page[0]['template_name'])
         input = ''
         try:
@@ -1388,6 +1394,8 @@ $(document).ready(function(){
         context.addGlobal("pid", pid)
         context.addGlobal("uid", uid)
         context.addGlobal("mode", mod)
+        context.addGlobal("search_string", search)
+        context.addGlobal("search_result", search_result)
         output = cStringIO.StringIO()
         template.expand(context, output)
         return output.getvalue()

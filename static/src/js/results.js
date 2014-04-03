@@ -2,7 +2,7 @@
  * Created by M. A. Ruberto on 2/28/14.
  */
 
-/* Formating function for row details */
+/* Formatting function for row details */
 
 
 
