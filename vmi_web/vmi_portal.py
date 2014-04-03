@@ -746,6 +746,7 @@ class VmiController(vmiweb.Controller):
                                               'partner_id': partner['id'],
                                               'origin': row['packing_list_number'].strip(),
                                               'invoice_state': 'none',
+                                              'purchase_id': row['purchase_order'].strip(),
                                               'note': row['purchase_order'].strip()
                                           }, req.context)
                 res.append({'picking_id': picking_id, 'packing_list': row['packing_list_number'].strip(), 'partner': partner['id']})
