@@ -9,11 +9,18 @@
 			div.dataTables_wrapper { font-size: 13px; }
 			table.display thead th, table.display td { font-size: 13px; }
 		</style>
+        <script type="text/javascript" tal:content="structure script">
 
-<script src="/vmi/static/src/js/jquery.min.js"></script>
-<script src="/vmi/static/src/js/jquery.csv-0.71.js"></script>
+
+
+
+
+        </script>
+<script type="text/javascript" src="/vmi/static/src/js/jquery.min.js"></script>
+<script type="text/javascript" src="/vmi/static/src/js/jquery.csv-0.71.js"></script>
 <script type="text/javascript" src="/vmi/static/src/js/datatables/media/js/jquery.dataTables.js"></script>
 <script type="text/javascript" src="/vmi/static/src/js/datatables/extras/TableTools/media/js/TableTools.min.js"></script>
+<script type="text/javascript" src="/vmi/static/src/js/search.js"></script>
 </head>
 <body>
     <br>
@@ -39,6 +46,15 @@
                 <hr><!-- Result of search or browse -->
                 <h3 tal:condition="search_result">P/N Search Result</h3>
                 <table id="contents" style="width: 100%;" cellpadding="0" cellspacing="0" border="0" class="display" tal:condition="search_result">
+                    <thead>
+                        <tr>
+                            <th>SEPTA P/N</th>
+                            <th>Vendor P/N</th>
+                            <th>Name</th>
+                            <th>Category</th>
+                            <th>UOM</th>
+                        </tr>
+                    </thead>
                 </table>
             </form>
             <br>
@@ -48,13 +64,6 @@
                     <b>Product cannot be searched at this time!</b> <br />
                 </p>
           </div>
-        <script type="text/javascript" tal:content="structure script">
-
-
-
-
-
-        </script>
         <!-- Product Search Template End -->
     </div>
 </body>

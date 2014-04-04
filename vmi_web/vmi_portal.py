@@ -270,7 +270,7 @@ def search_products_by_pn(req, pn, all=False):
     @return: search result of specified product.product record(s).
     """
     products = None
-    fields = ['name', 'id', 'default_code', 'vendor_part_number', 'description', 'categ_id', 'seller_ids']
+    fields = ['name', 'id', 'default_code', 'vendor_part_number', 'description', 'categ_id', 'seller_ids', 'standard_price', 'uom_id']
     if all:
         fields = fields_get(req, 'product.product')
 
@@ -279,7 +279,7 @@ def search_products_by_pn(req, pn, all=False):
     except Exception:
         _logger.debug('<search_products_by_pn> products not found for SEPTA part number: %s', pn)
 
-    if not products:
+    if products is not None and products['length'] < 1:
         try: # Try finding records with vendor P/N.
             products = do_search_read(req, 'product.product', fields, 0, False, [('vendor_part_number', 'ilike', pn)], None)
         except Exception:
