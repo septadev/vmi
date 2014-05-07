@@ -742,11 +742,11 @@ class VmiController(vmiweb.Controller):
                 _logger.debug('<_create_stock_picking> CSV file: %s', str(row['packing_list_number']))
                 picking_id = Model.create({
                                               'name': row['packing_list_number'].strip() + '.' + delivery_date + '.' + rnd,
-                                              'date': delivery_date,
+                                              'date_done': delivery_date,
                                               'partner_id': partner['id'],
                                               'origin': row['packing_list_number'].strip(),
-                                              'invoice_state': 'none',
-                                              'purchase_id': row['purchase_order'].strip(),
+                                              'invoice_state': '2binvoiced',
+                                              #'purchase_id': row['purchase_order'].strip(),
                                               'note': row['purchase_order'].strip()
                                           }, req.context)
                 res.append({'picking_id': picking_id, 'packing_list': row['packing_list_number'].strip(), 'partner': partner['id']})
@@ -804,7 +804,7 @@ class VmiController(vmiweb.Controller):
                     'location_id': csv_row['partner'],
                     'partner_id': location_partner,
                     'picking_id': csv_row['picking_id'],
-                    'date': delivery_date,
+                    'date_expected': delivery_date,
                 })
                 moves.append(move_id)
 

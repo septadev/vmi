@@ -368,7 +368,7 @@ class vmi_stock_picking_in(osv.osv):
 
 
     _defaults = {
-    'invoice_state': 'none',
+    'invoice_state': '2binvoiced',
     }
 
 vmi_stock_picking_in()
