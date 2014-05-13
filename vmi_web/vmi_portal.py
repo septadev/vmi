@@ -491,7 +491,7 @@ class VmiController(vmiweb.Controller):
 
     _modes = ('N', 'D', 'T')
     _error_page = '/vmi/error'
-    _default_stock_location_suffix = ' Input' # This must match the naming convention for locations inside OpenERP.
+    _default_stock_location_suffix = ' Stock' # This must match the naming convention for locations inside OpenERP.
     _packing_slip_fields = ('month',
                             'day',
                             'year',
@@ -631,9 +631,9 @@ class VmiController(vmiweb.Controller):
     def _validate_products(self, req, csv_rows, pid):
         """
 
-        @param req:
-        @param csv_rows:
-        @param pid:
+        @param req: object
+        @param csv_rows: list
+        @param pid: partner id
         @return: @raise IndexError:
         """
         res = {}

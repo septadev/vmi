@@ -455,8 +455,8 @@ class stock_move_audit(osv.osv_memory):
             context = {}
         res = super(vmi_move_consume, self).default_get(cr, uid, fields, context=context)
         move = self.pool.get('stock.move').browse(cr, uid, context['active_id'], context=context)
-        location_obj = self.pool.get('stock.location')
-        scrpaed_location_ids = location_obj.search(cr, uid, [('scrap_location', '=', True)])
+        #location_obj = self.pool.get('stock.location')
+        #scrpaed_location_ids = location_obj.search(cr, uid, [('scrap_location', '=', True)])
 
         if 'product_id' in fields:
             res.update({'product_id': move.product_id.id})
@@ -466,10 +466,10 @@ class stock_move_audit(osv.osv_memory):
             res.update({'product_qty': move.product_qty})
         if 'location_id' in fields:
             res.update({'location_id': move.location_dest_id.id})
-            if scrpaed_location_ids:
-                res.update({'location_id': scrpaed_location_ids[0]})
-            else:
-                res.update({'location_id': False})
+            #if scrpaed_location_ids:
+            #    res.update({'location_id': scrpaed_location_ids[0]})
+            #else:
+            #    res.update({'location_id': False})
 
         return res
 

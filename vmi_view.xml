@@ -40,7 +40,7 @@
 												<field name="product_qty" class="oe_inline"/>
 												<field name="product_uom" class="oe_inline" readonly="1" groups="product.group_uom"/>
 										</div>
-										<field name="location_id" string="Location" widget="selection"
+										<field name="location_id" string="Location" readonly="1"
 												domain="[('usage','!=','view')]" groups="stock.group_locations"/> 
 								</group>
 								<footer>
