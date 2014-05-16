@@ -455,8 +455,12 @@ class stock_move_audit(osv.osv_memory):
             context = {}
         res = super(vmi_move_consume, self).default_get(cr, uid, fields, context=context)
         move = self.pool.get('stock.move').browse(cr, uid, context['active_id'], context=context)
-        #location_obj = self.pool.get('stock.location')
-        #scrpaed_location_ids = location_obj.search(cr, uid, [('scrap_location', '=', True)])
+        location_obj = self.pool.get('stock.location')
+        location_ids = location_obj.search(cr, uid, [('id', '=', move.location_dest_id.id)])
+        l = self.pool.get('stock.location').browse(cr, uid, location_ids, context=context)
+        parent_location = l[0].location_id.id
+        audit_location = location_obj.search(cr, uid, [('location_id', '=', parent_location), ('name', '=', 'Audit')])
+        _logger.debug('<stock_move_audit> location_ids: %s', str(location_ids))
 
         if 'product_id' in fields:
             res.update({'product_id': move.product_id.id})
@@ -464,8 +468,8 @@ class stock_move_audit(osv.osv_memory):
             res.update({'product_uom': move.product_uom.id})
         if 'product_qty' in fields:
             res.update({'product_qty': move.product_qty})
-        if 'location_id' in fields:
-            res.update({'location_id': move.location_dest_id.id})
+        if 'location_id' in fields and location_ids:
+            res.update({'location_id': audit_location[0]})
             #if scrpaed_location_ids:
             #    res.update({'location_id': scrpaed_location_ids[0]})
             #else:
