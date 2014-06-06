@@ -834,7 +834,7 @@ class VmiController(vmiweb.Controller):
                     pickings.append(record)
 
             picked = self._create_stock_picking(req, pickings, pid)
-            for pick in picked:
+            for pick in picked: # Attach the CSV file to the corresponding stock.picking objects.
                 attached = self._create_attachment(req, 'stock.picking.in', pick['picking_id'], pick['packing_list'],
                                                    filedata)
                 if attached.has_key('error'):
@@ -843,7 +843,7 @@ class VmiController(vmiweb.Controller):
             for line in ps_lines:
                 for pick in picked:
                     if pick['packing_list'] == line['packing_list_number']:
-                        line.update(pick)
+                        line.update(pick) # Append stock.picking IDs to create required associations between pickings and moves.
                         #del line['packing_list_number']
                         break
 
@@ -880,23 +880,49 @@ class VmiController(vmiweb.Controller):
 
     @vmiweb.httprequest
     def index(self, req, mod=None, **kwargs):
-        #vmi_client_page = self._get_vmi_client_page(req, 'index')
-        js = """
+        """
+        Controller for VMI Home Page
+        @param req: request object
+        @param mod: mode selector (N, D, T)
+        @param kwargs:
+        @return: TAL Template
+        """
+        uid = newSession(req)
+        temp_globals = dict.fromkeys(self._template_keys, None)
+        page_name = 'index'
+        vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
 
+        if vmi_client_page: # Set the mode for the controller and template.
+            for key in temp_globals:
+                temp_globals[key] = vmi_client_page[0][key]
+
+            if mod is None:
+                mod = vmi_client_page[0]['mode']
+        else:
+            _logger.debug('No vmi.client.page record found for page name %s!', page_name)
+            return req.not_found()
+
+        if mod is not None:
+            if mod not in self._modes:
+                raise KeyError
+
+        js = """
 $(document).ready(function(){
+    getSessionInfo();
 	$("form#loginForm").submit(function() { // loginForm is submitted
 	var username = $('#username').attr('value'); // get username
 	var password = $('#password').attr('value'); // get password
 
 
 	if (username && password) { // values are not empty
+
 		$.ajax({
 		type: "POST",
 		url: "/vmi/session/authenticate", // URL of OpenERP Authentication Handler
 		contentType: "application/json; charset=utf-8",
 		dataType: "json",
 		// send username and password as parameters to OpenERP
-		data:	 '{"jsonrpc": "2.0", "method": "call", "params": {"session_id": null, "context": {}, "login": "' + username + '", "password": "' + password + '", "db": "dev_main"}, "id": "VMI"}',
+		data:	 '{"jsonrpc": "2.0", "method": "call", "params": {"session_id": "' + sessionid + '", "context": {}, "login": "' + username + '", "password": "' + password + '", "db": "dev_main"}, "id": "VMI"}',
 		// script call was *not* successful
 		error: function(XMLHttpRequest, textStatus, errorThrown) {
 			$('div#loginResult').text("responseText: " + XMLHttpRequest.responseText
@@ -931,23 +957,63 @@ $(document).ready(function(){
 	return false;
 	});
 });
+function getSessionInfo(){
+  $.ajax({
+	type: "POST",
+	url: "/vmi/session/get_session_info", // URL of OpenERP Handler
+	contentType: "application/json; charset=utf-8",
+	dataType: "json",
+	data: '{"jsonrpc":"2.0","method":"call","params":{"session_id": null, "context": {}},"id":"r0"}',
+	// script call was *not* successful
+	error: function(XMLHttpRequest, textStatus, errorThrown) {
 
+	}, // error
+	// script call was successful
+	// data contains the JSON values returned by OpenERP
+	success: function(data){
+	  if (data.result && data.result.error) { // script returned error
+			$('div#loginResult').text("Warning: " + data.result.error);
+			$('div#loginResult').addClass("notice");
+		}
+		else if (data.error) { // OpenERP error
+			$('div#loginResult').text("Error-Message: " + data.error.message + " | Error-Code: " + data.error.code + " | Error-Type: " + data.error.data.type);
+			$('div#loginResult').addClass("error");
+	  } // if
+	  else { // successful transaction
+			sessionid = data.result.session_id;
+			console.log( sessionid );
+	  } //else
+	} // success
+  }); // ajax
+};
 		"""
+        js += 'var mode = "%s";\n' % mod
+
+        temp_location = os.path.join(vmi_client_page[0]['template_path'], vmi_client_page[0]['template_name'])
         input = ''
         try:
-            input = open('/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/index.html', 'r')
+            input = open(temp_location, 'r')
         except IOError, e:
             _logger.debug('opening the template file %s returned an error: %s, with message %s', e.filename, e.strerror, e.message)
         finally:
             pass
+
+        # If the template file not found or readable then redirect to error page.
+        if not input:
+            return req.not_found()
 
         template = simpleTAL.compileHTMLTemplate(input)
         input.close()
 
         context = simpleTALES.Context()
         # Add a string to the context under the variable title
-        context.addGlobal("title", "SEPTA VMI Client")
+        context.addGlobal("mode", mod)
+        context.addGlobal("title", temp_globals['title'])
         context.addGlobal("script", js)
+        context.addGlobal("header", temp_globals['header'])
+        context.addGlobal("form_flag", temp_globals['form_flag'])
+        context.addGlobal("form_action", temp_globals['form_action'])
+        context.addGlobal("form_legend", temp_globals['form_legend'])
 
         output = cStringIO.StringIO()
         template.expand(context, output)
@@ -1108,16 +1174,17 @@ $(document).ready(function(){
     @vmiweb.httprequest
     def packing_slip(self, req, mod=None, **kwargs):
         #vmi_client_page = self._get_vmi_client_page(req, 'upload')
+        req.session.ensure_valid()
         js = 'var csvFields = new Array%s;' %str(self._packing_slip_fields)
         input = open(
-            '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/upload.html',
+            '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/vmi_packing_slip.html',
             'r')
         template = simpleTAL.compileHTMLTemplate(input)
         input.close()
         form_flag = True
         sid = req.session_id
-        uid = 17 #req.context['uid']
-        pid = 9
+        uid = req.session._uid
+        #pid = get_partner_id(uid)
         context = simpleTALES.Context()
         # Add a string to the context under the variable title
         context.addGlobal("title", "SEPTA VMI Packing Slip")
@@ -1125,7 +1192,7 @@ $(document).ready(function(){
         context.addGlobal("header", "Packing Slip")
         context.addGlobal("form_flag", form_flag)
         context.addGlobal("sid", sid)
-        context.addGlobal("pid", pid)
+        #context.addGlobal("pid", pid)
         context.addGlobal("uid", uid)
         output = cStringIO.StringIO()
         template.expand(context, output)
