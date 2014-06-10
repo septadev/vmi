@@ -1326,11 +1326,13 @@ function getSessionInfo(){
         """
         page_name = 'upload_document'
         #session_data = Session.session_info(req.session)
+        req.session.ensure_valid()
+
         mod = None
         args = {}
         args.update({'pid': pid})
         args.update({'uid': uid})
-        uid = newSession(req)
+        #uid = newSession(req)
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
         if vmi_client_page: # Set the mode for the controller and template.
             temp_globals = dict.fromkeys(self._template_keys, None)
@@ -1351,7 +1353,7 @@ function getSessionInfo(){
 #                args.update({'mod': mod})
 
 
-        req.session.ensure_valid()
+        #req.session.ensure_valid()
         uid = newSession(req)
         if contents_length:
             if ufile:
