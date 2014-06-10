@@ -944,6 +944,13 @@ $(document).ready(function(){
 			$('div#loginResult').addClass("success");
 			responseData = data.result;
 			sessionid = data.result.session_id;
+			sessionStorage.setItem("userid", data.result.uid);
+			$('a').each(function()
+            {
+             var href = $(this).attr('href');
+             href += (href.match(/\?/) ? '&' : '?') + 'session_id=' + sessionid;
+             $(this).attr('href', href);
+            });
 			$('div#vmi_menu').fadeIn();
 			} //else
 		} // success
@@ -1031,7 +1038,7 @@ function getSessionInfo(){
         page_name = 'upload'
         redirect_url = self._error_page
         req.session.ensure_valid()
-        uid = newSession(req)
+        uid = req.session._uid #newSession(req)
         temp_globals = dict.fromkeys(self._template_keys, None)
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
         if vmi_client_page: # Set the mode for the controller and template.
@@ -1066,7 +1073,7 @@ function getSessionInfo(){
         template = simpleTAL.compileHTMLTemplate(input)
         input.close()
         sid = req.session_id
-        uid = 17 #req.context['uid']
+        #uid = 17 #req.context['uid']
         pid = 9
         context = simpleTALES.Context()
         # Add a string to the context under the variable title
