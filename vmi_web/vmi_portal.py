@@ -133,7 +133,7 @@ def get_vendor_by_name(req, name):
     return partner
 
 def get_vendor_id(req, uid=None, **kwargs):
-    """ Find the vendor associated to the current logged-in user """
+    """ This is not used but remains here as a dependency until it can be refactored out."""
     vendor_ids = None
     try:
         vendor_ids = do_search_read(req, 'dbe.vendor', ['id', 'company'], 0, False, [('vuid.id', '=', uid)], None)
@@ -737,8 +737,11 @@ class VmiController(vmiweb.Controller):
                 rnd = random_string(8, 'digits')
                 vendor = str(row['supplier']).strip()
                 partner = get_vendor_by_name(req, vendor)['records'][0]
-                delivery_date = str(row['year']).strip() + '/' + str(row['month']).strip() + '/' + str(
-                    row['day']).strip() # Construct date from individual M D Y fields in CSV data.
+                #if partner['id'] != pid: # Check if supplier is the same as current user's parent partner.
+                #    _logger.debug('<_create_stock_picking> Supplier ID does not match PID: %s | %s', partner, pid)
+                #    continue
+                # Construct date from individual M D Y fields in CSV data.
+                delivery_date = str(row['year']).strip() + '/' + str(row['month']).strip() + '/' + str(row['day']).strip()
                 _logger.debug('<_create_stock_picking> CSV file: %s', str(row['packing_list_number']))
                 picking_id = Model.create({
                                               'name': row['packing_list_number'].strip() + '.' + delivery_date + '.' + rnd,
@@ -804,6 +807,7 @@ class VmiController(vmiweb.Controller):
                     'location_id': csv_row['partner'],
                     'partner_id': location_partner,
                     'picking_id': csv_row['picking_id'],
+                    'vendor_id': pid,
                     'date_expected': delivery_date,
                 })
                 moves.append(move_id)
@@ -1039,6 +1043,7 @@ function getSessionInfo(){
         redirect_url = self._error_page
         req.session.ensure_valid()
         uid = req.session._uid #newSession(req)
+        vendor_record = get_partner_id(req, uid)['records'][0]
         temp_globals = dict.fromkeys(self._template_keys, None)
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
         if vmi_client_page: # Set the mode for the controller and template.
@@ -1074,7 +1079,7 @@ function getSessionInfo(){
         input.close()
         sid = req.session_id
         #uid = 17 #req.context['uid']
-        pid = 9
+        pid = vendor_record['partner_id'][0]
         context = simpleTALES.Context()
         # Add a string to the context under the variable title
         context.addGlobal("title", temp_globals['title'])
@@ -1105,6 +1110,7 @@ function getSessionInfo(){
             if mod not in self._modes:
                 raise KeyError
 
+        uid = req.session._uid
         pid = None
         local_vals = {}
         if kwargs is not None:
@@ -1112,7 +1118,7 @@ function getSessionInfo(){
             pid = local_vals.get('pid')
         else:
             try:    # Get Partner ID for session
-                pid = get_partner_id(req, req.session._uid)['records'][0]
+                pid = get_partner_id(req, uid)['records'][0]
             except IndexError:
                 _logger.debug('Partner not found for user ID: %s', uid)
                 return {'error': _('No Partner found for this User ID!'), 'title': _('Partner Not Found')}
@@ -1120,7 +1126,7 @@ function getSessionInfo(){
         page_name = 'result'
         redirect_url = self._error_page
         req.session.ensure_valid()
-        uid = newSession(req)
+        #uid = newSession(req)
         temp_globals = dict.fromkeys(self._template_keys, None)
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
         if vmi_client_page: # Set the mode for the controller and template.
@@ -1153,8 +1159,7 @@ function getSessionInfo(){
         js = 'var history_data = %s;\n' % history
         js += 'var mode = "%s";\n' % mod
         sid = req.session_id
-        uid = 17 #req.context['uid']
-        pid = 9
+        #pid = 9
         context = simpleTALES.Context()
         if 'audit_result' in local_vals: # Append the result of audit flagging.
             js += 'var audit = "%s";\n' % simplejson.dumps(local_vals['audit_result'])
@@ -1353,8 +1358,8 @@ function getSessionInfo(){
 #                args.update({'mod': mod})
 
 
-        #req.session.ensure_valid()
-        uid = newSession(req)
+        req.session.ensure_valid()
+        #uid = newSession(req)
         if contents_length:
             if ufile:
                 result = None
@@ -1372,7 +1377,7 @@ function getSessionInfo(){
         if 'error' not in args:
             result = None
             vals = args.copy()
-            vals['pid'] = 31
+            vals['pid'] = pid
             #import pdb; pdb.set_trace()
             try:
                 result = self._call_methods(req, 'stock.picking.in', 'action_flag_audit', [vals, None]) # Flag audits.

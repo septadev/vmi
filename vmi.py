@@ -55,6 +55,7 @@ class vmi_stock_move(osv.osv):
     _name = 'stock.move'
     _inherit = 'stock.move'
     _columns = {
+    'vendor_id': fields.many2one('res.partner', 'Vendor', required=False, readonly=True),
     'audit': fields.boolean('Audit'),
     'audit_fail': fields.boolean('Failed Audit'),
     }
@@ -173,7 +174,7 @@ class vmi_stock_picking_in(osv.osv):
 			where 
 			(m.location_dest_id = %s)
 			and 
-			(m.partner_id = %s)
+			(m.vendor_id = %s)
 			and
 			 (m.date between '%s' and '%s')
 			order by date DESC ;
@@ -237,7 +238,7 @@ class vmi_stock_picking_in(osv.osv):
                 AND
                 (m.location_dest_id = %s)
                 AND
-                (m.partner_id = %s)
+                (m.vendor_id = %s)
                 ORDER BY date DESC LIMIT 1;
                 """ % (location, partner)
 
@@ -257,7 +258,7 @@ class vmi_stock_picking_in(osv.osv):
                 and
                 (m.location_dest_id = %s)
                 and
-                (m.partner_id = %s)
+                (m.vendor_id = %s)
                 order by date DESC limit 1;
                 """ % (location, partner)
 
@@ -303,7 +304,7 @@ class vmi_stock_picking_in(osv.osv):
                 AND
                 (m.location_dest_id = %s)
                 AND
-                (m.partner_id = %s)
+                (m.vendor_id = %s)
                 AND
                 (m.state != 'done')
                 ORDER BY date ASC LIMIT 1;

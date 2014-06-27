@@ -68,9 +68,12 @@
 			<field eval="5" name="priority"/>
 			<field name="arch" type="xml">
 				<tree position="attributes">
-					  <attribute name="colors">orange:audit=='true'</attribute>
+					  <attribute name="colors">blue:audit=='true'</attribute>
 					  <!-- <attribute name="colors">grey:audit_fail=='true'</attribute> -->
 				</tree>
+                <field name="partner_id" position="after">
+                    <field name="vendor_id" />
+                </field>
 				<field name="date" position="after">
 				  <field name="audit" invisible="1" />
 				  <field name="audit_fail" invisible="1" />
@@ -88,6 +91,9 @@
 			<field name="inherit_id" ref="stock.view_move_form" />
 			<field eval="5" name="priority"/>
 			<field name="arch" type="xml">
+                <field name="name" position="after">
+                  <field name="vendor_id" />
+                </field>
 				<field name="date" position="after">
 				  <field name="audit" invisible="1" />
 				  <field name="audit_fail" invisible="1" />
