@@ -79,18 +79,19 @@ def newSession(req):
     return uid
 
 
-def check_partner_parent(pid):
+def check_partner_parent(req, pid):
     res = None
     parent_id = None
+    fields = fields_get(req, 'res.partner')
     try:
-        res = do_search_read(req, 'res.partner', ['active', 'parent_id'], 0, False, [('id', '=', pid)], None)
+        res = do_search_read(req, 'res.partner', fields, 0, False, [('id', '=', pid)], None)
     except Exception:
         _logger.debug('<check_partner_parent> Session expired or Partner not found for partner ID: %s', pid)
 
     if res:
         record = res['records'][0]
-        if record['parent_id'] and record['active']:
-            parent_id = record['parent_id']
+        if record['parent_id']:
+            parent_id = record['parent_id'][0]
         else:
             raise Exception("AccessDenied")
     else:
@@ -146,14 +147,14 @@ def get_partner_id(req, uid=None, **kwargs):
 
     record = partner_ids['records'][0]
     pid = record['partner_id'][0]
-    parent_id = check_partner_parent(pid)
+    parent_id = check_partner_parent(req, pid)
     if parent_id:
-        p = get_partner(parent_id)
+        p = get_partner(req, parent_id)
         parent = p['records'][0]
         record['company'] = parent['name']
         record['company_id'] = parent['id']
         partner_ids['records'].append(record)
-        partner_ids.pop(0)
+        partner_ids['records'].pop(0)
 
     _logger.debug('Partner ID: %s',
                   partner_ids) #{'records': [{'groups_id': [3, 9, 19, 20, 24, 27], 'partner_id': (20, u'Partner'), 'id': 13, 'name': u'Partner'}], 'length': 1}
@@ -396,6 +397,7 @@ class Session(vmiweb.Controller):
                 "username": req.session._login,
                 "partner_id": vendor['partner_id'][0],
                 "company": vendor['partner_id'][1],
+                "company_id": vendor['company_id'],
             }
         else: # Allow login for valid user without Vendor or Partner such as Admin or Manager
             res = {
@@ -1051,7 +1053,7 @@ function getSessionInfo(){
         input.close()
         sid = req.session_id
         #uid = 17 #req.context['uid']
-        pid = vendor_record['partner_id'][0]
+        pid = vendor_record['company_id']
         context = simpleTALES.Context()
         # Add a string to the context under the variable title
         context.addGlobal("title", temp_globals['title'])
@@ -1091,13 +1093,14 @@ function getSessionInfo(){
             _logger.debug('Partner found ID: %s', pid)
         else:
             try:    # Get Partner ID for session
-                pid = get_partner_id(req, uid)['records'][0]
+                vendor_record = get_partner_id(req, uid)['records'][0]
+                pid = vendor_record['company_id']
             except IndexError:
                 _logger.debug('Partner not found for user ID: %s', uid)
                 return {'error': _('No Partner found for this User ID!'), 'title': _('Partner Not Found')}
 
         page_name = 'result'
-        redirect_url = self._error_page
+        #redirect_url = self._error_page
         req.session.ensure_valid()
         #uid = newSession(req)
         temp_globals = dict.fromkeys(self._template_keys, None)
