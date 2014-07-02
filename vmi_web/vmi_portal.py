@@ -85,7 +85,7 @@ def check_partner_parent(pid):
     try:
         res = do_search_read(req, 'res.partner', ['active', 'parent_id'], 0, False, [('id', '=', pid)], None)
     except Exception:
-        _logger.debug('Session expired or Partner not found for partner ID: %s', pid)
+        _logger.debug('<check_partner_parent> Session expired or Partner not found for partner ID: %s', pid)
 
     if res:
         record = res['records'][0]
@@ -105,7 +105,7 @@ def get_partner(req, pid):
     try:
         partner = do_search_read(req, 'res.partner', fields, 0, False, [('id', '=', pid)], None)
     except Exception:
-        _logger.debug('Partner not found for ID: %s', pid)
+        _logger.debug('<get_partner> Partner not found for ID: %s', pid)
 
     if not partner:
         raise Exception("AccessDenied")
@@ -125,27 +125,12 @@ def get_vendor_by_name(req, name):
     try:
         partner = do_search_read(req, 'res.partner', fields, 0, False, [('name', '=', name), ('supplier', '=', True)], None)
     except Exception:
-        _logger.debug('Partner not found for ID: %s', name)
+        _logger.debug('<get_vendor_by_name> Partner not found for ID: %s', name)
 
     if not partner:
         raise Exception("AccessDenied")
 
     return partner
-
-def get_vendor_id(req, uid=None, **kwargs):
-    """ This is not used but remains here as a dependency until it can be refactored out."""
-    vendor_ids = None
-    try:
-        vendor_ids = do_search_read(req, 'dbe.vendor', ['id', 'company'], 0, False, [('vuid.id', '=', uid)], None)
-    except Exception:
-        _logger.debug('Session expired or Vendor not found for user ID: %s', uid)
-
-    if not vendor_ids:
-        raise Exception("AccessDenied")
-
-    _logger.debug('Vendor ID: %s',
-                  vendor_ids) #{'records': [{'company': u'Gomez Electrical Supply', 'id': 3}], 'length': 1}
-    return vendor_ids
 
 
 def get_partner_id(req, uid=None, **kwargs):
@@ -154,7 +139,7 @@ def get_partner_id(req, uid=None, **kwargs):
     try:
         partner_ids = do_search_read(req, 'res.users', ['partner_id'], 0, False, [('id', '=', uid)], None)
     except Exception:
-        _logger.debug('Session expired or Partner not found for user ID: %s', uid)
+        _logger.debug('<get_partner_id> Session expired or Partner not found for user ID: %s', uid)
 
     if not partner_ids:
         raise Exception("AccessDenied")
@@ -300,7 +285,7 @@ def get_client_page(req, page):
     try:
         client = do_search_read(req, 'vmi.client.page', fields, 0, False, [('name', '=', page)], None)
     except Exception:
-        _logger.debug('VMI Page not found for ID: %s', page)
+        _logger.debug('<get_client_page> VMI Page not found for ID: %s', page)
 
     if not client:
         raise Exception("AccessDenied")
@@ -323,7 +308,7 @@ def get_stock_moves_by_id(req, ids, all=False):
     try:
         moves = do_search_read(req, 'stock.move', fields, 0, False, [('id', 'in', ids)], None)
     except Exception:
-        _logger.debug('moves not found for ids: %s', ids)
+        _logger.debug('<get_stock_moves_by_id> Moves not found for ids: %s', ids)
 
     if not moves:
         raise Exception("AccessDenied")
@@ -345,7 +330,7 @@ def get_stock_pickings(req, pid, limit=10):
                                                                               ('type', '=', 'in')
                                                                              ], None)
     except Exception:
-        _logger.debug('No stock.picking.in instances found for partner ID: %s', pid)
+        _logger.debug('<get_stock_pickings> No stock.picking.in instances found for partner ID: %s', pid)
 
     if not pickings:
         raise Exception("AccessDenied")
@@ -393,22 +378,8 @@ class Session(vmiweb.Controller):
         request_id = str(req.jsonrequest['id'])
         _logger.debug('JSON Request ID: %s', request_id)
         res = {}
-        if request_id == 'DBE': # Check to see if user is a DBE vendor
-            try:                                                                # Get vendor ID for session
-                vendor = get_vendor_id(req, uid)['records'][0]
-            except IndexError:
-                _logger.debug('Vendor not found for user ID: %s', uid)
-                return {'error': _('No Vendor found for this User ID!'), 'title': _('Vendor Not Found')}
-            res = {
-                "session_id": req.session_id,
-                "uid": req.session._uid,
-                "user_context": req.session.get_context() if req.session._uid else {},
-                "db": req.session._db,
-                "username": req.session._login,
-                "vendor_id": vendor['id'],
-                "company": vendor['company'],
-            }
-        elif request_id == 'VMI': # Check to see if user is a VMI vendor
+
+        if request_id == 'VMI': # Check to see if user is a VMI vendor
             try:                                                                                # Get Partner ID for session
                 vendor = get_partner_id(req, uid)['records'][0]
             except IndexError:
@@ -580,6 +551,7 @@ class VmiController(vmiweb.Controller):
         """
         #import pdb; pdb.set_trace()
         res = get_stock_pickings(req, pid)['records'] # Find the last 100 stock.picking.in records for current vendor.
+        _logger.debug('_get_upload_history partner ID: %s', str(pid))
         _logger.debug('_get_upload_history initial result count: %s', str(len(res)))
         if res: # Find the associated stock.move records for the current picking.
             for pick in res:
@@ -1116,6 +1088,7 @@ function getSessionInfo(){
         if kwargs is not None:
             local_vals.update(kwargs)
             pid = local_vals.get('pid')
+            _logger.debug('Partner found ID: %s', pid)
         else:
             try:    # Get Partner ID for session
                 pid = get_partner_id(req, uid)['records'][0]
@@ -1159,7 +1132,6 @@ function getSessionInfo(){
         js = 'var history_data = %s;\n' % history
         js += 'var mode = "%s";\n' % mod
         sid = req.session_id
-        #pid = 9
         context = simpleTALES.Context()
         if 'audit_result' in local_vals: # Append the result of audit flagging.
             js += 'var audit = "%s";\n' % simplejson.dumps(local_vals['audit_result'])
@@ -1407,7 +1379,7 @@ function getSessionInfo(){
 
 
         kwargs = args.copy()
-        return self.result(req, None, **kwargs)
+        return self.result(req, mod, **kwargs)
 
     @vmiweb.httprequest
     def products(self, req, mod=None, search=None, **kwargs):
