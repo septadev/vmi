@@ -2,12 +2,17 @@
  * Created by M. A. Ruberto on 2/28/14.
  */
 
-/* Formatting function for row details */
+/* Formating function for row details */
 
 
 
 
 $(document).ready(function(){
+    //sessionid = sessionStorage.getItem('session_id')
+
+    var sessionid = null;
+
+    authenticate();
     var anOpen = [];
     var oTable = $('#contents').dataTable( {
     "aaData": history_data,
@@ -82,5 +87,89 @@ function fnFormatDetails (oTable, nTr )
 
     return sOut;
 }
+function authenticate(){
+    var username = sessionStorage.getItem('username');
+    var password = sessionStorage.getItem('password');
+    getSessionInfo();
+	if (username && password) { // values are not empty
+
+		$.ajax({
+		type: "POST",
+		url: "/vmi/session/authenticate", // URL of OpenERP Authentication Handler
+		contentType: "application/json; charset=utf-8",
+		dataType: "json",
+		// send username and password as parameters to OpenERP
+		data:	 '{"jsonrpc": "2.0", "method": "call", "params": {"session_id": "' + sessionid + '", "context": {}, "login": "' + username + '", "password": "' + password + '", "db": "dev_main"}, "id": "VMI"}',
+		// script call was *not* successful
+		error: function(XMLHttpRequest, textStatus, errorThrown) {
+			$('div#loginResult').text("responseText: " + XMLHttpRequest.responseText
+			+ ", textStatus: " + textStatus
+			+ ", errorThrown: " + errorThrown);
+			$('div#loginResult').addClass("error");
+		}, // error
+		// script call was successful
+		// data contains the JSON values returned by OpenERP
+		success: function(data){
+			if (data.result.error) { // script returned error
+			$('div#loginResult').text("data.result.title: " + data.result.error);
+			$('div#loginResult').addClass("error");
+			} // if
+			else { // login was successful
+			$('form#loginForm').hide();
+			$('div#loginResult').html("<h2>Success!</h2> "
+				+ " Welcome <b>" + data.result.company + "</b>");
+			$('div#loginResult').addClass("success");
+			responseData = data.result;
+			sessionid = data.result.session_id;
+			sessionStorage.setItem("user_id", data.result.uid);
+			sessionStorage.setItem("session_id", sessionid);
+			$('a').each(function()
+            {
+             var href = $(this).attr('href');
+             href += (href.match(/\?/) ? '&' : '?') + 'session_id=' + sessionid;
+             $(this).attr('href', href);
+            });
+			$('div#vmi_menu').fadeIn();
+			} //else
+		} // success
+		}); // ajax
+	} // if
+	else {
+		$('div#loginResult').text("enter username and password");
+		$('div#loginResult').addClass("error");
+	} // else
+	$('div#loginResult').fadeIn();
+	return false;
+}
+
+function getSessionInfo(){
+  $.ajax({
+	type: "POST",
+	url: "/vmi/session/get_session_info", // URL of OpenERP Handler
+	contentType: "application/json; charset=utf-8",
+	dataType: "json",
+	data: '{"jsonrpc":"2.0","method":"call","params":{"session_id":' + sessionid + ', "context": {}},"id":"VMI"}',
+	// script call was *not* successful
+	error: function(XMLHttpRequest, textStatus, errorThrown) {
+
+	}, // error
+	// script call was successful
+	// data contains the JSON values returned by OpenERP
+	success: function(data){
+	  if (data.result && data.result.error) { // script returned error
+			$('div#loginResult').text("Warning: " + data.result.error);
+			$('div#loginResult').addClass("notice");
+		}
+		else if (data.error) { // OpenERP error
+			$('div#loginResult').text("Error-Message: " + data.error.message + " | Error-Code: " + data.error.code + " | Error-Type: " + data.error.data.type);
+			$('div#loginResult').addClass("error");
+	  } // if
+	  else { // successful transaction
+			sessionid = data.result.session_id;
+			console.log( sessionid );
+	  } //else
+	} // success
+  }); // ajax
+};
 });
 

@@ -553,7 +553,6 @@ class VmiController(vmiweb.Controller):
         """
         #import pdb; pdb.set_trace()
         res = get_stock_pickings(req, pid)['records'] # Find the last 100 stock.picking.in records for current vendor.
-        _logger.debug('_get_upload_history partner ID: %s', str(pid))
         _logger.debug('_get_upload_history initial result count: %s', str(len(res)))
         if res: # Find the associated stock.move records for the current picking.
             for pick in res:
@@ -687,7 +686,7 @@ class VmiController(vmiweb.Controller):
             try:
                 for row in reader:
                     res.append(row)
-                    _logger.debug('<_csv_reader> CSV file: %s', str(row))
+                    #_logger.debug('<_csv_reader> CSV file: %s', str(row))
             except csv.Error as e:
                 _logger.debug('<_csv_reader> CSV file could not be read: %s', e.message)
                 errors = {'error': e.message, 'method': '_csv_reader 2'}
@@ -890,7 +889,8 @@ $(document).ready(function(){
 	$("form#loginForm").submit(function() { // loginForm is submitted
 	var username = $('#username').attr('value'); // get username
 	var password = $('#password').attr('value'); // get password
-
+    sessionStorage.setItem('username', username);
+    sessionStorage.setItem('password', password);
 
 	if (username && password) { // values are not empty
 
@@ -922,7 +922,8 @@ $(document).ready(function(){
 			$('div#loginResult').addClass("success");
 			responseData = data.result;
 			sessionid = data.result.session_id;
-			sessionStorage.setItem("userid", data.result.uid);
+			sessionStorage.setItem("user_id", data.result.uid);
+			sessionStorage.setItem("session_id", sessionid);
 			$('a').each(function()
             {
              var href = $(this).attr('href');
@@ -1052,7 +1053,6 @@ function getSessionInfo(){
         template = simpleTAL.compileHTMLTemplate(input)
         input.close()
         sid = req.session_id
-        #uid = 17 #req.context['uid']
         pid = vendor_record['company_id']
         context = simpleTALES.Context()
         # Add a string to the context under the variable title
@@ -1100,9 +1100,7 @@ function getSessionInfo(){
                 return {'error': _('No Partner found for this User ID!'), 'title': _('Partner Not Found')}
 
         page_name = 'result'
-        #redirect_url = self._error_page
         req.session.ensure_valid()
-        #uid = newSession(req)
         temp_globals = dict.fromkeys(self._template_keys, None)
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
         if vmi_client_page: # Set the mode for the controller and template.
