@@ -4,13 +4,12 @@
 
 /* Formating function for row details */
 
-
-
+var sessionid = null;
 
 $(document).ready(function(){
     //sessionid = sessionStorage.getItem('session_id')
 
-    var sessionid = null;
+
 
     authenticate();
     var anOpen = [];
@@ -120,7 +119,7 @@ function authenticate(){
 				+ " Welcome <b>" + data.result.company + "</b>");
 			$('div#loginResult').addClass("success");
 			responseData = data.result;
-			sessionid = data.result.session_id;
+			//sessionid = data.result.session_id;
 			sessionStorage.setItem("user_id", data.result.uid);
 			sessionStorage.setItem("session_id", sessionid);
 			$('a').each(function()
@@ -148,7 +147,7 @@ function getSessionInfo(){
 	url: "/vmi/session/get_session_info", // URL of OpenERP Handler
 	contentType: "application/json; charset=utf-8",
 	dataType: "json",
-	data: '{"jsonrpc":"2.0","method":"call","params":{"session_id":' + sessionid + ', "context": {}},"id":"VMI"}',
+	data: '{"jsonrpc":"2.0","method":"call","params":{"session_id":' + sessionid + ', "context": {}},"id":""}',
 	// script call was *not* successful
 	error: function(XMLHttpRequest, textStatus, errorThrown) {
 

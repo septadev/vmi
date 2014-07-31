@@ -66,6 +66,12 @@
     
     </script>
     <style type="text/css">
+      /* LIST #2 */
+    #vmi_menu{ width:320px; }
+    #vmi_menu ol { font-style:italic; font-family:Georgia, Times, serif; font-size:24px; color:#ff3333;  }
+    #vmi_menu ol li { }
+    #vmi_menu ol li p { padding:8px; font-style:normal; font-family:Arial; font-size:13px; color:#3300ff; border-left: 1px solid #333333; }
+    #vmi_menu ol li p a { display:block; }
       #loginContent { width: 575px; margin: 100px auto; 
       
       
@@ -126,12 +132,12 @@
       <div id="loginResult" style="display:none;"> <!-- return message from authentication -->
       </div>
       <div id="vmi_menu" style="display:none;"> <!-- navigation links -->
-	      <ul>
-					<li><a href="/vmi/upload">Submit Packing Slip</a></li>
-					<li><a href="#">Review Packing Slip</a></li>
-					<li><a href="/vmi/products">Search Part Numbers</a></li>
-					<li><a href="#">Invoice Status</a></li>
-	      </ul>
+	      <ol>
+					<li><p><a href="/vmi/upload">Submit Packing Slip</a> Upload packing slips from CSV files.</p></li>
+					<li><p><a href="#">Review Packing Slip</a> Historical view of recently submitted packing slips.</p></li>
+					<li><p><a href="/vmi/products">Search Part Numbers</a> Search the database by SEPTA P/N or Vendor P/N.</p></li>
+					<li><p><a href="#">Invoice Status</a> Review and save your current invoice.</p></li>
+	      </ol>
       </div>
       <form id="loginForm" name="loginForm" method="post" action="">
         <fieldset>

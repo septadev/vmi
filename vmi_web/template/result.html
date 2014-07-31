@@ -18,6 +18,11 @@
                       border-color:#ff0000;
             }
             .detailRow{}
+            #list1 { font-family:Georgia, Times, serif; }
+            #list1 ul { list-style:none; text-align:center; border-top:1px solid #333; border-bottom:1px solid #333; padding:10px 0; }
+            #list1 ul li { display:inline; padding:0 10px; letter-spacing:4px; }
+            #list1 ul li a { text-decoration:none; }
+            #list1 ul li a:hover { text-decoration:underline; }
 		</style>
 <script type="text/javascript" tal:content="structure script">
 
@@ -37,6 +42,14 @@
     <br>
     <div id="contactContent" class="container">
         <!-- Upload Results Template Begin -->
+                <div id="list1">
+            <!-- Menu bar -->
+               <ul>
+                  <li><a href="#">Upload Packing Slips</a></li>
+                  <li><a href="#">Search P/Ns</a></li>
+                  <li><a href="#">Invoice</a></li>
+               </ul>
+        </div>
         <p tal:content="title">
           Title
         </p>
