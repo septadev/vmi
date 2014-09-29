@@ -9,6 +9,9 @@
 			div.dataTables_wrapper { font-size: 13px; }
 			table.display thead th, table.display td { font-size: 13px; }
 		</style>
+<link rel="stylesheet" type="text/css" media="screen, projection" href="/vmi/static/src/css/screen_rev2.css" />
+<link rel="stylesheet" type="text/css" media="screen, projection" href="/vmi/static/src/js/datatables/media/css/jquery.dataTables.css" />
+<link rel="stylesheet" type="text/css" media="screen, projection" href="/vmi/static/src/css/septa.css" />
         <script type="text/javascript" tal:content="structure script">
 
 
@@ -20,18 +23,41 @@
 <script type="text/javascript" src="/vmi/static/src/js/jquery.csv-0.71.js"></script>
 <script type="text/javascript" src="/vmi/static/src/js/datatables/media/js/jquery.dataTables.js"></script>
 <script type="text/javascript" src="/vmi/static/src/js/datatables/extras/TableTools/media/js/TableTools.min.js"></script>
+
+<!--<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>-->
+<script type="text/javascript" src="/vmi/static/src/js/navigation.js"></script>
 <script type="text/javascript" src="/vmi/static/src/js/search.js"></script>
+
 </head>
 <body>
-    <br>
-    <div id="main" class="container">
+    <div id="wrapper">
+	<div id="header">
+        <div id="header-inside">
+        <h1 id="icon"> <img src="/vmi/static/src/img/logo.gif" alt="SEPTA" /></h1>
+        <h1 id="title">  VMI Vendor Portal </h1>
+        <div id="vendor"></div>
+        </div>
+	</div>
+    <div id="contactContent" class="container">
+        <div id="list1">
+            <!-- Menu bar -->
+               <ul>
+                  <li><a href="index">Home</a></li>
+                  <li><a href="upload">Submit Packing Slip</a></li>
+                  <li><a href="result">Review Packing Slips</a></li>
+                  <li><a href="products">Search P/Ns</a></li>
+                  <li><a href="invoice">Invoice</a></li>
+               </ul>
+        </div>
         <!-- Product Search Template Begin -->
-        <p tal:content="title">
-          Title
-        </p>
-        <p tal:content="header">
-          Header
-        </p>
+        <div id="info">
+            <p id="subtitle" tal:content="title">
+              Title
+            </p>
+            <p id="subheader" tal:content="header">
+              Header
+            </p>
+        </div>
         <div id="search" class="info" tal:condition="form_flag">
             <form class="form_search_form" action="#" tal:attributes="action form_action" method="post" enctype="multipart/form-data">
                 <fieldset>
@@ -39,6 +65,7 @@
                     <input name="callback" value="debug" type="hidden">
                     <input value="17" name="uid" type="hidden" tal:attributes="value uid">
                     <input value="9" name="pid" type="hidden" tal:attributes="value pid">
+                    <input value="9" name="session_id" type="hidden" tal:attributes="value sid">
                     Enter P/N: <input name="search" value="" type="search" tal:attributes="value search_string"><br>
                     <input type="submit">
                 </fieldset>
@@ -59,12 +86,13 @@
             </form>
             <br>
         </div>
-          <div id="no_search" tal:condition="not:form_flag" class="notice">
+        <div id="no_search" tal:condition="not:form_flag" class="notice">
                 <p> <!-- Notify user that they cannot search products -->
                     <b>Product cannot be searched at this time!</b> <br />
                 </p>
-          </div>
+        </div>
         <!-- Product Search Template End -->
+    </div>
     </div>
 </body>
 </html>

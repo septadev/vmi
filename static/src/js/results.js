@@ -4,10 +4,12 @@
 
 /* Formating function for row details */
 
-var sessionid = null;
+//var sessionid = null;
 
 $(document).ready(function(){
-    //sessionid = sessionStorage.getItem('session_id')
+    sessionid = sessionStorage.getItem('session_id')
+    console.log('before re-authentication: ' + sessionid );
+
 
 
 
@@ -29,7 +31,8 @@ $(document).ready(function(){
          {"mData": "origin"},
          {"mData": "purchase_id"},
          {"mData": "state"}
-     ]
+     ],
+     "sPaginationType":"full_numbers"
 } );
   $('#contents td.control').live( 'click', function () {
   var nTr = this.parentNode;
@@ -86,6 +89,7 @@ function fnFormatDetails (oTable, nTr )
 
     return sOut;
 }
+
 function authenticate(){
     var username = sessionStorage.getItem('username');
     var password = sessionStorage.getItem('password');
@@ -98,7 +102,7 @@ function authenticate(){
 		contentType: "application/json; charset=utf-8",
 		dataType: "json",
 		// send username and password as parameters to OpenERP
-		data:	 '{"jsonrpc": "2.0", "method": "call", "params": {"session_id": "' + sessionid + '", "context": {}, "login": "' + username + '", "password": "' + password + '", "db": "dev_main"}, "id": "VMI"}',
+		data:	 '{"jsonrpc": "2.0", "method": "call", "params": {"session_id": "' + sessionid + '", "context": {}, "login": "' + username + '", "password": "' + password + '", "db": "test1"}, "id": "VMI"}',
 		// script call was *not* successful
 		error: function(XMLHttpRequest, textStatus, errorThrown) {
 			$('div#loginResult').text("responseText: " + XMLHttpRequest.responseText
@@ -122,12 +126,12 @@ function authenticate(){
 			//sessionid = data.result.session_id;
 			sessionStorage.setItem("user_id", data.result.uid);
 			sessionStorage.setItem("session_id", sessionid);
-			$('a').each(function()
+			/*$('a').each(function()
             {
              var href = $(this).attr('href');
              href += (href.match(/\?/) ? '&' : '?') + 'session_id=' + sessionid;
              $(this).attr('href', href);
-            });
+            });*/
 			$('div#vmi_menu').fadeIn();
 			} //else
 		} // success
