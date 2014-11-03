@@ -79,8 +79,8 @@
 				  <field name="audit_fail" invisible="1" />
 				</field>
 				<field name="product_qty" position="after">
-				  <button name="%(vmi.move_audit)d" icon="gtk-find" type="action" colspan="1" help="Audit" attrs="{'invisible': ['|',('state','=','done'),('audit','&lt;&gt;', True)]}" />
-				  <button name="fail_audit" icon="gtk-dialog-warning" type="object" colspan="1" help="Failed Audit" attrs="{'invisible': [('audit_fail','&lt;&gt;', True)]}" />
+				    <button name="%(vmi.move_audit)d" icon="gtk-find" type="action" colspan="1" help="Audit" attrs="{'invisible': ['|',('state','=','done'),('audit','&lt;&gt;', True)]}" />
+                    <button name="fail_audit" icon="gtk-dialog-warning" type="object" colspan="1" help="Failed Audit" attrs="{'invisible': [('audit_fail','&lt;&gt;', True)]}" />
 				</field>
 			</field>
 		</record>
@@ -200,5 +200,45 @@
             </field>
         </record>
         <menuitem action="action_client_form" id="menu_action_client_form" parent="stock.menu_stock_configuration" sequence="1"/>
+
+        <record id="view_stock_invoice_onshipping" model="ir.ui.view">
+            <field name="name">Stock Invoice Onshipping</field>
+            <field name="model">stock.invoice.onshipping</field>
+            <field name="arch" type="xml">
+              <form string="Create invoice" version="7.0">
+                  <group string="Create Invoice">
+                      <field name="journal_id"/>
+                      <field name="group_by_partner"/>
+                      <field name="invoice_date" />
+                  </group>
+                  <footer>
+                      <button name="open_invoice" string="Create" type="object" class="oe_highlight"/>
+                      or
+                      <button string="Cancel" class="oe_link" special="cancel"/>
+                  </footer>
+             </form>
+            </field>
+        </record>
+
+
+        <act_window name="Create Draft Invoices"
+            res_model="stock.invoice.onshipping"
+            src_model="stock.picking.out"
+            key2="client_action_multi"
+            multi="True"
+            view_mode="form"
+            view_type="form"
+            target="new"
+            id="action_stock_invoice_onshipping"/>
+
+        <act_window name="Create Draft Invoices"
+            res_model="stock.invoice.onshipping"
+            src_model="stock.picking.in"
+            key2="client_action_multi"
+            multi="True"
+            view_mode="form"
+            view_type="form"
+            target="new"
+            id="action_stock_invoice_onshipping"/>
 	</data>			  
 </openerp>	

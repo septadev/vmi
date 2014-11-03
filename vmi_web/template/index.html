@@ -4,53 +4,35 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<style type="text/css" media="screen">
+			@import "/vmi/static/src/js/datatables/extras/TableTools/media/css/TableTools.css";
+			div.dataTables_wrapper { font-size: 13px; }
+			table.display thead th, table.display td { font-size: 13px; }
+
+		</style>
     <title tal:content="title">title</title>
-   <!-- <link rel="stylesheet" type="text/css" media="screen"
-      href="http://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css" /> -->
-    <link href="/web/static/src/css/jquery-ui.css" type="text/css" rel="stylesheet" />
-    <!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/base/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
-<!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/black-tie/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
-<!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/blitzer/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
-<!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/dark-hive/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
-<!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/dot-luv/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
-<!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/eggplant/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
-<!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/excite-bike/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
-<!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/flick/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
-<!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/hot-sneaks/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
-<!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/humanity/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
-<!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/le-frog/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
-<!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/mint-choc/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
-<!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/overcast/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
-<!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/pepper-grinder/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
-<!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/redmond/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
-<!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/south-street/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
-<!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/start/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
-<!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/sunny/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
-<!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/swanky-purse/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
-<!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/trontastic/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
-<!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/ui-darkness/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
-<!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/ui-lightness/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
-<!-- <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1/themes/vader/jquery-ui.css" type="text/css" rel="stylesheet" /> -->
+    <!--<link rel="stylesheet" type="text/css" media="screen"
+      href="http://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css" />-->
+    <link href="http://172.27.230.200:8069/web/static/src/css/jquery-ui.css" type="text/css" rel="stylesheet" />
     <link href="http://www.septa.org/site/images/favicon.ico" type="image/x-icon" rel="shortcut icon">
-    <link rel="stylesheet" type="text/css" media="screen, projection" 
-      href="/web/static/src/css/screen_rev2.css" />
+
+    <link rel="stylesheet" type="text/css" media="screen, projection"
+      href="/vmi/static/src/css/screen_rev2.css" />
+    <link rel="stylesheet" type="text/css" media="screen, projection"
+      href="/vmi/static/src/css/septa.css" />
+
     <link rel="stylesheet"  type="text/css" media="screen, projection"
-      href="/web/static/src/css/screen.css" />
-    <link rel="stylesheet" type="text/css" media="print" 
-      href="/web/static/src/css/print.css" />
-    <!--[if IE]><link rel="stylesheet" type="text/css" media="screen, projection" 
+      href="http://172.27.230.200:8069/web/static/src/css/screen.css" />
+    <link rel="stylesheet" type="text/css" media="print"
+      href="http://172.27.230.200:8069/web/static/src/css/print.css" />
+    <!--[if IE]><link rel="stylesheet" type="text/css" media="screen, projection"
       href="http://www.blueprintcss.org/blueprint/ie.css"><![endif]-->
+
     <script type="text/javascript" 
-      src="/web/static/src/js/jquery.min.js"></script>
+      src="/vmi/static/src/js/jquery.min.js"></script>
     <script type="text/javascript" 
-      src="/web/static/src/js/jquery-ui.js"></script>
-    <script type="text/javascript">
-    //global variables
-	    var sessionid = null;
-	    var responseData = null;   
-	    var postData = null; 
-        
-    </script>
+      src="/vmi/static/src/js/jquery-ui.js"></script>
+
     <script type="text/javascript" tal:content="structure script">
     
     
@@ -66,43 +48,42 @@
     
     </script>
     <style type="text/css">
+
+
       /* LIST #2 */
-    #vmi_menu{ width:320px; }
-    #vmi_menu ol { font-style:italic; font-family:Georgia, Times, serif; font-size:24px; color:#ff3333;  }
-    #vmi_menu ol li { }
-    #vmi_menu ol li p { padding:8px; font-style:normal; font-family:Arial; font-size:13px; color:#3300ff; border-left: 1px solid #333333; }
-    #vmi_menu ol li p a { display:block; }
-      #loginContent { width: 575px; margin: 100px auto; 
-      
-      
+      #loginForm {
+          width: 575px;
+          padding-left: 200px;
+          position: fixed;
+          top: 250px;
       }
-      #header h1 {text-align:center;}
+
       button[type] { margin: 0.5em 0; }
 
-	#tabs { 
-	    background: transparent; 
-	} 
-	#tabs .ui-widget-header { 
-	    background: transparent; 
-	    border: none; 
-	    border-bottom: 1px solid #c0c0c0; 
-	    -moz-border-radius: 0px; 
-	    -webkit-border-radius: 0px; 
-	    border-radius: 0px; 
-	} 
-	#tabs .ui-tabs-nav .ui-state-default { 
-	    background: transparent; 
-	    border: none; 
-	} 
-	#tabs .ui-tabs-nav .ui-state-active { 
-	    background: transparent url(/web/static/src/img/uiTabsArrow.png) no-repeat bottom center; 
-	    border: none; 
-	} 
-	#tabs .ui-tabs-nav .ui-state-default a { 
-	    color: #BFBFBF; 
-	} 
-	#tabs .ui-tabs-nav .ui-state-active a { 
-	    color: #205791; 
+	#tabs {
+	    background: transparent;
+	}
+	#tabs .ui-widget-header {
+	    background: transparent;
+	    border: none;
+	    border-bottom: 1px solid #c0c0c0;
+	    -moz-border-radius: 0px;
+	    -webkit-border-radius: 0px;
+	    border-radius: 0px;
+	}
+	#tabs .ui-tabs-nav .ui-state-default {
+	    background: transparent;
+	    border: none;
+	}
+	#tabs .ui-tabs-nav .ui-state-active {
+	    background: transparent url(http://172.27.230.200:8069/web/static/src/img/uiTabsArrow.png) no-repeat bottom center;
+	    border: none;
+	}
+	#tabs .ui-tabs-nav .ui-state-default a {
+	    color: #BFBFBF;
+	}
+	#tabs .ui-tabs-nav .ui-state-active a {
+	    color: #205791;
 	}
 /*	loginContent input {
 		width:425px;
@@ -125,18 +106,44 @@
     </style>
   </head>
   <body>
-	<div id="header"> 
-	    <h1>SEPTA VMI Vendor Portal</h1>
-	</div> 
+    <div id="wrapper" class="clearfix">
+	<div id="header">
+        <div id="header-inside">
+        <h1 id="icon"> <img src="/vmi/static/src/img/logo.gif" alt="SEPTA" /></h1>
+        <h1 id="title">  VMI Vendor Portal </h1>
+        <div id="vendor" style="display:none;"> </div>
+        </div>
+	</div>
+    <div id="contactContent" class="container" style="display: none">
+        <div id="list1">
+            <!-- Menu bar -->
+               <ul>
+                  <li><a href="/vmi/index">Home</a></li>
+                  <li><a href="/vmi/upload">Upload Packing Slips</a></li>
+                  <li><a href="/vmi/result">Review Packing Slips</a></li>
+                  <li><a href="/vmi/products">Search P/Ns</a></li>
+                  <li><a href="/vmi/invoice">Invoice</a></li>
+               </ul>
+        </div>
+    </div>
     <div id="loginContent" class="container">
+
       <div id="loginResult" style="display:none;"> <!-- return message from authentication -->
       </div>
       <div id="vmi_menu" style="display:none;"> <!-- navigation links -->
 	      <ol>
-					<li><p><a href="/vmi/upload">Submit Packing Slip</a> Upload packing slips from CSV files.</p></li>
-					<li><p><a href="#">Review Packing Slip</a> Historical view of recently submitted packing slips.</p></li>
-					<li><p><a href="/vmi/products">Search Part Numbers</a> Search the database by SEPTA P/N or Vendor P/N.</p></li>
-					<li><p><a href="#">Invoice Status</a> Review and save your current invoice.</p></li>
+                    <li><a href="/vmi/upload">Submit Packing Slip</a>
+                        <p>Upload packing slips from CSV files.</p>
+                    </li>
+					<li><a href="/vmi/result">Review Packing Slip</a>
+                        <p>Historical view of recently submitted packing slips.</p>
+                    </li>
+					<li><a href="/vmi/products">Search Part Numbers</a>
+                        <p>Search the database by SEPTA P/N or Vendor P/N.</p>
+                    </li>
+					<li><a href="/vmi/invoice">Invoice Status</a>
+                        <p>Review and save your current invoice.</p>
+                    </li>
 	      </ol>
       </div>
       <form id="loginForm" name="loginForm" method="post" action="">
@@ -155,14 +162,14 @@
           <p>
             <button type="submit" class="button positive">
              <img alt="ok" src=
-             "/web/static/src/img/tick.png" /> 
+             "http://172.27.230.200:8069/web/static/src/img/tick.png" />
              Login
             </button>
           </p>
         </fieldset>
       </form>
     </div>
-
+  </div>
   </body>
 </html>
 

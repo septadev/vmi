@@ -1,0 +1,75 @@
+				
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" 
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<style type="text/css" media="screen">
+			@import "/vmi/static/src/js/datatables/extras/TableTools/media/css/TableTools.css";
+			div.dataTables_wrapper { font-size: 13px; }
+			table.display thead th, table.display td { font-size: 13px; }
+
+
+
+		</style>
+    <title tal:content="title">title</title>
+    <!--<link rel="stylesheet" type="text/css" media="screen"
+      href="http://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css" />-->
+    <link href="http://172.27.230.200:8069/web/static/src/css/jquery-ui.css" type="text/css" rel="stylesheet" />
+    <link href="http://www.septa.org/site/images/favicon.ico" type="image/x-icon" rel="shortcut icon">
+
+    <link rel="stylesheet" type="text/css" media="screen, projection"
+      href="/vmi/static/src/css/screen_rev2.css" />
+    <link rel="stylesheet" type="text/css" media="screen, projection"
+      href="/vmi/static/src/css/septa.css" />
+
+
+    <script type="text/javascript" 
+      src="http://172.27.230.200:8069/web/static/src/js/jquery.min.js"></script>
+    <script type="text/javascript" 
+      src="http://172.27.230.200:8069/web/static/src/js/jquery-ui.js"></script>
+    <script type="text/javascript" src="/vmi/static/src/js/navigation.js"></script>
+  </head>
+  <body>
+	<div id="wrapper" class="clearfix">
+	<div id="header">
+        <div id="header-inside">
+        <h1 id="icon"> <img src="/vmi/static/src/img/logo.gif" alt="SEPTA" /></h1>
+        <h1 id="title">  VMI Vendor Portal </h1>
+        <div id="vendor"></div>
+        </div>
+	</div>
+    <div id="contactContent" class="container">
+        <div id="list1">
+            <!-- Menu bar -->
+               <ul>
+                  <li><a href="/vmi/index">Home</a></li>
+                  <li><a href="/vmi/upload">Upload Packing Slips</a></li>
+                  <li><a href="/vmi/result">Review Packing Slips</a></li>
+                  <li><a href="/vmi/products">Search P/Ns</a></li>
+                  <li><a href="/vmi/invoice">Invoice</a></li>
+               </ul>
+        </div>
+    </div>
+    <div id="loginContent" class="container">
+      <div id="vmi_menu"> <!-- navigation links -->
+	      <ol>
+                    <li><a href="/vmi/upload">Submit Packing Slip</a>
+                        <p>Upload packing slips from CSV files.</p>
+                    </li>
+					<li><a href="/vmi/result">Review Packing Slip</a>
+                        <p>Historical view of recently submitted packing slips.</p>
+                    </li>
+					<li><a href="/vmi/products">Search Part Numbers</a>
+                        <p>Search the database by SEPTA P/N or Vendor P/N.</p>
+                    </li>
+					<li><a href="/vmi/invoice">Invoice Status</a>
+                        <p>Review and save your current invoice.</p>
+                    </li>
+	      </ol>
+      </div>
+    </div>
+    </div>
+  </body>
+</html>
+

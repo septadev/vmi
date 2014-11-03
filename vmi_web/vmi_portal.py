@@ -1,5 +1,6 @@
 # -*- encoding: utf-8 -*-
 
+import sys
 import random
 import string
 import operator
@@ -18,6 +19,8 @@ from openerp.tools.translate import _
 import openerp.addons.web.http as vmiweb
 
 _logger = logging.getLogger(__name__)
+
+#session_created = False
 
 # -----------------------------------------------| VMI Global Methods.
 
@@ -72,10 +75,12 @@ provided search criteria
 
 def newSession(req):
     """ create admin session for testing purposes only """
-    db = 'dev_main'
+    db = 'alpha'
     login = 'admin'
-    password = 'openerp'
+    password = 'alpha'
     uid = req.session.authenticate(db, login, password)
+    global session_created
+    #session_created = True
     return uid
 
 
@@ -153,6 +158,8 @@ def get_partner_id(req, uid=None, **kwargs):
         parent = p['records'][0]
         record['company'] = parent['name']
         record['company_id'] = parent['id']
+        #record['remained_audit'] = parent['mobile']
+        #record['last_record'] = parent['birthdate']
         partner_ids['records'].append(record)
         partner_ids['records'].pop(0)
 
@@ -316,6 +323,27 @@ def get_stock_moves_by_id(req, ids, all=False):
 
     return moves
 
+
+def get_invoice_line(req, ids):
+    """
+    get invoice.line by id
+    :param req: object
+    :param ids: account.invoice.line
+    :return: dict
+    """
+    lines = None
+    fields = ['invoice_id', 'price_unit', 'price_subtotal', 'discount', 'quantity', 'product_id']
+    try:
+        lines = do_search_read(req, 'account.invoice.line', fields, 0, False, [('id', 'in', ids)], None)
+    except Exception:
+        _logger.debug('<get_invoice_line> Invoice_lines not found for ids: %s', ids)
+
+    if not lines:
+        raise  Exception("Access Denied")
+
+    return lines
+
+
 def get_stock_pickings(req, pid, limit=10):
     """
     Search for last 100 packing slip uploads for the vendor.
@@ -325,6 +353,7 @@ def get_stock_pickings(req, pid, limit=10):
     @return: dict
     """
     pickings = None
+    _logger.debug('<get_stock_pickings> partner ID: %s', pid)
     fields = ['date', 'origin', 'purchase_id', 'state', 'partner_id', 'move_lines', 'product_id']
     try:
         pickings = do_search_read(req, 'stock.picking.in', fields, 0, limit, [('partner_id.id', '=', pid),
@@ -339,7 +368,26 @@ def get_stock_pickings(req, pid, limit=10):
     return pickings
 
 
+def get_account_invoice(req, pid):
+    """
+    Search for invoices that marked as Manager Approved
+    :param req: object
+    :param pid: partner_id
+    :return: dict
+    """
+    invoices = None
+    fields = ['name', 'number', 'date_invoice', 'state', 'partner_id', 'invoice_line', 'move_id', 'amount_untaxed',
+              'amount_tax', 'amount_total']
+    try:
+        invoices = do_search_read(req, 'account.invoice', fields, 0, False, [('partner_id.id', '=', pid),
+            ('state', 'in', ['manager_approved', 'vendor_approved'])], None)
+    except Exception:
+        _logger.debug('<get_account_invoice> No account.invoice instances found for partner ID: %s', pid)
 
+    if not invoices:
+        raise Exception("AccessDenied")
+
+    return invoices
 
 def random_string(size, format):
     """
@@ -570,6 +618,24 @@ class VmiController(vmiweb.Controller):
         _logger.debug('_get_upload_history final result: %s', str(res))
         return res
 
+    def _get_invoice(self, req, pid):
+        """
+        Return the Invoice that manager approved
+        :param req: object
+        :param pid: partner_id
+        :return: search result object
+        """
+        res = get_account_invoice(req, pid)['records']
+        _logger.debug('<_get_invoice> initial result: %s', str(res))
+        if res:
+            for line in res:
+                line_ids = line['invoice_line']
+                lines = get_invoice_line(req, line_ids)['records']
+                line['line_items'] = lines
+
+        _logger.debug('<_get_invoice> final result: %s', str(res))
+        return res
+
     def _create_attachment(self, req, model, id, descr, ufile):
         """
 
@@ -704,6 +770,11 @@ class VmiController(vmiweb.Controller):
         """
         model_name = 'stock.picking.in'
         Model = req.session.model(model_name)
+        destination_id = None
+        location_id = None
+        location_partner = None
+        locations = get_stock_locations(req, pid)
+        all_locations = []
         res = []
         if len(csv_rows) > 0:
             for row in csv_rows: # Each unique packing slip number becomes a stock.picking.in instance.
@@ -713,19 +784,43 @@ class VmiController(vmiweb.Controller):
                 #if partner['id'] != pid: # Check if supplier is the same as current user's parent partner.
                 #    _logger.debug('<_create_stock_picking> Supplier ID does not match PID: %s | %s', partner, pid)
                 #    continue
+                for location in locations['records']: # Find the matching stock.location id for the CSV location value.
+
+                    destination_name = str(row['destination']).strip() + self._default_stock_location_suffix
+                    location_name = str(row['supplier'])
+                    #_logger.debug('<_create_move_line> Location Name: %s', str(location_name))
+                    if location['name'].upper() == destination_name.upper():
+                        destination_id = location['id']
+                        #_logger.debug('<_create_stock_picking> Destination Id: %s, Destination Name: %s', str(destination_id), destination_name)
+                    if location['name'].upper() == location_name.upper():
+                        location_id = location['id']
+                        if location['partner_id']:
+                            location_partner = location['partner_id'][0]
+                        #_logger.debug('<_create_stock_picking> Location Id: %s, Location Name: %s', str(location_id), location_name)
+
+                if not destination_id:
+                    raise ValueError("(%r) is not a proper value for destination location!" % str(row['destination']))
+                else:
+                    all_locations.append(destination_id)
+
                 # Construct date from individual M D Y fields in CSV data.
                 delivery_date = str(row['year']).strip() + '/' + str(row['month']).strip() + '/' + str(row['day']).strip()
-                _logger.debug('<_create_stock_picking> CSV file: %s', str(row['packing_list_number']))
+                #_logger.debug('<_create_stock_picking> CSV file: %s', str(row['packing_list_number']))
                 picking_id = Model.create({
                                               'name': row['packing_list_number'].strip() + '.' + delivery_date + '.' + rnd,
                                               'date_done': delivery_date,
+                                              'min_date': delivery_date,
                                               'partner_id': partner['id'],
                                               'origin': row['packing_list_number'].strip(),
                                               'invoice_state': '2binvoiced',
+                                              'state': 'done',
+                                              'location_id': location_id,
+                                              'location_dest_id': destination_id,
                                               #'purchase_id': row['purchase_order'].strip(),
                                               'note': row['purchase_order'].strip()
                                           }, req.context)
                 res.append({'picking_id': picking_id, 'packing_list': row['packing_list_number'].strip(), 'partner': partner['id']})
+                #_logger.debug('<_create_stock_picking> picking_id: %s', res)
 
         return res
 
@@ -742,6 +837,7 @@ class VmiController(vmiweb.Controller):
         all_locations = []
         model_name = 'stock.move'
         Model = req.session.model(model_name)
+        destination_id = None
         location_id = None
         location_partner = None
         locations = get_stock_locations(req, pid)
@@ -750,40 +846,55 @@ class VmiController(vmiweb.Controller):
             product = None
             for csv_row in csv_rows:
                 for prod in validated_products['records']: # Verify products in CSV actually exist.
-                    _logger.debug('<_create_move_line> Current product: %s', prod['default_code'])
+                    #_logger.debug('<_create_move_line> Current product: %s', prod['default_code'])
                     if prod['default_code'] == csv_row['septa_part_number'].strip():
                         product = prod
                         break
 
                 for location in locations['records']: # Find the matching stock.location id for the CSV location value.
-                    location_name = str(csv_row['destination']).strip() + self._default_stock_location_suffix
+
+                    destination_name = str(csv_row['destination']).strip() + self._default_stock_location_suffix
+                    location_name = str(csv_row['supplier'])
+                    #_logger.debug('<_create_move_line> Location Name: %s', str(location_name))
+                    if location['name'].upper() == destination_name.upper():
+                        destination_id = location['id']
+                        #_logger.debug('<_create_move_line> Destination Id: %s, Destination Name: %s', str(destination_id), destination_name)
                     if location['name'].upper() == location_name.upper():
                         location_id = location['id']
                         if location['partner_id']:
                             location_partner = location['partner_id'][0]
-                        _logger.debug('<_create_move_line> Location Id: %s, Location Name: %s', str(location_id), location_name)
-                        break
+                        #_logger.debug('<_create_move_line> Location Id: %s, Location Name: %s', str(location_id), location_name)
 
-                if not location_id:
+                if not destination_id:
                     raise ValueError("(%r) is not a proper value for destination location!" % str(csv_row['destination']))
                 else:
-                    all_locations.append(location_id)
+                    all_locations.append(destination_id)
 
                 delivery_date = str(csv_row['year']).strip() + '/' + str(csv_row['month']).strip() + '/' + str(
                     csv_row['day']).strip()
+                #_logger.debug('deliver_date = %s' , delivery_date)
+                #_logger.debug('<_create_move_line> csv row: %s', csv_row)
                 move_id = Model.create({
                     'product_id': product['id'],
                     'name': csv_row['packing_list_number'].strip() + '.' + delivery_date + '.' + random_string(8, 'digits'),
                     'product_uom': product['uom_id'][0],
                     'product_qty': float(csv_row['quantity_shipped']),
-                    'location_dest_id': location_id,
-                    'location_id': csv_row['partner'],
+                    'location_dest_id': destination_id,
+                    'location_id': location_id,
                     'partner_id': location_partner,
                     'picking_id': csv_row['picking_id'],
                     'vendor_id': pid,
                     'date_expected': delivery_date,
+                    'note': 'this is a note',
+                    'scrapped': False,
+                    #'auto_validate': True,
                 })
-                moves.append(move_id)
+                res = Model.read(move_id)
+                _logger.debug('<_create_move_line> res: %s', res)
+                try:
+                    moves.append(move_id)
+                except Exception, e:
+                    _logger.debug('moves append failed: %s!', str(e))
 
         else:
             _logger.debug('<_create_move_line> Moves not created due to bad products: %s', validated_products['records'])
@@ -806,6 +917,7 @@ class VmiController(vmiweb.Controller):
             pickings = []
             for record in res['records']:
                 ps_lines.append(record.copy())
+                #_logger.debug('<_parse_packing_slip> ps_lines: %s', ps_lines)
                 if record['packing_list_number'] not in unique_slips:
                     unique_slips.append(record['packing_list_number'])
                     pickings.append(record)
@@ -816,7 +928,7 @@ class VmiController(vmiweb.Controller):
                                                    filedata)
                 if attached.has_key('error'):
                     _logger.debug('<_parse_packing_slip> _create_attachment returned an error: %s', attached['error'])
-
+            #_logger.debug('<_parse_packing_slip> ps_lines: %s', ps_lines)
             for line in ps_lines:
                 for pick in picked:
                     if pick['packing_list'] == line['packing_list_number']:
@@ -824,7 +936,11 @@ class VmiController(vmiweb.Controller):
                         #del line['packing_list_number']
                         break
 
-            moves = self._create_move_line(req, ps_lines, pid)
+            try:
+                moves = self._create_move_line(req, ps_lines, pid)
+            except Exception, e:
+                _logger.debug('<_parse_packing_slip>_create_move_line failed: %s!', str(e))
+
 
         result.update({'stock_pickings': picked, 'move_lines': moves, 'pid': pid})
         _logger.debug('<_parse_packing_slip> returned values: %s', str(result))
@@ -847,7 +963,7 @@ class VmiController(vmiweb.Controller):
             func = getattr(req.session.model(model), method, None)
             if callable(func):
                 res = func(*args, **kwargs)
-
+                _logger.debug('<_call_methods> Method %s was called on model %s', method, model)
         else:
             _logger.debug('<_call_methods> Method %s not found on model %s', method, model)
             return req.not_found()
@@ -864,9 +980,31 @@ class VmiController(vmiweb.Controller):
         @param kwargs:
         @return: TAL Template
         """
-        uid = newSession(req)
+
+        #check if session created
+        if not kwargs:
+            uid = newSession(req)
+            _logger.debug('Session created')
+        else:
+            req.session.ensure_valid()
+            uid = req.session._uid
+        _logger.debug('This is uid %s', uid)
+
+        #compare session_id from request and from local
+        params = dict(req.httprequest.args)
+        temp_sid = ''
+        if params.has_key('session_id'):
+            temp_sid = params['session_id']
+            _logger.debug('session_id from url is: %s', temp_sid)#session_id from request
+        _logger.debug('req.session_id is: %s', req.session_id)#session_id from local
+
+        if temp_sid and (temp_sid == req.session_id):
+            page_name = 'main_menu'
+        else:
+            page_name = 'index'
+        _logger.debug('page name is: %s', page_name)
+
         temp_globals = dict.fromkeys(self._template_keys, None)
-        page_name = 'index'
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
 
         if vmi_client_page: # Set the mode for the controller and template.
@@ -886,93 +1024,102 @@ class VmiController(vmiweb.Controller):
         js = """
 $(document).ready(function(){
     getSessionInfo();
-	$("form#loginForm").submit(function() { // loginForm is submitted
-	var username = $('#username').attr('value'); // get username
-	var password = $('#password').attr('value'); // get password
-    sessionStorage.setItem('username', username);
-    sessionStorage.setItem('password', password);
+        $("form#loginForm").submit(function() { // loginForm is submitted
+            var username = $('#username').attr('value'); // get username
+            var password = $('#password').attr('value'); // get password
+            sessionStorage.setItem('username', username);
+            sessionStorage.setItem('password', password);
 
-	if (username && password) { // values are not empty
+            if (username && password) { // values are not empty
+                $.ajax({
+                    type: "POST",
+                    url: "/vmi/session/authenticate", // URL of OpenERP Authentication Handler
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json",
+                    // send username and password as parameters to OpenERP
+                    data: '{"jsonrpc": "2.0", "method": "call", "params": {"session_id": "' + sessionid + '", "context": {}, "login": "' + username + '", "password": "' + password + '", "db": "alpha"}, "id": "VMI"}',
+                    // script call was *not* successful
+                    error: function(XMLHttpRequest, textStatus, errorThrown) {
+                        $('div#loginResult').text("responseText: " + XMLHttpRequest.responseText
+                        + ", textStatus: " + textStatus
+                        + ", errorThrown: " + errorThrown);
+                        $('div#loginResult').addClass("error");
+                    }, // error
+                    // script call was successful
+                    // data contains the JSON values returned by OpenERP
+                    success: function(data){
+                        if (data.result.error) { // script returned error
+                            $('div#loginResult').text("data.result.title: " + data.result.error);
+                            $('div#loginResult').addClass("error");
+                        } // if
+                        else { // login was successful
+                            $('form#loginForm').hide();
+                            $('div#loginResult').html("<h2>Success!</h2> "
+                            + " Welcome <b>" + data.result.company + "</b>");
+                            $('div#loginResult').addClass("success");
+                            $('#vendor').html("Hi, " + data.result.company);
+                            responseData = data.result;
+                            sessionid = data.result.session_id;
+                            partnerid = data.result.partner_id;
+                            companyid = data.result.company_id;
+                            companyname = data.result.company;
+                            sessionStorage.setItem("user_id", data.result.uid);
+                            sessionStorage.setItem("session_id", sessionid);
+                            sessionStorage.setItem("partner_id", partnerid);
+                            sessionStorage.setItem("company_id", companyid);
+                            sessionStorage.setItem("company_name", companyname);
 
-		$.ajax({
-		type: "POST",
-		url: "/vmi/session/authenticate", // URL of OpenERP Authentication Handler
-		contentType: "application/json; charset=utf-8",
-		dataType: "json",
-		// send username and password as parameters to OpenERP
-		data:	 '{"jsonrpc": "2.0", "method": "call", "params": {"session_id": "' + sessionid + '", "context": {}, "login": "' + username + '", "password": "' + password + '", "db": "dev_main"}, "id": "VMI"}',
-		// script call was *not* successful
-		error: function(XMLHttpRequest, textStatus, errorThrown) {
-			$('div#loginResult').text("responseText: " + XMLHttpRequest.responseText
-			+ ", textStatus: " + textStatus
-			+ ", errorThrown: " + errorThrown);
-			$('div#loginResult').addClass("error");
-		}, // error
-		// script call was successful
-		// data contains the JSON values returned by OpenERP
-		success: function(data){
-			if (data.result.error) { // script returned error
-			$('div#loginResult').text("data.result.title: " + data.result.error);
-			$('div#loginResult').addClass("error");
-			} // if
-			else { // login was successful
-			$('form#loginForm').hide();
-			$('div#loginResult').html("<h2>Success!</h2> "
-				+ " Welcome <b>" + data.result.company + "</b>");
-			$('div#loginResult').addClass("success");
-			responseData = data.result;
-			sessionid = data.result.session_id;
-			sessionStorage.setItem("user_id", data.result.uid);
-			sessionStorage.setItem("session_id", sessionid);
-			$('a').each(function()
-            {
-             var href = $(this).attr('href');
-             href += (href.match(/\?/) ? '&' : '?') + 'session_id=' + sessionid;
-             $(this).attr('href', href);
-            });
-			$('div#vmi_menu').fadeIn();
-			} //else
-		} // success
-		}); // ajax
-	} // if
-	else {
-		$('div#loginResult').text("enter username and password");
-		$('div#loginResult').addClass("error");
-	} // else
-	$('div#loginResult').fadeIn();
-	return false;
-	});
-});
+                            $('a').each(function()
+                                {
+                                    var href = $(this).attr('href');
+                                    href += (href.match(/\?/) ? '&' : '?') + 'session_id=' + sessionid + '&pid=' + companyid;
+                                    $(this).attr('href', href);
+                                });
+
+                            $('div#vmi_menu').fadeIn();
+                        } //else
+                    } // success
+                }); // ajax
+            } // if
+            else {
+                $('div#loginResult').text("enter username and password");
+                $('div#loginResult').addClass("error");
+            } // else
+            $('div#loginResult').fadeIn();
+            $('div#contactContent').fadeIn();
+            $('div#vendor').fadeIn();
+            return false;
+        });
+    });
 function getSessionInfo(){
-  $.ajax({
-	type: "POST",
-	url: "/vmi/session/get_session_info", // URL of OpenERP Handler
-	contentType: "application/json; charset=utf-8",
-	dataType: "json",
-	data: '{"jsonrpc":"2.0","method":"call","params":{"session_id": null, "context": {}},"id":"r0"}',
-	// script call was *not* successful
-	error: function(XMLHttpRequest, textStatus, errorThrown) {
-
-	}, // error
-	// script call was successful
-	// data contains the JSON values returned by OpenERP
-	success: function(data){
-	  if (data.result && data.result.error) { // script returned error
-			$('div#loginResult').text("Warning: " + data.result.error);
-			$('div#loginResult').addClass("notice");
-		}
-		else if (data.error) { // OpenERP error
-			$('div#loginResult').text("Error-Message: " + data.error.message + " | Error-Code: " + data.error.code + " | Error-Type: " + data.error.data.type);
-			$('div#loginResult').addClass("error");
-	  } // if
-	  else { // successful transaction
-			sessionid = data.result.session_id;
-			console.log( sessionid );
-	  } //else
-	} // success
-  }); // ajax
+    $.ajax({
+        type: "POST",
+        url: "/vmi/session/get_session_info", // URL of OpenERP Handler
+        contentType: "application/json; charset=utf-8",
+        dataType: "json",
+        data: '{"jsonrpc":"2.0","method":"call","params":{"session_id": null, "context": {}},"id":"r0"}',
+        // script call was *not* successful
+        error: function(XMLHttpRequest, textStatus, errorThrown) {
+        }, // error
+        // script call was successful
+        // data contains the JSON values returned by OpenERP
+        success: function(data){
+            if (data.result && data.result.error) { // script returned error
+                $('div#loginResult').text("Warning: " + data.result.error);
+                $('div#loginResult').addClass("notice");
+            }
+            else if (data.error) { // OpenERP error
+                $('div#loginResult').text("Error-Message: " + data.error.message + " | Error-Code: " + data.error.code + " | Error-Type: " + data.error.data.type);
+                $('div#loginResult').addClass("error");
+            } // if
+            else { // successful transaction
+                sessionid = data.result.session_id;
+                console.log( sessionid );
+            } //else
+        } // success
+    }); // ajax
 };
-		"""
+"""
         js += 'var mode = "%s";\n' % mod
 
         temp_location = os.path.join(vmi_client_page[0]['template_path'], vmi_client_page[0]['template_name'])
@@ -1018,7 +1165,9 @@ function getSessionInfo(){
         redirect_url = self._error_page
         req.session.ensure_valid()
         uid = req.session._uid #newSession(req)
+        _logger.debug('This is uid %s!', str(uid))
         vendor_record = get_partner_id(req, uid)['records'][0]
+        _logger.debug('vendor_record: %s!', vendor_record)
         temp_globals = dict.fromkeys(self._template_keys, None)
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
         if vmi_client_page: # Set the mode for the controller and template.
@@ -1079,12 +1228,12 @@ function getSessionInfo(){
         @param kwargs: Zombies, locusts, nuclear fallout, Richard Simmons!
         @return: TAL Template
         """
-
         if mod is not None:
             if mod not in self._modes:
                 raise KeyError
 
         uid = req.session._uid
+
         pid = None
         local_vals = {}
         if kwargs is not None:
@@ -1100,7 +1249,7 @@ function getSessionInfo(){
                 return {'error': _('No Partner found for this User ID!'), 'title': _('Partner Not Found')}
 
         page_name = 'result'
-        req.session.ensure_valid()
+        #req.session.ensure_valid()
         temp_globals = dict.fromkeys(self._template_keys, None)
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
         if vmi_client_page: # Set the mode for the controller and template.
@@ -1130,9 +1279,12 @@ function getSessionInfo(){
         template = simpleTAL.compileHTMLTemplate(input)
         input.close()
         history = simplejson.dumps(self._get_upload_history(req, pid))
+        #history = self._get_upload_history(req, pid)
+        _logger.debug('history: %s', history)
         js = 'var history_data = %s;\n' % history
         js += 'var mode = "%s";\n' % mod
         sid = req.session_id
+        _logger.debug('result sid: %s', sid)
         context = simpleTALES.Context()
         if 'audit_result' in local_vals: # Append the result of audit flagging.
             js += 'var audit = "%s";\n' % simplejson.dumps(local_vals['audit_result'])
@@ -1185,19 +1337,81 @@ function getSessionInfo(){
 
     @vmiweb.httprequest
     def invoice(self, req, mod=None, **kwargs):
-        #vmi_client_page = self._get_vmi_client_page(req, 'invoice')
-        input = open(
+        #vmi_client_page = self._get_vmi_client_page(req, 'invoice')'''
+        '''input = open(
             '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/vmi_invoice.html',
             'r')
         template = simpleTAL.compileHTMLTemplate(input)
-        input.close()
+        input.close()'''
+        if mod is not None:
+            if mod not in self._modes:
+                raise KeyError
+        uid = req.session._uid
+        _logger.debug('This is uid %s!', str(uid))
+        local_vals = {}
+        if kwargs is not None:
+            local_vals.update(kwargs)
+            pid = local_vals.get('pid')
+            _logger.debug('Partner found ID: %s', pid)
+        else:
+            try:    # Get Partner ID for session
+                vendor_record = get_partner_id(req, uid)['records'][0]
+                pid = vendor_record['company_id']
+            except IndexError:
+                _logger.debug('Partner not found for user ID: %s', uid)
+                return {'error': _('No Partner found for this User ID!'), 'title': _('Partner Not Found')}
 
+        page_name = 'invoice'
+        req.session.ensure_valid()
+        temp_globals = dict.fromkeys(self._template_keys, None)
+        vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
+
+        if vmi_client_page: # Set the mode for the controller and template.
+            for key in temp_globals:
+                temp_globals[key] = vmi_client_page[0][key]
+
+            if mod is None:
+                mod = vmi_client_page[0]['mode']
+        else:
+            _logger.debug('No vmi.client.page record found for page name %s!', page_name)
+            return req.not_found()
+
+        temp_location = os.path.join(vmi_client_page[0]['template_path'], vmi_client_page[0]['template_name'])
+        input = ''
+        try:
+            input = open(temp_location, 'r')
+        except IOError, e:
+            _logger.debug('opening the template file %s returned an error: %s, with message %s', e.filename, e.strerror, e.message)
+        finally:
+            pass
+
+        # If the template file not found or readable then redirect to error page.
+        if not input:
+            return req.not_found()
+
+        template = simpleTAL.compileHTMLTemplate(input)
+        input.close()
+        invoice = simplejson.dumps(self._get_invoice(req, pid))
+        js = 'var invoice_data = %s;\n' % invoice
+        js += 'var mode = "%s";\n' % mod
+        sid = req.session_id
         context = simpleTALES.Context()
         # Add a string to the context under the variable title
-        context.addGlobal("title", "SEPTA VMI Invoice")
-        context.addGlobal("script", "")
-        context.addGlobal("header", "Invoice")
-
+        if 'error' in local_vals:        # Append errors generated by the parsing of the file.
+            js += 'var error = "%s";\n' % simplejson.dumps(local_vals['error'])
+            context.addGlobal("error", local_vals['error'])
+            temp_globals['form_flag'] = False
+        # Add a string to the context under the variable title
+        context.addGlobal("title", temp_globals['title'])
+        context.addGlobal("script", js)
+        context.addGlobal("header", temp_globals['header'])
+        context.addGlobal("form_flag", temp_globals['form_flag'])
+        context.addGlobal("form_action", temp_globals['form_action'])
+        context.addGlobal("form_legend", temp_globals['form_legend'])
+        context.addGlobal("sid", sid)
+        context.addGlobal("pid", pid)
+        context.addGlobal("uid", uid)
+        context.addGlobal("mode", mod)
         output = cStringIO.StringIO()
         template.expand(context, output)
         return output.getvalue()
@@ -1212,7 +1426,8 @@ function getSessionInfo(){
         title = '...page title goes here...'
         header = '...brief instructions go here...'
         req.session.ensure_valid()
-        uid = newSession(req)
+        #uid = newSession(req)
+        uid = req.session._uid
         model = None
         input = None
         if contents_length:
@@ -1223,7 +1438,7 @@ function getSessionInfo(){
                 args = {'error': str(e) }
 
             try:
-                input = open('/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/upload.html', 'r')
+                input = open('C:\Program Files\OpenERP 7.0-20140622-231040\Server\server\openerp\addons\vmi_dev\vmi_web\template\upload.html', 'r')
             except IOError, e:
                 _logger.debug('opening the template file %s returned an error: %s, with message %s', e.filename, e.strerror, e.message)
             finally:
@@ -1278,7 +1493,7 @@ function getSessionInfo(){
         else:
             res = Model.default_get(fields, req.context)
         filecontent = base64.b64decode(res.get(field, ''))
-        if not filecontent:
+        '''if not filecontent:
             return req.not_found()
         else:
             filename = '%s_%s' % (model.replace('.', '_'), id)
@@ -1286,7 +1501,7 @@ function getSessionInfo(){
                 filename = res.get(filename_field, '') or filename
             return req.make_response(filecontent,
                 [('Content-Type', 'application/octet-stream'),
-                 ('Content-Disposition', content_disposition(filename, req))])
+                 ('Content-Disposition', content_disposition(filename, req))])'''
 
 
     @vmiweb.httprequest
@@ -1311,6 +1526,8 @@ function getSessionInfo(){
         args.update({'pid': pid})
         args.update({'uid': uid})
         #uid = newSession(req)
+        uid = req.session._uid
+        _logger.debug('This is uid %s!', str(uid))
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
         if vmi_client_page: # Set the mode for the controller and template.
             temp_globals = dict.fromkeys(self._template_keys, None)
@@ -1332,6 +1549,8 @@ function getSessionInfo(){
 
 
         req.session.ensure_valid()
+        uid = req.session._uid
+        _logger.debug('<upload_document2>This is uid %s!', str(uid))
         #uid = newSession(req)
         if contents_length:
             if ufile:
@@ -1342,6 +1561,7 @@ function getSessionInfo(){
                 except Exception, e:
                     args.update({'error': str(e) })
                     _logger.debug('<upload_document>_parse_packing_slip failed: %s!', str(e))
+                    _logger.debug('Error on line %s', sys.exc_traceback.tb_lineno)
 
                 args.update({'parse_result': result})
             else:
@@ -1351,7 +1571,6 @@ function getSessionInfo(){
             result = None
             vals = args.copy()
             vals['pid'] = pid
-            #import pdb; pdb.set_trace()
             try:
                 result = self._call_methods(req, 'stock.picking.in', 'action_flag_audit', [vals, None]) # Flag audits.
             except Exception, e:
@@ -1359,8 +1578,9 @@ function getSessionInfo(){
                 _logger.debug('<upload_document>_call_methods failed: %s!', str(e))
 
             args.update({'audit_result': result})
-
+        _logger.debug('<upload_document> args after flag: %s!', args)
         if 'audit_result' in args: # Call the Done method on moves that weren't flagged for audit.
+
             if 'move_lines' in args['parse_result']:
                 result = None
                 moves = args['parse_result']['move_lines']
@@ -1368,17 +1588,18 @@ function getSessionInfo(){
                 for move in moves['moves']:
                     if move not in args['audit_result']:
                         unflagged.append(move)
-                #import pdb; pdb.set_trace()
 
                 try:
+                    #rewrite function: action_done
                     result = self._call_methods(req, 'stock.move', 'action_done', [unflagged, None])
+                    pass
                 except Exception, e:
                     args.update({'error': str(e) })
                     _logger.debug('<upload_document>_call_methods failed: %s!', str(e))
 
                 _logger.debug('<upload_document>unflagged moves set to done: %s!', str(unflagged))
 
-
+        _logger.debug('<upload_document3>This is uid %s!', str(uid))
         kwargs = args.copy()
         return self.result(req, mod, **kwargs)
 
@@ -1394,7 +1615,9 @@ function getSessionInfo(){
         page_name = 'products'
         redirect_url = self._error_page
         req.session.ensure_valid()
-        uid = newSession(req)
+        uid = req.session._uid
+        _logger.debug('This is uid %s!', str(uid))
+        vendor_record = get_partner_id(req, uid)['records'][0]
         temp_globals = dict.fromkeys(self._template_keys, None)
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
         if vmi_client_page: # Set the mode for the controller and template.
@@ -1434,8 +1657,9 @@ function getSessionInfo(){
         template = simpleTAL.compileHTMLTemplate(input)
         input.close()
         sid = req.session_id
-        uid = 17 #req.context['uid']
-        pid = 9
+        #uid = 17 #req.context['uid']
+        #pid = 9
+        pid = vendor_record['company_id']
         context = simpleTALES.Context()
         # Add a string to the context under the variable title
         context.addGlobal("title", temp_globals['title'])
@@ -1453,3 +1677,65 @@ function getSessionInfo(){
         output = cStringIO.StringIO()
         template.expand(context, output)
         return output.getvalue()
+
+    @vmiweb.httprequest
+    def invoice_processing(self, req, uid, pid, callback, invoice_id, comment, result):
+
+        """
+
+        :param req: object
+        :param uid: user id
+        :param pid: partner id
+        :param callback:
+        :param invoice_id: invoice id that need to be processed
+        :param comment: a comment that explained why vendor denied the current invoice
+        :param result: vendor's decision on current invoice
+        :return:
+        """
+        page_name = 'invoice_processing'
+        #session_data = Session.session_info(req.session)
+        req.session.ensure_valid()
+
+        mod = None
+        args = {}
+        args.update({'pid': pid})
+        args.update({'uid': uid})
+        #uid = newSession(req)
+        #uid = req.session._uid
+        _logger.debug('This is uid %s!', str(uid))
+        vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
+        if vmi_client_page: # Set the mode for the controller and template.
+            temp_globals = dict.fromkeys(self._template_keys, None)
+            for key in temp_globals:
+                temp_globals[key] = vmi_client_page[0][key]
+
+            if mod is None:
+                mod = vmi_client_page[0]['mode']
+        else:
+            _logger.debug('No vmi.client.page record found for page name %s!', page_name)
+            return req.not_found()
+
+        if mod is not None:
+            if mod not in self._modes:
+                _logger.debug('<invoice_processing>The mode is not set to a recognized value: %s!', str(mod))
+                raise KeyError
+#            else:
+#                args.update({'mod': mod})
+
+
+        req.session.ensure_valid()
+        uid = req.session._uid
+        if invoice_id:
+            res = None
+            ids = invoice_id
+            # invoice processing
+            if result == "approved":
+                res = self._call_methods(req, 'account.invoice', 'invoice_vendor_approve', [ids, None])
+            elif result == "denied":
+                res = self._call_methods(req, 'account.invoice', 'invoice_vendor_deny', [ids, {'comment': comment}])
+            else:
+                _logger.debug('<invoice_processing>Unrecognized action!')
+                raise KeyError
+
+        kwargs = args.copy()
+        return self.invoice(req, mod, **kwargs)

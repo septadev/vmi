@@ -80,8 +80,10 @@ $('#contents').dataTable( {
 	"sDom": 'T<"clear">lfrtip',
 	"oTableTools": {
 					"sSwfPath": "/vmi/static/src/js/datatables/extras/TableTools/media/swf/copy_csv_xls_pdf.swf"
-					}
+					},
+    "sPaginationType":"full_numbers"
 } );
+
 };
 reader.onerror = function(){ alert('Unable to read ' + file.fileName); };
 }

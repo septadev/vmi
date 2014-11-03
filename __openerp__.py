@@ -28,7 +28,7 @@ for use with VMI requirments.
      """,
     'author': 'M. A. Ruberto',
     'website': 'http://septa.org',
-    'depends': ['stock', 'product', 'base'],
+    'depends': ['stock', 'product', 'base', ],
     'data': [
         'vmi_view.xml',
     ],
