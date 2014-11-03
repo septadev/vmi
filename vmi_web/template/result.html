@@ -18,52 +18,53 @@
                       border-color:#ff0000;
             }
             .detailRow{}
-            #list1 { font-family:Georgia, Times, serif; }
-            #list1 ul { list-style:none; text-align:center; border-top:1px solid #333; border-bottom:1px solid #333; padding:10px 0; }
-            #list1 ul li { display:inline; padding:0 10px; letter-spacing:4px; }
-            #list1 ul li a { text-decoration:none; }
-            #list1 ul li a:hover { text-decoration:underline; }
 		</style>
-<script type="text/javascript" tal:content="structure script">
-
-
-
-
-
-</script>
+<link rel="stylesheet" type="text/css" media="screen, projection" href="/vmi/static/src/css/screen_rev2.css" />
+<link rel="stylesheet" type="text/css" media="screen, projection" href="/vmi/static/src/js/datatables/media/css/jquery.dataTables.css" />
+<link rel="stylesheet" type="text/css" media="screen, projection" href="/vmi/static/src/css/septa.css" />
+<script type="text/javascript" tal:content="structure script"></script>
 <script src="/vmi/static/src/js/jquery.min.js"></script>
 <script src="/vmi/static/src/js/jquery.csv-0.71.js"></script>
+<script src="/vmi/static/src/js/csv.js"></script>
 <script type="text/javascript" src="/vmi/static/src/js/datatables/media/js/jquery.dataTables.js"></script>
 <script type="text/javascript" src="/vmi/static/src/js/datatables/extras/TableTools/media/js/TableTools.min.js"></script>
+<script type="text/javascript" src="/vmi/static/src/js/navigation.js"></script>
 <script src="/vmi/static/src/js/results.js"></script>
-
 </head>
 <body>
-    <br>
+    <div id="wrapper">
+	<div id="header">
+        <div id="header-inside">
+        <h1 id="icon"> <img src="/vmi/static/src/img/logo.gif" alt="SEPTA" /></h1>
+        <h1 id="title">  VMI Vendor Portal </h1>
+        <div id="vendor"></div>
+        </div>
+	</div>
     <div id="contactContent" class="container">
         <!-- Upload Results Template Begin -->
                 <div id="list1">
             <!-- Menu bar -->
                <ul>
-                  <li><a href="#">Upload Packing Slips</a></li>
-                  <li><a href="#">Search P/Ns</a></li>
-                  <li><a href="#">Invoice</a></li>
+                  <li><a href="index">Home</a></li>
+                  <li><a href="upload">Upload Packing Slips</a></li>
+                  <li><a href="result">Review Packing Slips</a></li>
+                  <li><a href="products">Search P/Ns</a></li>
+                  <li><a href="invoice">Invoice</a></li>
                </ul>
         </div>
-        <p tal:content="title">
-          Title
-        </p>
-        <p tal:content="header">
-          Header
-        </p>
+        <div id="info">
+            <p id="subtitle" tal:content="title">
+              Title
+            </p>
+            <p id="subheader" tal:content="header">
+              Header
+            </p>
+        </div>
         <div id="uploader" class="info" tal:condition="form_flag">
             <form class="form_binary_form" action="#" tal:attributes="action form_action" method="post" enctype="multipart/form-data">
                 <fieldset>
                     <legend tal:content="form_legend">Select Packing Slip File</legend>
-                    <input name="callback" value="debug" type="hidden">
-                    <input value="17" name="uid" type="hidden" tal:attributes="value uid">
-                    <input value="9" name="pid" type="hidden" tal:attributes="value pid">
-                    <input class="form_binary_file" id="files" name="ufile" type="file"><br>
+                    <a href="upload"><button type="button">Upload</button></a>
                 </fieldset>
                 <hr><!-- Vendor upload history table -->
                 <table id="contents" style="width: 100%;" cellpadding="0" cellspacing="0" border="0" class="display">
@@ -90,6 +91,7 @@
           </div>
 
         <!-- Packing Slip Upload Template End -->
+    </div>
     </div>
 </body>
 </html>

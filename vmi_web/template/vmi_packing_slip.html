@@ -103,43 +103,51 @@
   </head>
   <body>
     <div id="contactContent" class="container">
-<!-- Vendor contacts Data Template Begin -->
-<p tal:content="title">
-Title
-</p>
-<p tal:content="header">
-Header
-</p>
-<h3 tal:condition="picking_id" tal:content="picking_id"></h3>
-  <div id="uploader" tal:condition="form_flag" class="info">
-    <form class="form_binary_form" action="/vmi/upload_vmi_document" method="post" enctype="multipart/form-data">
-      <input type="hidden" name="callback" value="debug">
-      <input type="hidden" name="doc_type" value="PS">
-      <input type="hidden" name="uid" tal:attributes="value uid" value="">
-      <input type="hidden" name="pid" tal:attributes="value pid" value="">
-      <input type="hidden" name="sid" tal:attributes="value sid" value="">
-      <input class="form_binary_file" type="file" name="ufile"><br />
-      <button class="oe_button oe_field_button" type="submit" id="OBEY">
-        <img src="/web/static/src/img/icons/STOCK_DIRECTORY.png">
-        <span>Upload</span>
-      </button> <br />
-    </form> <br />
-  </div>
-  <div id="no_uploader" tal:condition="not:form_flag" class="notice">
-		<p> <!-- Notify user that they cannot upload any docs -->
-			<b>Packing Slips cannot be submitted at this time!</b> <br />
-		</p>
-  </div>
-<script type="text/javascript" tal:content="structure script">
-    
-    
-        
+        <div id="list1">
+            <!-- Menu bar -->
+               <ul>
+                  <li><a href="#">Index</a></li>
+                  <li><a href="#">Submit Packing Slip</a></li>
+                  <li><a href="#">Search P/Ns</a></li>
+                  <li><a href="#">Invoice</a></li>
+               </ul>
+        </div>
+        <!-- Vendor contacts Data Template Begin -->
+        <p tal:content="title">
+        Title
+        </p>
+        <p tal:content="header">
+        Header
+        </p>
+        <h3 tal:condition="picking_id" tal:content="picking_id"></h3>
+          <div id="uploader" tal:condition="form_flag" class="info">
+            <form class="form_binary_form" action="/vmi/upload_vmi_document" method="post" enctype="multipart/form-data">
+              <input type="hidden" name="callback" value="debug">
+              <input type="hidden" name="doc_type" value="PS">
+              <input type="hidden" name="uid" tal:attributes="value uid" value="">
+              <input type="hidden" name="pid" tal:attributes="value pid" value="">
+              <input type="hidden" name="sid" tal:attributes="value sid" value="">
+              <input class="form_binary_file" type="file" name="ufile"><br />
+              <button class="oe_button oe_field_button" type="submit" id="OBEY">
+                <img src="/web/static/src/img/icons/STOCK_DIRECTORY.png">
+                <span>Upload</span>
+              </button> <br />
+            </form> <br />
+          </div>
+          <div id="no_uploader" tal:condition="not:form_flag" class="notice">
+                <p> <!-- Notify user that they cannot upload any docs -->
+                    <b>Packing Slips cannot be submitted at this time!</b> <br />
+                </p>
+          </div>
+        <script type="text/javascript" tal:content="structure script">
 
-    
-</script>
-<!-- Vendor contacts Data Template End -->
+
+
+
+
+        </script>
+        <!-- Vendor contacts Data Template End -->
     </div>
-
-  </body>
+</body>
 </html>
 

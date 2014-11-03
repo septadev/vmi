@@ -23,8 +23,9 @@ $(document).ready(function(){
          {"mData": "vendor_part_number"},
          {"mData": "name"},
          {"mData": "categ_id"},
-         {"mData": "uom_id"},
-     ]
+         {"mData": "uom_id"}
+     ],
+     "sPaginationType":"full_numbers"
 } );
 
 

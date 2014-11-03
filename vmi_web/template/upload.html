@@ -6,39 +6,61 @@
 
 		<style type="text/css" media="screen">
 			@import "/vmi/static/src/js/datatables/extras/TableTools/media/css/TableTools.css";
-			div.dataTables_wrapper { font-size: 13px; }
+			div.dataTables_wrapper {
+                font-size: 13px;
+                /*position: absolute;
+                left: 0;*/
+                overflow: auto;
+            }
 			table.display thead th, table.display td { font-size: 13px; }
-            #list1 { font-family:Georgia, Times, serif; }
-            #list1 ul { list-style:none; text-align:center; border-top:1px solid #333; border-bottom:1px solid #333; padding:10px 0; }
-            #list1 ul li { display:inline; padding:0 10px; letter-spacing:4px; }
-            #list1 ul li a { text-decoration:none; }
-            #list1 ul li a:hover { text-decoration:underline; }
-		</style>
 
+		</style>
+<link rel="stylesheet" type="text/css" media="screen, projection" href="/vmi/static/src/css/screen_rev2.css" />
+<link rel="stylesheet" type="text/css" media="screen, projection" href="/vmi/static/src/js/datatables/media/css/jquery.dataTables.css" />
+<link rel="stylesheet" type="text/css" media="screen, projection" href="/vmi/static/src/css/septa.css" />
 <script src="/vmi/static/src/js/jquery.min.js"></script>
 <script src="/vmi/static/src/js/jquery.csv-0.71.js"></script>
 <script src="/vmi/static/src/js/csv.js"></script>
 <script type="text/javascript" src="/vmi/static/src/js/datatables/media/js/jquery.dataTables.js"></script>
 <script type="text/javascript" src="/vmi/static/src/js/datatables/extras/TableTools/media/js/TableTools.min.js"></script>
+<script type="text/javascript" src="/vmi/static/src/js/navigation.js"></script>
+<script type="text/javascript">
+    /*$(document).ready( function () {
+        $('#contents').dataTable( {
+            "pagingType": "full_numbers"
+    } );
+    } );*/
+</script>
 </head>
 <body>
-    <br>
+    <div id="wrapper">
+	<div id="header">
+        <div id="header-inside">
+        <h1 id="icon"> <img src="/vmi/static/src/img/logo.gif" alt="SEPTA" /></h1>
+        <h1 id="title">  VMI Vendor Portal </h1>
+        <div id="vendor"></div>
+        </div>
+	</div>
     <div id="contactContent" class="container">
         <div id="list1">
             <!-- Menu bar -->
                <ul>
-                  <li><a href="#">Review Packing Slips</a></li>
-                  <li><a href="#">Search P/Ns</a></li>
-                  <li><a href="#">Invoice</a></li>
+                  <li><a href="index">Home</a></li>
+                  <li><a href="upload">Upload Packing Slips</a></li>
+                  <li><a href="result">Review Packing Slips</a></li>
+                  <li><a href="products">Search P/Ns</a></li>
+                  <li><a href="invoice">Invoice</a></li>
                </ul>
         </div>
         <!-- Packing Slip Upload Template Begin -->
-        <p tal:content="title">
-          Title
-        </p>
-        <p tal:content="header">
-          Header
-        </p>
+        <div id="info">
+            <p id="subtitle" tal:content="title">
+              Title
+            </p>
+            <p id="subheader" tal:content="header">
+              Header
+            </p>
+        </div>
         <div id="uploader" class="info" tal:condition="form_flag">
             <form class="form_binary_form" action="#" tal:attributes="action form_action" method="post" enctype="multipart/form-data">
                 <fieldset>
@@ -52,7 +74,7 @@
                 <hr><!-- File info provided by jquery-csv -->
                   <output id="list"></output>
                 <hr><!-- Contents of file in table from jquery-csv with DataTables control -->
-                <table id="contents" style="width: 100%;" cellpadding="0" cellspacing="0" border="0" class="display">
+                <table id="contents" cellpadding="0" cellspacing="0" border="0" class="display" width="100%">
                 </table>
             </form>
             <br>
@@ -70,6 +92,7 @@
 
         </script>
         <!-- Packing Slip Upload Template End -->
+    </div>
     </div>
 </body>
 </html>

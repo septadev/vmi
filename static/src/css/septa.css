@@ -1,0 +1,122 @@
+
+body {
+        color: #333;
+        font-family: verdana,helvetica,arial,helvetica,sans-serif;
+        font-size: 14px;
+        line-height: 18px;
+        /*margin: 0 10px 10px;*/
+    }
+    div#wrapper {
+        cursor: default;
+        margin: 0 auto;
+        padding-left: 3px;
+        width: 960px;
+    }
+    div#header-inside{
+        padding-top: 0;
+    }
+
+    div#header h1#icon {
+        height: 0;
+        margin: 0;
+    }
+    /*div#header h1#title {
+        color: #333;
+        float: inherit;
+        padding: 0 5px 0 300px;
+        width: 600px;
+    }*/
+    div#header h1#title {
+        color: #333;
+        float: left;
+        padding: 0 5px 0 300px;
+    }
+    div#header #vendor{
+        color: #333;
+        padding: 20px 5px 0 750px;
+        width: 200px;
+    }
+
+div#contactContent #list1 {
+    background: none repeat scroll 0 0 #144b88;
+    clear: both;
+    height: 40px;
+    margin-bottom: 17px;
+    margin-right: 5px;
+}
+    div#contactContent #list1 a{
+        color: #fff;
+        padding-left: 14px;
+        text-decoration: none;
+    }
+
+
+            #list1 ul {
+                list-style:none;
+                text-align:center;
+                padding:10px 0;
+            }
+            #list1 ul li {
+                padding:0 10px;
+                width: 160px;
+                float: left;
+            }
+            #list1 ul li a {
+                text-decoration:none;
+            }
+            #list1 ul li a:hover {
+                text-decoration:underline;
+            }
+
+                        div#info #subtitle {
+                color: #0055a4;
+                font: 20px verdana;
+            }
+            div#info #subheader {
+                font: 15px verdana;
+            }
+
+div#vmi_menu {
+    padding: 50px 100px 0 0;
+}
+div#vmi_menu ol li {
+    background: url("/vmi/static/src/img/sprite.gif") no-repeat scroll -200px -54px rgba(0, 0, 0, 0);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    height: 27px;
+    padding: 11px 18px 0 16px;
+}
+div#vmi_menu ol li a {
+    display: block;
+    height: 27px;
+    margin: auto;
+    text-decoration: none;
+    color: #333;
+    float: left;
+}
+div#vmi_menu ol li p {
+    color: #0055a4;
+    left: -999em;
+    position: relative;
+    width: 500px;
+    z-index: 999;
+    float: inherit;
+    padding-left: 300px;
+    z-index: -1;
+
+}
+div#vmi_menu li:hover p {
+    left: auto;
+}
+.dataTables_paginate {
+    width: auto;
+    line-height: 10px;
+}
+.dataTables_paginate a {
+    text-decoration: none;
+}
+
+/*div, span, p{
+    border: 1px solid red;
+}*/
