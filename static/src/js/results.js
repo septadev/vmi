@@ -102,7 +102,7 @@ function authenticate(){
 		contentType: "application/json; charset=utf-8",
 		dataType: "json",
 		// send username and password as parameters to OpenERP
-		data:	 '{"jsonrpc": "2.0", "method": "call", "params": {"session_id": "' + sessionid + '", "context": {}, "login": "' + username + '", "password": "' + password + '", "db": "test1"}, "id": "VMI"}',
+		data:	 '{"jsonrpc": "2.0", "method": "call", "params": {"session_id": "' + sessionid + '", "context": {}, "login": "' + username + '", "password": "' + password + '", "db": "alpha"}, "id": "VMI"}',
 		// script call was *not* successful
 		error: function(XMLHttpRequest, textStatus, errorThrown) {
 			$('div#loginResult').text("responseText: " + XMLHttpRequest.responseText

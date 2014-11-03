@@ -2,7 +2,7 @@ import logging
 from openerp.osv import osv
 from openerp.osv import fields
 from openerp import SUPERUSER_ID
-from openerp import pooler, tools
+from openerp import pooler, tools, netsvc
 from openerp.tools.translate import _
 import openerp.addons.decimal_precision as dp
 import time
@@ -61,10 +61,13 @@ class vmi_stock_move(osv.osv):
         'vendor_id': fields.many2one('res.partner', 'Vendor', required=False, readonly=True),
         'audit': fields.boolean('Audit'),
         'audit_fail': fields.boolean('Failed Audit'),
+        #'scrapped': fields.related('location_dest_id', 'scrap_location', type='boolean', relation='stock.location',
+                                   #string='Scrapped', readonly=False),
     }
     _defaults = {
         'audit': False,
         'audit_fail': False,
+        'scrapped': False,
     }
 
     def _default_destination_address(self, cr, uid, context=None):
@@ -611,3 +614,442 @@ class stock_move_audit(osv.osv_memory):
 
 
 stock_move_audit()
+
+
+class vmi_stock_picking(osv.osv):
+
+    _name = 'stock.picking'
+    _inherit = 'stock.picking'
+    _table = "stock_picking"
+    #_order = 'id desc'
+
+    _columns = {}
+
+    def action_invoice_create(self, cr, uid, ids, journal_id=False,
+            group_by_partner=False, type='in_invoice', context=None):
+        """
+
+        :param cr:
+        :param uid:
+        :param ids:
+        :param journal_id:
+        :param group:
+        :param type:
+        :param context:
+        :return:
+        """
+        if context is None:
+            context = {}
+        res = {}
+        _logger.debug('<action_invoice_create> inherited')
+        _logger.debug('<action_invoice_create> Group or not: %s', group_by_partner)
+        _logger.debug('<action_invoice_create> uid: %s, id: %s', uid, ids)
+        invoice_obj = self.pool.get('account.invoice')
+        invoice_line_obj = self.pool.get('account.invoice.line')
+        partner_obj = self.pool.get('res.partner')
+        invoice_name = []
+        new_picking = []
+        invoices_group = {}
+        product_category = None
+        res = {}
+        inv_type = type
+        for picking in self.browse(cr, uid, ids, context=context):
+            _logger.debug('<action_invoice_create> Into the picking loop')
+            if picking.invoice_state != '2binvoiced':
+                continue
+            partner = self._get_partner_to_invoice(cr, uid, picking, context=context)
+            if isinstance(partner, int):
+                partner = partner_obj.browse(cr, uid, [partner], context=context)[0]
+            if not partner:
+                raise osv.except_osv(_('Error, no partner!'),
+                    _('Please put a partner on the picking list if you want to generate invoice.'))
+            if not inv_type:
+                inv_type = self._get_invoice_type(picking)
+            pricelist_id = partner.property_product_pricelist_purchase.id
+            for move_line in picking.move_lines:
+                _logger.debug('<action_invoice_create> invoices_group: %s', str(invoices_group))
+                new_picking = '-'.join([str(partner.name), str(picking.location_dest_id.name),
+                                        str(move_line.product_id.categ_id.name)])
+                #create new invoice
+                if new_picking not in invoices_group.keys():
+                    invoice_name = new_picking
+                    context['invoice_name'] = invoice_name
+                    _logger.debug('<action_invoice_create> invoice_name: %s', str(context['invoice_name']))
+                    invoice_vals = self._prepare_invoice(cr, uid, picking, partner, inv_type, journal_id, context=context)
+                    invoice_id = invoice_obj.create(cr, uid, invoice_vals, context=context)
+                    #invoices_group[partner.id] = invoice_id
+                    invoices_group[invoice_name] = invoice_id
+                #invoice already existed
+                elif group_by_partner:
+                    _logger.debug('<action_invoice_create> Same group')
+                    invoice_id = invoices_group[new_picking]
+                    invoice = invoice_obj.browse(cr, uid, invoice_id)
+                    invoice_vals_group = self._prepare_invoice_group(cr, uid, picking, partner, invoice, context=context)
+                    _logger.debug('<action_invoice_create> invoice_vals_group: %s', str(invoice_vals_group))
+                    invoice_obj.write(cr, uid, [invoice_id], invoice_vals_group, context=context)
+
+                res[picking.id] = invoice_id
+                invoice_vals['pricelist_id'] = pricelist_id
+                if move_line.state == 'cancel':
+                    _logger.debug('<action_invoice_create> canceled')
+                    continue
+                if move_line.scrapped:
+                    _logger.debug('<action_invoice_create> scrapped')
+                    # do no invoice scrapped products
+                    continue
+                #product_category = move_line.product_id.categ_id.name
+                '''if product_category not in invoice_vals['name']:
+                    _logger.debug('<action_invoice_create> Add product category')
+                    if new_picking in invoices_group.keys() and len(invoices_group) > 1:
+                        _logger.debug('<action_invoice_create> In move_line: different category')
+                        invoice_name = new_picking + '-' + product_category
+                        context['invoice_name'] = invoice_name
+                        _logger.debug('<action_invoice_create> In Move_line: Different category invoice_name: %s',
+                                      str(context['invoice_name']))
+                        invoice_vals = self._prepare_invoice(cr, uid, picking, partner, inv_type,
+                                                             journal_id, context=context)
+                        invoice_id = invoice_obj.create(cr, uid, invoice_vals, context=context)
+                        invoices_group[invoice_name] = invoice_id
+                    else:
+                        _logger.debug('<action_invoice_create> In move_line: new category')
+                        invoice_obj.write(cr, uid, [invoice_id], {
+                            'name': invoice_vals['name'] + '-' + product_category
+                        }, context=context)
+                    if len(invoices_group) == 1 or new_picking not in invoices_group.keys():
+                        _logger.debug('<action_invoice_create> In move_line: new category')
+                        invoice_obj.write(cr, uid, [invoice_id], {
+                            'name': invoice_vals['name'] + '-' + product_category
+                        }, context=context)
+                        #invoice_vals['name'] = invoice_vals['name'] + '-' + product_category
+                    #Product category is different
+                    else:
+                        _logger.debug('<action_invoice_create> In move_line: different category')
+                        invoice_name = new_picking + '-' + product_category
+                        context['invoice_name'] = invoice_name
+                        _logger.debug('<action_invoice_create> In Move_line: Different category invoice_name: %s',
+                                      str(context['invoice_name']))
+                        invoice_vals = self._prepare_invoice(cr, uid, picking, partner, inv_type,
+                                                             journal_id, context=context)
+                        invoice_id = invoice_obj.create(cr, uid, invoice_vals, context=context)
+                        invoices_group[invoice_name] = invoice_id'''
+                vals = self._prepare_invoice_line(cr, uid, group_by_partner, picking, move_line,
+                                invoice_id, invoice_vals, context=context)
+                _logger.debug('<action_invoice_create> vals: %s', str(vals))
+                if vals:
+                    _logger.debug('<action_invoice_create> vals existed: %s', str(vals))
+                    invoice_line_id = invoice_line_obj.create(cr, uid, vals, context=context)
+                    self._invoice_line_hook(cr, uid, move_line, invoice_line_id)
+
+            invoice_obj.button_compute(cr, uid, [invoice_id], context=context,
+                    set_total=(inv_type in ('in_invoice', 'in_refund')))
+            self.write(cr, uid, [picking.id], {
+                'invoice_state': 'invoiced',
+                }, context=context)
+            self._invoice_hook(cr, uid, picking, invoice_id)
+        self.write(cr, uid, res.keys(), {
+            'invoice_state': 'invoiced',
+            }, context=context)
+        return res
+
+
+    def _prepare_invoice_line(self, cr, uid, group_by_partner, picking, move_line, invoice_id,
+        invoice_vals, context=None):
+        """ Builds the dict containing the values for the invoice line
+            @param group: True or False
+            @param picking: picking object
+            @param: move_line: move_line object
+            @param: invoice_id: ID of the related invoice
+            @param: invoice_vals: dict used to created the invoice
+            @return: dict that will be used to create the invoice line
+        """
+        _logger.debug('<_prepare_invoice_line> into _prepare_invoice_line')
+
+        product_pricelist = self.pool.get('product.pricelist')
+        pricelist_id = invoice_vals['pricelist_id']
+
+        if group_by_partner:
+            name = (picking.name or '') + '-' + move_line.name
+        else:
+            name = move_line.name
+        _logger.debug('<_prepare_invoice_line> name: %s', str(name))
+        origin = move_line.picking_id.name or ''
+        if move_line.picking_id.origin:
+            origin += ':' + move_line.picking_id.origin
+
+        if invoice_vals['type'] in ('out_invoice', 'out_refund'):
+            account_id = move_line.product_id.property_account_income.id
+            if not account_id:
+                account_id = move_line.product_id.categ_id.\
+                        property_account_income_categ.id
+        else:
+            _logger.debug('<_prepare_invoice_line> type is not out')
+            _logger.debug('<_prepare_invoice_line> product_id: %s', move_line.product_id)
+            account_id = invoice_vals['account_id']
+            #account_id = move_line.product_id.property_account_expense.id
+            '''if not account_id:
+                _logger.debug('<_prepare_invoice_line> do not find account_id in '
+                              'move_line.product_id.property_account_expense.id')
+                account_id = move_line.product_id.categ_id.\
+                        property_account_expense_categ.id'''
+        if invoice_vals['fiscal_position']:
+            #_logger.debug('<_prepare_invoice_line> fiscal_position')
+            fp_obj = self.pool.get('account.fiscal.position')
+            fiscal_position = fp_obj.browse(cr, uid, invoice_vals['fiscal_position'], context=context)
+            account_id = fp_obj.map_account(cr, uid, fiscal_position, account_id)
+        # set UoS if it's a sale and the picking doesn't have one
+        uos_id = move_line.product_uos and move_line.product_uos.id or False
+        if not uos_id and invoice_vals['type'] in ('out_invoice', 'out_refund'):
+            uos_id = move_line.product_uom.id
+        _logger.debug('<_prepare_invoice_line> account_id: %s', str(account_id))
+        # Check if there is an active pricelist for current supplier
+        if pricelist_id:
+            price = product_pricelist.price_get(cr, uid, [pricelist_id],
+                    move_line.product_id.id, move_line.product_uos_qty or move_line.product_qty,
+                    invoice_vals['partner_id'] or False)[pricelist_id]
+        else:
+            price = move_line.product_id.standard_price
+
+        return {
+            'name': name,
+            'origin': origin,
+            'invoice_id': invoice_id,
+            'uos_id': uos_id,
+            'product_id': move_line.product_id.id,
+            'account_id': account_id,
+            'price_unit': price,
+            #'price_unit': self._get_price_unit_invoice(cr, uid, move_line, invoice_vals['type']),
+            'discount': self._get_discount_invoice(cr, uid, move_line),
+            'quantity': move_line.product_uos_qty or move_line.product_qty,
+            'invoice_line_tax_id': [(6, 0, self._get_taxes_invoice(cr, uid, move_line, invoice_vals['type']))],
+            'account_analytic_id': self._get_account_analytic_invoice(cr, uid, picking, move_line),
+        }
+
+    def _prepare_invoice_group(self, cr, uid, picking, partner, invoice, context=None):
+        """ Builds the dict for grouped invoices
+            @param picking: picking object
+            @param partner: object of the partner to invoice (not used here, but may be usefull if this function is inherited)
+            @param invoice: object of the invoice that we are updating
+            @return: dict that will be used to update the invoice
+        """
+        comment = self._get_comment_invoice(cr, uid, picking)
+        return {
+            'name': invoice.name,
+            'origin': (invoice.origin or '') + ', ' + (picking.name or '') + (picking.origin and (':' + picking.origin) or ''),
+            'comment': (comment and (invoice.comment and invoice.comment + "\n" + comment or comment)) or (invoice.comment and invoice.comment or ''),
+            'date_invoice': context.get('date_inv', False),
+            'user_id': uid,
+        }
+
+    def _prepare_invoice(self, cr, uid, picking, partner, inv_type, journal_id, context=None):
+        """ Builds the dict containing the values for the invoice
+            @param picking: picking object
+            @param partner: object of the partner to invoice
+            @param inv_type: type of the invoice ('out_invoice', 'in_invoice', ...)
+            @param journal_id: ID of the accounting journal
+            @return: dict that will be used to create the invoice object
+        """
+        if isinstance(partner, int):
+            partner = self.pool.get('res.partner').browse(cr, uid, partner, context=context)
+        if inv_type in ('out_invoice', 'out_refund'):
+            account_id = partner.property_account_receivable.id
+            payment_term = partner.property_payment_term.id or False
+        else:
+            account_id = partner.property_account_payable.id
+            payment_term = partner.property_supplier_payment_term.id or False
+        comment = self._get_comment_invoice(cr, uid, picking)
+        invoice_name = context['invoice_name']
+        invoice_vals = {
+            'name': invoice_name,
+            'origin': (picking.name or '') + (picking.origin and (':' + picking.origin) or ''),
+            'type': inv_type,
+            'account_id': account_id,
+            'partner_id': partner.id,
+            'comment': comment,
+            'payment_term': payment_term,
+            'fiscal_position': partner.property_account_position.id,
+            'date_invoice': context.get('date_inv', False),
+            'company_id': picking.company_id.id,
+            'user_id': uid,
+        }
+        cur_id = self.get_currency_id(cr, uid, picking)
+        if cur_id:
+            invoice_vals['currency_id'] = cur_id
+        if journal_id:
+            invoice_vals['journal_id'] = journal_id
+        return invoice_vals
+
+vmi_stock_picking()
+
+
+class stock_invoice_onshipping(osv.osv_memory):
+
+    def _get_journal(self, cr, uid, context=None):
+        res = self._get_journal_id(cr, uid, context=context)
+        if res:
+            return res[0][0]
+        return False
+
+    def _get_journal_id(self, cr, uid, context=None):
+        if context is None:
+            context = {}
+
+        model = context.get('active_model')
+        if not model or 'stock.picking' not in model:
+            return []
+
+        model_pool = self.pool.get(model)
+        journal_obj = self.pool.get('account.journal')
+        res_ids = context and context.get('active_ids', [])
+        vals = []
+        browse_picking = model_pool.browse(cr, uid, res_ids, context=context)
+
+        for pick in browse_picking:
+            if not pick.move_lines:
+                continue
+            src_usage = pick.move_lines[0].location_id.usage
+            dest_usage = pick.move_lines[0].location_dest_id.usage
+            type = pick.type
+            if type == 'out' and dest_usage == 'supplier':
+                journal_type = 'purchase_refund'
+            elif type == 'out' and dest_usage == 'customer':
+                journal_type = 'sale'
+            elif type == 'in' and src_usage == 'supplier':
+                journal_type = 'purchase'
+            elif type == 'in' and src_usage == 'customer':
+                journal_type = 'sale_refund'
+            else:
+                journal_type = 'sale'
+
+            value = journal_obj.search(cr, uid, [('type', '=',journal_type )])
+            for jr_type in journal_obj.browse(cr, uid, value, context=context):
+                t1 = jr_type.id,jr_type.name
+                if t1 not in vals:
+                    vals.append(t1)
+        return vals
+
+    _name = "stock.invoice.onshipping"
+    _description = "Stock Invoice Onshipping"
+
+    _columns = {
+        'journal_id': fields.selection(_get_journal_id, 'Destination Journal',required=True),
+        'group_by_partner': fields.boolean("Group by partner"),
+        'invoice_date': fields.date('Invoiced date'),
+    }
+
+    _defaults = {
+        'journal_id' : _get_journal,
+    }
+
+    def view_init(self, cr, uid, fields_list, context=None):
+        if context is None:
+            context = {}
+        res = super(stock_invoice_onshipping, self).view_init(cr, uid, fields_list, context=context)
+        pick_obj = self.pool.get('stock.picking')
+        count = 0
+        active_ids = context.get('active_ids',[])
+        for pick in pick_obj.browse(cr, uid, active_ids, context=context):
+            if pick.invoice_state != '2binvoiced':
+                count += 1
+        if len(active_ids) == 1 and count:
+            raise osv.except_osv(_('Warning!'), _('This picking list does not require invoicing.'))
+        if len(active_ids) == count:
+            raise osv.except_osv(_('Warning!'), _('None of these picking lists require invoicing.'))
+        return res
+
+    def open_invoice(self, cr, uid, ids, context=None):
+        if context is None:
+            context = {}
+        invoice_ids = []
+        data_pool = self.pool.get('ir.model.data')
+        res = self.create_invoice(cr, uid, ids, context=context)
+        invoice_ids += res.values()
+        inv_type = context.get('inv_type', False)
+        action_model = False
+        action = {}
+        if not invoice_ids:
+            raise osv.except_osv(_('Error!'), _('Please create Invoices.'))
+        if inv_type == "out_invoice":
+            action_model,action_id = data_pool.get_object_reference(cr, uid, 'account', "action_invoice_tree1")
+        elif inv_type == "in_invoice":
+            action_model,action_id = data_pool.get_object_reference(cr, uid, 'account', "action_invoice_tree2")
+        elif inv_type == "out_refund":
+            action_model,action_id = data_pool.get_object_reference(cr, uid, 'account', "action_invoice_tree3")
+        elif inv_type == "in_refund":
+            action_model,action_id = data_pool.get_object_reference(cr, uid, 'account', "action_invoice_tree4")
+        if action_model:
+            action_pool = self.pool.get(action_model)
+            action = action_pool.read(cr, uid, action_id, context=context)
+            action['domain'] = "[('id','in', ["+','.join(map(str,invoice_ids))+"])]"
+        return action
+
+    def create_invoice(self, cr, uid, ids, context=None):
+        if context is None:
+            context = {}
+        picking_pool = self.pool.get('stock.picking')
+        onshipdata_obj = self.read(cr, uid, ids, ['journal_id', 'group_by_partner', 'invoice_date'])
+        #_logger.debug('<create_invoice> onshipdata_obj: %s', str(onshipdata_obj[0]['group_by_partner']))
+        if context.get('new_picking', False):
+            onshipdata_obj['id'] = onshipdata_obj.new_picking
+            onshipdata_obj[ids] = onshipdata_obj.new_picking
+        context['date_inv'] = onshipdata_obj[0]['invoice_date']
+        active_ids = context.get('active_ids', [])
+        active_picking = picking_pool.browse(cr, uid, context.get('active_id',False), context=context)
+        inv_type = picking_pool._get_invoice_type(active_picking)
+        context['inv_type'] = inv_type
+        if isinstance(onshipdata_obj[0]['journal_id'], tuple):
+            onshipdata_obj[0]['journal_id'] = onshipdata_obj[0]['journal_id'][0]
+        res = picking_pool.action_invoice_create(cr, uid, active_ids,
+              journal_id = onshipdata_obj[0]['journal_id'],
+              group_by_partner = onshipdata_obj[0]['group_by_partner'],
+              type = inv_type,
+              context=context)
+        return res
+
+stock_invoice_onshipping()
+
+class vmi_account_invoice(osv.osv):
+    _name = 'account.invoice'
+    _inherit = 'account.invoice'
+
+    _columns = {
+        'state': fields.selection([
+            ('draft', 'Draft'),
+            ('manager_approved', 'Septa Manager Approved'),
+            ('vendor_approved', 'Vendor Approved'),
+            ('paid', 'Paid'),
+            ('cancel', 'Cancelled'),
+            ], 'Status', select=True, readonly=True, track_visibility='onchange',
+            help=' * The \'Draft\' status is used when a user is encoding a new and unconfirmed Invoice, waiting for confirmation by manager. \
+            \n* The \'Manager Confirmed\' when invoice is in Manager Confirmed status,invoice is approved by manager and waiting for confirmation by vendor. \
+            \n* The \'Open\' status is used when user create invoice,a invoice number is generated.Its in open status till user does not pay invoice. \
+            \n* The \'Paid\' status is set automatically when the invoice is paid. Its related journal entries may or may not be reconciled. \
+            \n* The \'Cancelled\' status is used when user cancel invoice.'),
+        'invoice_line': fields.one2many('account.invoice.line', 'invoice_id', 'Invoice Lines', states={'draft':[('readonly',False)]}),
+    }
+
+    def invoice_validate(self, cr, uid, ids, context=None):
+        self.write(cr, uid, ids, {'state': 'manager_approved'}, context=context)
+        return True
+
+    # vendor approved the current invoice
+    def invoice_vendor_approve(self, cr, uid, ids, context=None):
+        self.write(cr, uid, [int(ids)], {'state': 'vendor_approved'}, context=context)
+        return True
+
+    # vendor denied the current invoice
+    # (must cancel the invoice first, then set it back to draft, otherwise the invoice can not be re-validate)
+    def invoice_vendor_deny(self, cr, uid, ids, context=None):
+        #make "ids" a list ids (required if using existing method in any model)
+        ids = [int(ids)]
+        # cancel the current invoice
+        canceled = self.action_cancel(cr, uid, ids, None)
+        if canceled:
+            # set invoice from canceled to draft
+            self.write(cr, uid, ids, {'state': 'draft', 'comment': context['comment']}, None)
+            wf_service = netsvc.LocalService("workflow")
+            for inv_id in ids:
+                wf_service.trg_delete(uid, 'account.invoice', inv_id, cr)
+                wf_service.trg_create(uid, 'account.invoice', inv_id, cr)
+        return True
+
+vmi_account_invoice()

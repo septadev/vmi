@@ -8,16 +8,28 @@
 			@import "/vmi/static/src/js/datatables/extras/TableTools/media/css/TableTools.css";
 			div.dataTables_wrapper { font-size: 13px; }
 			table.display thead th, table.display td { font-size: 13px; }
+            div.innerDetails { display: none;
+                               background-color: #CBF2CB;
+            }
+            .details {}
+            .detailRowOdd{background-color: #DEF7DE;}
+            .badAudit{border-width:1px;
+                      border-style:dashed;
+                      border-color:#ff0000;
+            }
+            .detailRow{}
 		</style>
 <link rel="stylesheet" type="text/css" media="screen, projection" href="/vmi/static/src/css/screen_rev2.css" />
 <link rel="stylesheet" type="text/css" media="screen, projection" href="/vmi/static/src/js/datatables/media/css/jquery.dataTables.css" />
 <link rel="stylesheet" type="text/css" media="screen, projection" href="/vmi/static/src/css/septa.css" />
+<script type="text/javascript" tal:content="structure script"></script>
 <script src="/vmi/static/src/js/jquery.min.js"></script>
 <script src="/vmi/static/src/js/jquery.csv-0.71.js"></script>
 <script src="/vmi/static/src/js/csv.js"></script>
 <script type="text/javascript" src="/vmi/static/src/js/datatables/media/js/jquery.dataTables.js"></script>
 <script type="text/javascript" src="/vmi/static/src/js/datatables/extras/TableTools/media/js/TableTools.min.js"></script>
 <script type="text/javascript" src="/vmi/static/src/js/navigation.js"></script>
+<script src="/vmi/static/src/js/invoice.js"></script>
 </head>
 <body>
     <div id="wrapper">
@@ -49,6 +61,33 @@
             </p>
         </div>
         <p>"This is a Invoice!!"</p>
+        <div id="invoice" class="info" tal:condition="form_flag">
+            <form class="form_binary_form" method="post" enctype="multipart/form-data">
+                <hr><!-- Invoice history table -->
+                <table id="contents" style="width: 100%;" cellpadding="0" cellspacing="0" border="0" class="display">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>Invoice Date</th>
+                            <th>Name</th>
+                            <th>Amount untaxed</th>
+                            <th>Tax</th>
+                            <th>Total</th>
+                            <th>State</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+
+                    </tbody>
+                </table>
+            </form>
+        </div>
+            <div id="no_uploader" tal:condition="not:form_flag" class="notice">
+                <p> <!-- Notify user that they cannot upload any files -->
+                    <b tal:content="error">Packing Slips cannot be submitted at this time!</b> <br />
+                </p>
+            </div>
     </div>
     </div>
 </body>

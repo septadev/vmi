@@ -75,9 +75,9 @@ provided search criteria
 
 def newSession(req):
     """ create admin session for testing purposes only """
-    db = 'test1'
+    db = 'alpha'
     login = 'admin'
-    password = 'test1'
+    password = 'alpha'
     uid = req.session.authenticate(db, login, password)
     global session_created
     #session_created = True
@@ -323,6 +323,27 @@ def get_stock_moves_by_id(req, ids, all=False):
 
     return moves
 
+
+def get_invoice_line(req, ids):
+    """
+    get invoice.line by id
+    :param req: object
+    :param ids: account.invoice.line
+    :return: dict
+    """
+    lines = None
+    fields = ['invoice_id', 'price_unit', 'price_subtotal', 'discount', 'quantity', 'product_id']
+    try:
+        lines = do_search_read(req, 'account.invoice.line', fields, 0, False, [('id', 'in', ids)], None)
+    except Exception:
+        _logger.debug('<get_invoice_line> Invoice_lines not found for ids: %s', ids)
+
+    if not lines:
+        raise  Exception("Access Denied")
+
+    return lines
+
+
 def get_stock_pickings(req, pid, limit=10):
     """
     Search for last 100 packing slip uploads for the vendor.
@@ -347,7 +368,26 @@ def get_stock_pickings(req, pid, limit=10):
     return pickings
 
 
+def get_account_invoice(req, pid):
+    """
+    Search for invoices that marked as Manager Approved
+    :param req: object
+    :param pid: partner_id
+    :return: dict
+    """
+    invoices = None
+    fields = ['name', 'number', 'date_invoice', 'state', 'partner_id', 'invoice_line', 'move_id', 'amount_untaxed',
+              'amount_tax', 'amount_total']
+    try:
+        invoices = do_search_read(req, 'account.invoice', fields, 0, False, [('partner_id.id', '=', pid),
+            ('state', 'in', ['manager_approved', 'vendor_approved'])], None)
+    except Exception:
+        _logger.debug('<get_account_invoice> No account.invoice instances found for partner ID: %s', pid)
 
+    if not invoices:
+        raise Exception("AccessDenied")
+
+    return invoices
 
 def random_string(size, format):
     """
@@ -578,6 +618,24 @@ class VmiController(vmiweb.Controller):
         _logger.debug('_get_upload_history final result: %s', str(res))
         return res
 
+    def _get_invoice(self, req, pid):
+        """
+        Return the Invoice that manager approved
+        :param req: object
+        :param pid: partner_id
+        :return: search result object
+        """
+        res = get_account_invoice(req, pid)['records']
+        _logger.debug('<_get_invoice> initial result: %s', str(res))
+        if res:
+            for line in res:
+                line_ids = line['invoice_line']
+                lines = get_invoice_line(req, line_ids)['records']
+                line['line_items'] = lines
+
+        _logger.debug('<_get_invoice> final result: %s', str(res))
+        return res
+
     def _create_attachment(self, req, model, id, descr, ufile):
         """
 
@@ -712,6 +770,11 @@ class VmiController(vmiweb.Controller):
         """
         model_name = 'stock.picking.in'
         Model = req.session.model(model_name)
+        destination_id = None
+        location_id = None
+        location_partner = None
+        locations = get_stock_locations(req, pid)
+        all_locations = []
         res = []
         if len(csv_rows) > 0:
             for row in csv_rows: # Each unique packing slip number becomes a stock.picking.in instance.
@@ -721,15 +784,38 @@ class VmiController(vmiweb.Controller):
                 #if partner['id'] != pid: # Check if supplier is the same as current user's parent partner.
                 #    _logger.debug('<_create_stock_picking> Supplier ID does not match PID: %s | %s', partner, pid)
                 #    continue
+                for location in locations['records']: # Find the matching stock.location id for the CSV location value.
+
+                    destination_name = str(row['destination']).strip() + self._default_stock_location_suffix
+                    location_name = str(row['supplier'])
+                    #_logger.debug('<_create_move_line> Location Name: %s', str(location_name))
+                    if location['name'].upper() == destination_name.upper():
+                        destination_id = location['id']
+                        #_logger.debug('<_create_stock_picking> Destination Id: %s, Destination Name: %s', str(destination_id), destination_name)
+                    if location['name'].upper() == location_name.upper():
+                        location_id = location['id']
+                        if location['partner_id']:
+                            location_partner = location['partner_id'][0]
+                        #_logger.debug('<_create_stock_picking> Location Id: %s, Location Name: %s', str(location_id), location_name)
+
+                if not destination_id:
+                    raise ValueError("(%r) is not a proper value for destination location!" % str(row['destination']))
+                else:
+                    all_locations.append(destination_id)
+
                 # Construct date from individual M D Y fields in CSV data.
                 delivery_date = str(row['year']).strip() + '/' + str(row['month']).strip() + '/' + str(row['day']).strip()
                 #_logger.debug('<_create_stock_picking> CSV file: %s', str(row['packing_list_number']))
                 picking_id = Model.create({
                                               'name': row['packing_list_number'].strip() + '.' + delivery_date + '.' + rnd,
                                               'date_done': delivery_date,
+                                              'min_date': delivery_date,
                                               'partner_id': partner['id'],
                                               'origin': row['packing_list_number'].strip(),
                                               'invoice_state': '2binvoiced',
+                                              'state': 'done',
+                                              'location_id': location_id,
+                                              'location_dest_id': destination_id,
                                               #'purchase_id': row['purchase_order'].strip(),
                                               'note': row['purchase_order'].strip()
                                           }, req.context)
@@ -772,12 +858,12 @@ class VmiController(vmiweb.Controller):
                     #_logger.debug('<_create_move_line> Location Name: %s', str(location_name))
                     if location['name'].upper() == destination_name.upper():
                         destination_id = location['id']
-                        _logger.debug('<_create_move_line> Destination Id: %s, Destination Name: %s', str(destination_id), destination_name)
+                        #_logger.debug('<_create_move_line> Destination Id: %s, Destination Name: %s', str(destination_id), destination_name)
                     if location['name'].upper() == location_name.upper():
                         location_id = location['id']
                         if location['partner_id']:
                             location_partner = location['partner_id'][0]
-                        _logger.debug('<_create_move_line> Location Id: %s, Location Name: %s', str(location_id), location_name)
+                        #_logger.debug('<_create_move_line> Location Id: %s, Location Name: %s', str(location_id), location_name)
 
                 if not destination_id:
                     raise ValueError("(%r) is not a proper value for destination location!" % str(csv_row['destination']))
@@ -786,8 +872,8 @@ class VmiController(vmiweb.Controller):
 
                 delivery_date = str(csv_row['year']).strip() + '/' + str(csv_row['month']).strip() + '/' + str(
                     csv_row['day']).strip()
-                _logger.debug('deliver_date = %s' , delivery_date)
-                _logger.debug('<_create_move_line> csv row: %s', csv_row)
+                #_logger.debug('deliver_date = %s' , delivery_date)
+                #_logger.debug('<_create_move_line> csv row: %s', csv_row)
                 move_id = Model.create({
                     'product_id': product['id'],
                     'name': csv_row['packing_list_number'].strip() + '.' + delivery_date + '.' + random_string(8, 'digits'),
@@ -799,7 +885,12 @@ class VmiController(vmiweb.Controller):
                     'picking_id': csv_row['picking_id'],
                     'vendor_id': pid,
                     'date_expected': delivery_date,
+                    'note': 'this is a note',
+                    'scrapped': False,
+                    #'auto_validate': True,
                 })
+                res = Model.read(move_id)
+                _logger.debug('<_create_move_line> res: %s', res)
                 try:
                     moves.append(move_id)
                 except Exception, e:
@@ -946,7 +1037,7 @@ $(document).ready(function(){
                     contentType: "application/json; charset=utf-8",
                     dataType: "json",
                     // send username and password as parameters to OpenERP
-                    data: '{"jsonrpc": "2.0", "method": "call", "params": {"session_id": "' + sessionid + '", "context": {}, "login": "' + username + '", "password": "' + password + '", "db": "test1"}, "id": "VMI"}',
+                    data: '{"jsonrpc": "2.0", "method": "call", "params": {"session_id": "' + sessionid + '", "context": {}, "login": "' + username + '", "password": "' + password + '", "db": "alpha"}, "id": "VMI"}',
                     // script call was *not* successful
                     error: function(XMLHttpRequest, textStatus, errorThrown) {
                         $('div#loginResult').text("responseText: " + XMLHttpRequest.responseText
@@ -1188,6 +1279,8 @@ function getSessionInfo(){
         template = simpleTAL.compileHTMLTemplate(input)
         input.close()
         history = simplejson.dumps(self._get_upload_history(req, pid))
+        #history = self._get_upload_history(req, pid)
+        _logger.debug('history: %s', history)
         js = 'var history_data = %s;\n' % history
         js += 'var mode = "%s";\n' % mod
         sid = req.session_id
@@ -1250,10 +1343,26 @@ function getSessionInfo(){
             'r')
         template = simpleTAL.compileHTMLTemplate(input)
         input.close()'''
-        page_name = 'invoice'
-        req.session.ensure_valid()
+        if mod is not None:
+            if mod not in self._modes:
+                raise KeyError
         uid = req.session._uid
         _logger.debug('This is uid %s!', str(uid))
+        local_vals = {}
+        if kwargs is not None:
+            local_vals.update(kwargs)
+            pid = local_vals.get('pid')
+            _logger.debug('Partner found ID: %s', pid)
+        else:
+            try:    # Get Partner ID for session
+                vendor_record = get_partner_id(req, uid)['records'][0]
+                pid = vendor_record['company_id']
+            except IndexError:
+                _logger.debug('Partner not found for user ID: %s', uid)
+                return {'error': _('No Partner found for this User ID!'), 'title': _('Partner Not Found')}
+
+        page_name = 'invoice'
+        req.session.ensure_valid()
         temp_globals = dict.fromkeys(self._template_keys, None)
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
 
@@ -1266,13 +1375,6 @@ function getSessionInfo(){
         else:
             _logger.debug('No vmi.client.page record found for page name %s!', page_name)
             return req.not_found()
-
-        if mod is not None:
-            if mod not in self._modes:
-                raise KeyError
-        #Some code to passing the session_id to remain authenticated.
-        js = ''
-        js += 'var mode = "%s";\n' % mod
 
         temp_location = os.path.join(vmi_client_page[0]['template_path'], vmi_client_page[0]['template_name'])
         input = ''
@@ -1289,18 +1391,27 @@ function getSessionInfo(){
 
         template = simpleTAL.compileHTMLTemplate(input)
         input.close()
-
+        invoice = simplejson.dumps(self._get_invoice(req, pid))
+        js = 'var invoice_data = %s;\n' % invoice
+        js += 'var mode = "%s";\n' % mod
+        sid = req.session_id
         context = simpleTALES.Context()
         # Add a string to the context under the variable title
-
-        context.addGlobal("mode", mod)
+        if 'error' in local_vals:        # Append errors generated by the parsing of the file.
+            js += 'var error = "%s";\n' % simplejson.dumps(local_vals['error'])
+            context.addGlobal("error", local_vals['error'])
+            temp_globals['form_flag'] = False
+        # Add a string to the context under the variable title
         context.addGlobal("title", temp_globals['title'])
         context.addGlobal("script", js)
         context.addGlobal("header", temp_globals['header'])
         context.addGlobal("form_flag", temp_globals['form_flag'])
         context.addGlobal("form_action", temp_globals['form_action'])
         context.addGlobal("form_legend", temp_globals['form_legend'])
-
+        context.addGlobal("sid", sid)
+        context.addGlobal("pid", pid)
+        context.addGlobal("uid", uid)
+        context.addGlobal("mode", mod)
         output = cStringIO.StringIO()
         template.expand(context, output)
         return output.getvalue()
@@ -1382,7 +1493,7 @@ function getSessionInfo(){
         else:
             res = Model.default_get(fields, req.context)
         filecontent = base64.b64decode(res.get(field, ''))
-        if not filecontent:
+        '''if not filecontent:
             return req.not_found()
         else:
             filename = '%s_%s' % (model.replace('.', '_'), id)
@@ -1390,7 +1501,7 @@ function getSessionInfo(){
                 filename = res.get(filename_field, '') or filename
             return req.make_response(filecontent,
                 [('Content-Type', 'application/octet-stream'),
-                 ('Content-Disposition', content_disposition(filename, req))])
+                 ('Content-Disposition', content_disposition(filename, req))])'''
 
 
     @vmiweb.httprequest
@@ -1566,3 +1677,65 @@ function getSessionInfo(){
         output = cStringIO.StringIO()
         template.expand(context, output)
         return output.getvalue()
+
+    @vmiweb.httprequest
+    def invoice_processing(self, req, uid, pid, callback, invoice_id, comment, result):
+
+        """
+
+        :param req: object
+        :param uid: user id
+        :param pid: partner id
+        :param callback:
+        :param invoice_id: invoice id that need to be processed
+        :param comment: a comment that explained why vendor denied the current invoice
+        :param result: vendor's decision on current invoice
+        :return:
+        """
+        page_name = 'invoice_processing'
+        #session_data = Session.session_info(req.session)
+        req.session.ensure_valid()
+
+        mod = None
+        args = {}
+        args.update({'pid': pid})
+        args.update({'uid': uid})
+        #uid = newSession(req)
+        #uid = req.session._uid
+        _logger.debug('This is uid %s!', str(uid))
+        vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
+        if vmi_client_page: # Set the mode for the controller and template.
+            temp_globals = dict.fromkeys(self._template_keys, None)
+            for key in temp_globals:
+                temp_globals[key] = vmi_client_page[0][key]
+
+            if mod is None:
+                mod = vmi_client_page[0]['mode']
+        else:
+            _logger.debug('No vmi.client.page record found for page name %s!', page_name)
+            return req.not_found()
+
+        if mod is not None:
+            if mod not in self._modes:
+                _logger.debug('<invoice_processing>The mode is not set to a recognized value: %s!', str(mod))
+                raise KeyError
+#            else:
+#                args.update({'mod': mod})
+
+
+        req.session.ensure_valid()
+        uid = req.session._uid
+        if invoice_id:
+            res = None
+            ids = invoice_id
+            # invoice processing
+            if result == "approved":
+                res = self._call_methods(req, 'account.invoice', 'invoice_vendor_approve', [ids, None])
+            elif result == "denied":
+                res = self._call_methods(req, 'account.invoice', 'invoice_vendor_deny', [ids, {'comment': comment}])
+            else:
+                _logger.debug('<invoice_processing>Unrecognized action!')
+                raise KeyError
+
+        kwargs = args.copy()
+        return self.invoice(req, mod, **kwargs)
