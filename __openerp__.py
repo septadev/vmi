@@ -20,13 +20,13 @@
 
 {
     'name': 'SEPTA VMI',
-    'version': '0.1',
+    'version': '0.2',
     'category': 'VMI',
     'description': """
 This module modifies the OpenERP Warehouse modules 
 for use with VMI requirments.
      """,
-    'author': 'M. A. Ruberto',
+    'author': 'M. A. Ruberto & Xiang Li',
     'website': 'http://septa.org',
     'depends': ['stock', 'product', 'base', ],
     'data': [
