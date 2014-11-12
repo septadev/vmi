@@ -10,6 +10,7 @@ import xmlrpclib
 import simplejson
 import base64
 import logging
+from openerp import sql_db, pooler
 from types import *
 from simpletal import simpleTAL, simpleTALES
 import werkzeug.utils
@@ -21,6 +22,10 @@ import openerp.addons.web.http as vmiweb
 _logger = logging.getLogger(__name__)
 
 #session_created = False
+
+db = 'alpha'
+login = 'admin'
+password = 'alpha'
 
 # -----------------------------------------------| VMI Global Methods.
 
@@ -75,9 +80,6 @@ provided search criteria
 
 def newSession(req):
     """ create admin session for testing purposes only """
-    db = 'alpha'
-    login = 'admin'
-    password = 'alpha'
     uid = req.session.authenticate(db, login, password)
     global session_created
     #session_created = True
@@ -185,7 +187,7 @@ def get_stock_locations(req, pid, **kwargs):
 
     if not stock_locations:
         raise Exception("AccessDenied")
-    _logger.debug('stock locations: %s', str(stock_locations['records']))
+    #_logger.debug('stock locations: %s', str(stock_locations['records']))
     return stock_locations
 
 def get_stock_location_by_id(req, ids, all=False):
@@ -309,7 +311,8 @@ def get_stock_moves_by_id(req, ids, all=False):
     @param all: selects all fields in result
     """
     moves = None
-    fields = ['id', 'origin', 'create_date', 'product_id', 'product_qty', 'product_uom', 'location_dest_id', 'note', 'audit_fail']
+    fields = ['id', 'origin', 'create_date', 'product_id', 'product_qty', 'product_uom', 'location_dest_id', 'note',
+              'audit_fail', 'vendor_part_number']
     if all:
         fields = fields_get(req, 'stock.move')
 
@@ -324,7 +327,7 @@ def get_stock_moves_by_id(req, ids, all=False):
     return moves
 
 
-def get_invoice_line(req, ids):
+def get_invoice_line(req, ids, uid):
     """
     get invoice.line by id
     :param req: object
@@ -332,14 +335,34 @@ def get_invoice_line(req, ids):
     :return: dict
     """
     lines = None
-    fields = ['invoice_id', 'price_unit', 'price_subtotal', 'discount', 'quantity', 'product_id']
+    account_invoice_line_obj = req.session.model('account.invoice.line')
+    move_obj = req.session.model('stock.move')
+    product_obj = req.session.model('product.product')
+    fields = ['invoice_id', 'price_unit', 'price_subtotal', 'discount', 'quantity', 'product_id', 'stock_move_id']
     try:
-        lines = do_search_read(req, 'account.invoice.line', fields, 0, False, [('id', 'in', ids)], None)
+        lines = account_invoice_line_obj.read(ids, fields, None)
     except Exception:
         _logger.debug('<get_invoice_line> Invoice_lines not found for ids: %s', ids)
 
     if not lines:
-        raise  Exception("Access Denied")
+        raise Exception("Access Denied")
+
+    for line in lines:
+        if line['stock_move_id']:
+            '''#move = get_stock_moves_by_id(req, [line['stock_move_id'][0]], False)
+            move1 = do_search_read(req, 'stock.move', ['date', 'origin', 'product_uom', 'product_qty'], 0, False,
+                                  [('id', '=', line['stock_move_id'][0])], None)
+            #product = get_product_by_id(req, [line['product_id'][0]], False)
+            product1 = do_search_read(req, 'product.product', ['default_code', 'vendor_part_number'], 0, False,
+                                     [('id', '=', line['product_id'][0])], None)'''
+            move = move_obj.read(line['stock_move_id'][0], ['date', 'origin', 'product_uom', 'product_qty'], None)
+            product = product_obj.read(line['product_id'][0], ['default_code', 'vendor_part_number'], None)
+            line['date_received'] = move['date']
+            line['picking_number'] = move['origin']
+            line['septa_part_number'] = product['default_code']
+            line['vendor_part_number'] = product['vendor_part_number']
+            line['unit_of_measure'] = move['product_uom']
+            line['quantity_received'] = move['product_qty']
 
     return lines
 
@@ -367,6 +390,24 @@ def get_stock_pickings(req, pid, limit=10):
 
     return pickings
 
+def get_stock_picking_by_id(req, picking_id):
+    """
+
+    :param req:
+    :param pid:
+    :param picking_id:
+    :return:
+    """
+    pickings = None
+    fields = ['origin', 'date_done']
+    try:
+        pickings = do_search_read(req, 'stock.picking.in', fields, 0, False, [('id', '=', picking_id)], None)
+    except Exception:
+        _logger.debug('<get_stock_pickings> No stock.picking.in instances found for ID: %s', picking_id)
+
+    if not pickings:
+        raise  Exception("Access Denied")
+    return pickings
 
 def get_account_invoice(req, pid):
     """
@@ -601,7 +642,7 @@ class VmiController(vmiweb.Controller):
         """
         #import pdb; pdb.set_trace()
         res = get_stock_pickings(req, pid)['records'] # Find the last 100 stock.picking.in records for current vendor.
-        _logger.debug('_get_upload_history initial result count: %s', str(len(res)))
+        #_logger.debug('_get_upload_history initial result count: %s', str(len(res)))
         if res: # Find the associated stock.move records for the current picking.
             for pick in res:
                 move_ids = pick['move_lines']
@@ -615,10 +656,10 @@ class VmiController(vmiweb.Controller):
 
 
 
-        _logger.debug('_get_upload_history final result: %s', str(res))
+        #_logger.debug('_get_upload_history final result: %s', str(res))
         return res
 
-    def _get_invoice(self, req, pid):
+    def _get_invoice(self, req, pid, uid):
         """
         Return the Invoice that manager approved
         :param req: object
@@ -630,7 +671,7 @@ class VmiController(vmiweb.Controller):
         if res:
             for line in res:
                 line_ids = line['invoice_line']
-                lines = get_invoice_line(req, line_ids)['records']
+                lines = get_invoice_line(req, line_ids, uid)
                 line['line_items'] = lines
 
         _logger.debug('<_get_invoice> final result: %s', str(res))
@@ -685,7 +726,7 @@ class VmiController(vmiweb.Controller):
             csv_part_numbers.append(row['septa_part_number'].strip())
 
         if len(csv_part_numbers) == 0:
-            _logger.debug('<_validate_products> Packing slip missing part numbers for partner: %s', str(pid))
+            #_logger.debug('<_validate_products> Packing slip missing part numbers for partner: %s', str(pid))
             raise IndexError("<_validate_products> Product not found in (%r)!" % str(csv_part_numbers))
         else:
             unique_part_numbers = list(set(csv_part_numbers))
@@ -702,8 +743,8 @@ class VmiController(vmiweb.Controller):
             else:
                 raise IndexError("<_validate_products> No products returned from search: (%r)!" % str(res))
 
-            _logger.debug('<_validate_products> db_part_numbers: %s', db_part_numbers)
-            _logger.debug('<_validate_products> csv_part_numbers: %s', unique_part_numbers)
+            #_logger.debug('<_validate_products> db_part_numbers: %s', db_part_numbers)
+            #_logger.debug('<_validate_products> csv_part_numbers: %s', unique_part_numbers)
             if cmp(db_part_numbers.sort(), unique_part_numbers.sort()) == 0:
                 results.update({'records': res['records'], 'length': len(res), 'valid': True})
             else:
@@ -890,7 +931,7 @@ class VmiController(vmiweb.Controller):
                     #'auto_validate': True,
                 })
                 res = Model.read(move_id)
-                _logger.debug('<_create_move_line> res: %s', res)
+                #_logger.debug('<_create_move_line> res: %s', res)
                 try:
                     moves.append(move_id)
                 except Exception, e:
@@ -909,7 +950,7 @@ class VmiController(vmiweb.Controller):
         fields = self._packing_slip_fields
         res = self._csv_reader(filedata, fields)
         if res.has_key('error'):
-            _logger.debug('<_parse_packing_slip> CSV reader returned an error: %s', res['error'])
+            #_logger.debug('<_parse_packing_slip> CSV reader returned an error: %s', res['error'])
             return res
         else:
             #res['records'].sort(cmp=lambda x,y : cmp(x['packing_list_number'], y['packing_list_number']))
@@ -943,7 +984,7 @@ class VmiController(vmiweb.Controller):
 
 
         result.update({'stock_pickings': picked, 'move_lines': moves, 'pid': pid})
-        _logger.debug('<_parse_packing_slip> returned values: %s', str(result))
+        #_logger.debug('<_parse_packing_slip> returned values: %s', str(result))
         return result #{'stock_pickings': [{'picking_id': picking_id, 'packing_list': packing_list_number}],
                       # 'move_lines': {'moves': [id], 'locations', [id]
                       # 'pid': id}
@@ -963,7 +1004,7 @@ class VmiController(vmiweb.Controller):
             func = getattr(req.session.model(model), method, None)
             if callable(func):
                 res = func(*args, **kwargs)
-                _logger.debug('<_call_methods> Method %s was called on model %s', method, model)
+                #_logger.debug('<_call_methods> Method %s was called on model %s', method, model)
         else:
             _logger.debug('<_call_methods> Method %s not found on model %s', method, model)
             return req.not_found()
@@ -1280,7 +1321,7 @@ function getSessionInfo(){
         input.close()
         history = simplejson.dumps(self._get_upload_history(req, pid))
         #history = self._get_upload_history(req, pid)
-        _logger.debug('history: %s', history)
+        #_logger.debug('history: %s', history)
         js = 'var history_data = %s;\n' % history
         js += 'var mode = "%s";\n' % mod
         sid = req.session_id
@@ -1391,7 +1432,7 @@ function getSessionInfo(){
 
         template = simpleTAL.compileHTMLTemplate(input)
         input.close()
-        invoice = simplejson.dumps(self._get_invoice(req, pid))
+        invoice = simplejson.dumps(self._get_invoice(req, pid, uid))
         js = 'var invoice_data = %s;\n' % invoice
         js += 'var mode = "%s";\n' % mod
         sid = req.session_id
@@ -1527,6 +1568,9 @@ function getSessionInfo(){
         args.update({'uid': uid})
         #uid = newSession(req)
         uid = req.session._uid
+        uname = req.session._login
+        upwd = req.session._password
+        udb = req.session._db
         _logger.debug('This is uid %s!', str(uid))
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
         if vmi_client_page: # Set the mode for the controller and template.
@@ -1551,7 +1595,6 @@ function getSessionInfo(){
         req.session.ensure_valid()
         uid = req.session._uid
         _logger.debug('<upload_document2>This is uid %s!', str(uid))
-        #uid = newSession(req)
         if contents_length:
             if ufile:
                 result = None
@@ -1564,6 +1607,8 @@ function getSessionInfo(){
                     _logger.debug('Error on line %s', sys.exc_traceback.tb_lineno)
 
                 args.update({'parse_result': result})
+                # Session flashed after parse packing slip, need to revalidation
+                req.session.authenticate(udb, uname, upwd)
             else:
                 args.update({'error': 'File is empty or invalid!'})
 
@@ -1578,7 +1623,7 @@ function getSessionInfo(){
                 _logger.debug('<upload_document>_call_methods failed: %s!', str(e))
 
             args.update({'audit_result': result})
-        _logger.debug('<upload_document> args after flag: %s!', args)
+        #_logger.debug('<upload_document> args after flag: %s!', args)
         if 'audit_result' in args: # Call the Done method on moves that weren't flagged for audit.
 
             if 'move_lines' in args['parse_result']:
@@ -1597,9 +1642,10 @@ function getSessionInfo(){
                     args.update({'error': str(e) })
                     _logger.debug('<upload_document>_call_methods failed: %s!', str(e))
 
-                _logger.debug('<upload_document>unflagged moves set to done: %s!', str(unflagged))
+                #_logger.debug('<upload_document>unflagged moves set to done: %s!', str(unflagged))
 
         _logger.debug('<upload_document3>This is uid %s!', str(uid))
+        req.session.ensure_valid()
         kwargs = args.copy()
         return self.result(req, mod, **kwargs)
 
@@ -1700,7 +1746,6 @@ function getSessionInfo(){
         args = {}
         args.update({'pid': pid})
         args.update({'uid': uid})
-        #uid = newSession(req)
         #uid = req.session._uid
         _logger.debug('This is uid %s!', str(uid))
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']

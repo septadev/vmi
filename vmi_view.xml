@@ -79,8 +79,8 @@
 				  <field name="audit_fail" invisible="1" />
 				</field>
 				<field name="product_qty" position="after">
-				    <button name="%(vmi.move_audit)d" icon="gtk-find" type="action" colspan="1" help="Audit" attrs="{'invisible': ['|',('state','=','done'),('audit','&lt;&gt;', True)]}" />
-                    <button name="fail_audit" icon="gtk-dialog-warning" type="object" colspan="1" help="Failed Audit" attrs="{'invisible': [('audit_fail','&lt;&gt;', True)]}" />
+				  <button name="%(vmi.move_audit)d" icon="gtk-find" type="action" colspan="1" help="Audit" attrs="{'invisible': ['|',('state','=','done'),('audit','&lt;&gt;', True)]}" />
+				  <button name="fail_audit" icon="gtk-dialog-warning" type="object" colspan="1" help="Failed Audit" attrs="{'invisible': [('audit_fail','&lt;&gt;', True)]}" />
 				</field>
 			</field>
 		</record>
@@ -200,45 +200,62 @@
             </field>
         </record>
         <menuitem action="action_client_form" id="menu_action_client_form" parent="stock.menu_stock_configuration" sequence="1"/>
-
-        <record id="view_stock_invoice_onshipping" model="ir.ui.view">
-            <field name="name">Stock Invoice Onshipping</field>
-            <field name="model">stock.invoice.onshipping</field>
+        <!--Add Location and Category to invoice tree-->
+        <record id="invoice_tree_inherit" model="ir.ui.view">
+				<field name="name">account.invoice.tree.inherit</field>
+				<field name="model">account.invoice</field>
+				<field name="inherit_id" ref="account.invoice_tree" />
+				<field name="arch" type="xml">
+                    <tree position="attributes">
+					    <attribute name="colors">blue:state=='draft';black:state=='manager_approved';green:state=='vendor_approved';red:state=='vendor_denied'</attribute>
+					</tree>
+                    <field name="user_id" position="after">
+                        <field name="location_id" groups="stock.group_locations"/>
+                        <field name="category_id" />
+                    </field>
+                    <field name="date_due" position="replace"/>
+                    <field name="origin" position="replace"/>
+				</field>
+		</record>
+        <!--Add Location and Category to supplier invoice form; Modify status bar-->
+        <record id="invoice_supplier_form_inherit" model="ir.ui.view">
+            <field name="name">account.invoice.supplier.form.inherit</field>
+            <field name="model">account.invoice</field>
+            <field name="inherit_id" ref="account.invoice_supplier_form"/>
             <field name="arch" type="xml">
-              <form string="Create invoice" version="7.0">
-                  <group string="Create Invoice">
-                      <field name="journal_id"/>
-                      <field name="group_by_partner"/>
-                      <field name="invoice_date" />
-                  </group>
-                  <footer>
-                      <button name="open_invoice" string="Create" type="object" class="oe_highlight"/>
-                      or
-                      <button string="Cancel" class="oe_link" special="cancel"/>
-                  </footer>
-             </form>
+                <button name="invoice_open" position="replace">
+                    <button name="invoice_open" states="draft,vendor_denied" string="Validate" class="oe_highlight" groups="account.group_account_invoice"/>
+                </button>
+                <button name="invoice_cancel" position="replace">
+                    <button name="invoice_cancel" states="draft,manager_approved,vendor_approved,vendor_denied" string="Cancel Invoice" groups="account.group_account_invoice"/>
+                </button>
+                <!--<label string="Draft Invoice" position="after">
+                    <label string="Manager Approved Invoice" attrs="'invisible': ['|',('state','&lt;&gt;','manager_approved'), ('type','&lt;&gt;','in_invoice')]"/>
+                    <label string="Vendor Approved Invoice" attrs="'invisible': ['|',('state','&lt;&gt;','vendor_approved'), ('type','&lt;&gt;','in_invoice')]"/>
+                    <label string="Vendor Denied Invoice" attrs="'invisible': ['|',('state','&lt;&gt;','vendor_denied'), ('type','&lt;&gt;','in_invoice')]"/>
+                </label>-->
+                <field name="state" position="replace">
+                    <field name="state" widget="statusbar" statusbar_visible="draft,manager_approved,vendor_approved,paid"/>
+                </field>
+                <field name="partner_id" position="after">
+                    <field name="location_id" groups="stock.group_locations"/>
+                    <field name="category_id" />
+                </field>
+                <field name="fiscal_position" position="replace"/>
+            </field>
+        </record>
+        <!--Add Category and Location to group by-->
+        <record id="view_account_invoice_filter_inherit" model="ir.ui.view">
+            <field name="name">view.account.invoice.filter.inherit</field>
+            <field name="model">account.invoice</field>
+            <field name="inherit_id" ref="account.view_account_invoice_filter"/>
+            <field name="arch" type="xml">
+                <filter string="Due Date" position="after">
+                    <filter string="Category" icon="terp-folder-orange" domain="[]" context="{'group_by':'category_id'}"/>
+                    <filter string="Location" icon="terp-folder-orange" domain="[]" context="{'group_by':'location_id'}"/>
+                </filter>
             </field>
         </record>
 
-
-        <act_window name="Create Draft Invoices"
-            res_model="stock.invoice.onshipping"
-            src_model="stock.picking.out"
-            key2="client_action_multi"
-            multi="True"
-            view_mode="form"
-            view_type="form"
-            target="new"
-            id="action_stock_invoice_onshipping"/>
-
-        <act_window name="Create Draft Invoices"
-            res_model="stock.invoice.onshipping"
-            src_model="stock.picking.in"
-            key2="client_action_multi"
-            multi="True"
-            view_mode="form"
-            view_type="form"
-            target="new"
-            id="action_stock_invoice_onshipping"/>
 	</data>			  
 </openerp>	
