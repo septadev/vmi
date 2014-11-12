@@ -147,16 +147,24 @@ $(document).ready(function(){
         });
     });
 
+    /*$(".detailRowOdd").click(function(){
+        var aData = oTable.fnGetData(this);
+        alert(aData['id']);
+    });*/
+
 function fnFormatDetails (oTable, nTr )
 {
 
     var aData = oTable.fnGetData( nTr );
     var classRow = 'detailRow';
     var sOut = '<div class="innerDetails"><table cellpadding="5" cellspacing="0" border="0" style="padding-left:50px;">';
-    sOut += '<tr class="detailHead"><td>Product ID</td>';
+    sOut += '<tr class="detailHead"><td>Deliver Date</td>';
+    sOut += '<td>Packing Number</td>';
+    sOut += '<td>Septa P/N</td>';
+    sOut += '<td>Vendor P/N</td>';
+    sOut += '<td>U of M</td>';
     sOut += '<td>Quantity</td>';
     sOut += '<td>Price Unit</td>';
-    sOut += '<td>Discount</td>';
     sOut += '<td>Price Subtotal</td>';
     for(var i in aData.line_items){
         console.log(i);
@@ -168,10 +176,13 @@ function fnFormatDetails (oTable, nTr )
         if(i % 2 == 0){
             classRow = 'detailRowOdd'
         }
-        sOut += '<tr class="'+classRow+'"><td>'+aData.line_items[i].product_id+'</td>';
+        sOut += '<tr class="'+classRow+'"><td>'+aData.line_items[i].date_received+'</td>';
+        sOut += '<td>'+aData.line_items[i].picking_number+'</td>';
+        sOut += '<td>'+aData.line_items[i].septa_part_number+'</td>';
+        sOut += '<td>'+aData.line_items[i].vendor_part_number+'</td>';
+        sOut += '<td>'+aData.line_items[i].unit_of_measure[1]+'</td>';
         sOut += '<td>'+aData.line_items[i].quantity+'</td>';
         sOut += '<td>'+aData.line_items[i].price_unit+'</td>';
-        sOut += '<td>'+aData.line_items[i].discount+'</td>';
         sOut += '<td>'+aData.line_items[i].price_subtotal+'</td>';
     }
     sOut += '</table></div>';
