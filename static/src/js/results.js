@@ -7,13 +7,12 @@
 //var sessionid = null;
 
 $(document).ready(function(){
-    sessionid = sessionStorage.getItem('session_id')
+    sessionid = sessionStorage.getItem('session_id');
+    pid = sessionStorage.getItem(('company_id'));
+    uid = sessionStorage.getItem(('user_id'));
     console.log('before re-authentication: ' + sessionid );
 
-
-
-
-    authenticate();
+    //authenticate();
     var anOpen = [];
     var oTable = $('#contents').dataTable( {
     "aaData": history_data,
