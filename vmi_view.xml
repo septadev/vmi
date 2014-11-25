@@ -228,6 +228,7 @@
                 </button>
                 <button name="invoice_cancel" position="replace">
                     <button name="invoice_cancel" states="draft,manager_approved,vendor_approved,vendor_denied" string="Cancel Invoice" groups="account.group_account_invoice"/>
+                    <button name="action_invoice_sent" type="object" string="Send by Email" groups="base.group_user"/>
                 </button>
                 <!--<label string="Draft Invoice" position="after">
                     <label string="Manager Approved Invoice" attrs="'invisible': ['|',('state','&lt;&gt;','manager_approved'), ('type','&lt;&gt;','in_invoice')]"/>
@@ -242,6 +243,7 @@
                     <field name="category_id" />
                 </field>
                 <field name="fiscal_position" position="replace"/>
+                <field name="check_total" position="replace"/>
             </field>
         </record>
         <!--Add Category and Location to group by-->
@@ -254,6 +256,125 @@
                     <filter string="Category" icon="terp-folder-orange" domain="[]" context="{'group_by':'category_id'}"/>
                     <filter string="Location" icon="terp-folder-orange" domain="[]" context="{'group_by':'location_id'}"/>
                 </filter>
+            </field>
+        </record>
+
+        <!--Add Email Settings to Accounting tab-->
+        <record model="ir.ui.view" id="view_mail_tree_inherit">
+            <field name="name">view.mail.tree.inherit</field>
+            <field name="model">mail.mail</field>
+            <field name="inherit_id" ref="mail.view_mail_tree"/>
+            <field name="arch" type="xml">
+                <field name="subject" position="after">
+                    <field name="partner_ids" string="Recipients"/>
+                    <field name="state"/>
+                </field>
+                <field name="author_id" position="replace"/>
+            </field>
+        </record>
+
+        <!--Set default groups-->
+        <record model="ir.ui.view" id="view_mail_search">
+            <field name="name">mail.mail.search</field>
+            <field name="model">mail.mail</field>
+            <field name="arch" type="xml">
+                <search string="Email Search">
+                    <field name="email_from" filter_domain="['|', '|',('email_from','ilike',self), ('email_to','ilike',self), ('subject','ilike',self)]" string="Email"/>
+                    <field name="date"/>
+                    <filter icon="terp-camera_test" name="received" string="Received" domain="[('state','=','received')]"/>
+                    <filter icon="terp-call-start" name="outgoing" string="Outgoing" domain="[('state','=','outgoing')]"/>
+                    <filter icon="terp-check" name="sent" string="Sent" domain="[('state','=','sent')]"/>
+                    <filter icon="terp-gtk-stop" name="exception" string="Failed" domain="[('state','=','exception')]"/>
+                    <separator/>
+                    <filter icon="terp-camera_test" name="type_email" string="Email" domain="[('type','=','email')]"/>
+                    <filter icon="terp-camera_test" name="type_comment" string="Comment" domain="[('type','=','comment')]"/>
+                    <filter icon="terp-camera_test" name="type_notification" string="Notification" domain="[('type','=','notification')]"/>
+                    <group expand="0" string="Extended Filters...">
+                        <field name="author_id"/>
+                        <field name="partner_ids"/>
+                        <field name="model"/>
+                        <field name="res_id"/>
+                    </group>
+                    <group expand="0" string="Group By...">
+                        <filter string="Status" name="status" domain="[]" context="{'group_by':'state'}"/>
+                        <filter string="Author" name="author" context="{'group_by':'author_id'}"/>
+                        <filter string="Recipient" name="recipient" context="{'group_by':'partner_ids'}"/>
+                        <filter string="Thread" name="thread" domain="[]" context="{'group_by':'message_id'}"/>
+                        <filter string="Month" name="month" help="Creation Month" domain="[]" context="{'group_by':'date'}"/>
+                        <filter string="Status" name="status" context="{'group_by':'state'}"/>
+                    </group>
+                </search>
+            </field>
+        </record>
+
+        <record id="action_view_mail_mail" model="ir.actions.act_window">
+            <field name="name">Emails</field>
+            <field name="res_model">mail.mail</field>
+            <field name="view_type">form</field>
+            <field name="view_mode">tree,form</field>
+            <field name="search_view_id" ref="view_mail_search"/>
+        </record>
+
+        <!--Add Email Template to Accounting tab-->
+        <record model="ir.ui.view" id="email_template_tree">
+            <field name="name">email.template.tree</field>
+            <field name="model">email.template</field>
+            <field name="arch" type="xml">
+                <tree string="Templates">
+                    <field name="mail_server_id" invisible="1"/>
+                    <field name="name"/>
+                    <field name="model_id"/>
+                    <field name="subject"/>
+                    <field name="email_from"/>
+                    <field name="email_to"/>
+                    <field name="email_recipients"/>
+                    <field name="report_name"/>
+                </tree>
+            </field>
+        </record>
+
+        <record id="view_email_template_search" model="ir.ui.view">
+           <field name="name">email.template.search</field>
+           <field name="model">email.template</field>
+           <field name="arch" type="xml">
+               <search string="Templates">
+                    <field name="name" filter_domain="['|', '|', '|',('name','ilike',self), ('report_name','ilike',self), ('subject','ilike',self), ('email_to','ilike',self)]" string="Templates"/>
+                    <field name="lang"/>
+                    <field name="model_id"/>
+                    <group expand="0" string="Group by...">
+                        <filter string="SMTP Server" domain="[]" context="{'group_by':'mail_server_id'}" icon="terp-folder-orange"/>
+                        <filter string="Model" domain="[]" context="{'group_by':'model_id'}" icon="terp-accessories-archiver"/>
+                    </group>
+               </search>
+           </field>
+        </record>
+
+        <record model="ir.actions.act_window" id="action_email_template_tree_all">
+            <field name="name">Templates</field>
+            <field name="res_model">email.template</field>
+            <field name="view_type">form</field>
+            <field name="view_mode">form,tree</field>
+            <field name="view_id" ref="email_template_tree" />
+            <field name="search_view_id" ref="view_email_template_search"/>
+        </record>
+
+        <menuitem id="account_email_menu" name="Email Notification" parent="account.menu_finance_configuration" sequence="1"/>
+        <menuitem name="Emails" id="menu_mail_mail" parent="account_email_menu" action="action_view_mail_mail" />
+        <menuitem name="Templates" id="menu_email_templates" parent="account_email_menu" action="action_email_template_tree_all"/>
+
+        <!--Add Email Notification to partners under Contacts tab-->
+        <record id="view_partner_form_inherit" model="ir.ui.view">
+            <field name="name">view.partner.form.inherit</field>
+            <field name="model">res.partner</field>
+            <field name="inherit_id" ref="base.view_partner_form"/>
+            <field name="arch" type="xml">
+                <form string="Contact" position="inside">
+                    <sheet position="inside">
+                        <div>
+                            <field name="notification"/><label for="notification"/>
+                        </div>
+                    </sheet>
+                </form>
             </field>
         </record>
 
