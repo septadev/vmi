@@ -6,6 +6,7 @@ from openerp import pooler, tools, netsvc
 from openerp.tools.translate import _
 import openerp.addons.decimal_precision as dp
 import time
+import base64
 import datetime
 import functools
 
@@ -179,191 +180,6 @@ class vmi_stock_picking_in(osv.osv):
     _inherit = 'stock.picking.in'
     _table = "stock_picking"
     _order = 'date desc'
-
-    '''def _flag_next_audit(self, cr, uid, ids, last_audited, partner, location, context):
-        """
-        audit flagging mechanism
-
-        @param cr:
-        @param uid:
-        @param ids:
-        @param last_audited:
-        @param partner:
-        @param location:
-        @param context:
-        @return: list
-        """
-        if context is None:
-            context = {}
-        res = []
-        i = 1
-        date_format = "%Y-%m-%d %H:%M:%S"
-        now = datetime.datetime.now()
-        # add condition id > last_audited['id'], and order by id ASC
-        sql_req = """
-			select 
-			m.id
-			,m.date 
-			from 
-			stock_move m
-			where 
-			(m.location_dest_id = %s)
-			and 
-			(m.vendor_id = %s)
-			and
-			 (m.date between '%s' and '%s')
-			and
-			(m.id >= %s)
-			order by m.id ASC;
-			""" % (location, partner, last_audited['date'], now.strftime(date_format), last_audited['id'])
-        cr.execute(sql_req)
-        sql_res = cr.dictfetchall()
-        if len(sql_res) > 0:
-            while i < len(sql_res):
-
-                if i % 10 == 0:
-                    res.append(sql_res[i]['id'])
-                    _logger.debug('<_flag_next_audit> This is %s th product from last audit: %s', i, str(sql_res[i]['id']))
-                i += 1
-
-            if res:
-                vals = ', '.join(str(x) for x in res)
-                _logger.debug('<_flag_next_audit> vals: %s', str(vals))
-                update_sql = """
-                     update
-                       stock_move
-                     set
-                       audit = True
-                     where
-                       id in (%s);
-                    """ % vals
-                cr.execute(update_sql)
-
-        return res'''
-
-
-    '''def _get_last_audited(self, cr, uid, ids, partner, location, context):
-        """
-        Retrieve the most recently audited moves for this location and vendor
-        @param self:
-        @param cr:
-        @param uid:
-        @param ids:
-        @param partner:
-        @param location:
-        @param context:
-        @return:
-        """
-        if context is None:
-            context = {}
-        res = []
-        last_audited = None
-        # import pdb; pdb.set_trace()
-        if partner and location:
-            sql_req = """
-                SELECT
-                m.id
-                ,m.date
-                FROM
-                stock_move m
-                WHERE
-                m.audit = TRUE
-                AND
-                (m.location_dest_id = %s)
-                AND
-                (m.vendor_id = %s)
-                ORDER BY date DESC LIMIT 1;
-                """ % (location, partner)
-
-            cr.execute(sql_req)
-            sql_res = cr.dictfetchone()
-            if sql_res:
-                res.append({'id': sql_res['id'], 'date': sql_res['date']})
-                _logger.debug('<_get_last_audited> last audit found: %s : %s : %s', str(sql_res), str(location), str(partner))
-
-            sql_req = """
-                select
-                m.id
-                ,m.date
-                from
-                stock_move m
-                where
-                m.audit_fail = True
-                and
-                (m.location_dest_id = %s)
-                and
-                (m.vendor_id = %s)
-                order by date DESC limit 1;
-                """ % (location, partner)
-
-            cr.execute(sql_req)
-            sql_res = cr.dictfetchone()
-            if sql_res:
-                res.append({'id': sql_res['id'], 'date': sql_res['date']})
-                _logger.debug('<_get_last_audited> last audit_fail found: %s : %s : %s', str(sql_res), str(location), str(partner))
-
-            if len(res) > 0:
-                if len(res) > 1:
-                    if res[0]['date'].date() < res[1]['date'].date():
-                        last_audited = res.pop(1)
-                    else:
-                        last_audited = res.pop(0)
-                else:
-                    last_audited = res.pop(0)
-
-        _logger.debug('<_get_last_audited> %s : %s : %s', str(last_audited), str(location), str(partner))
-        return last_audited'''
-
-    '''def _flag_first_audit(self, cr, user, partner, location, context):
-        """
-        Method to begin auditing by selecting the 1st appropriate move record matching
-        partner and location criteria and setting the audit flag.
-        @param user:
-        @param pid:
-        @param location:
-        @param context:
-        """
-        if context is None:
-            context = {}
-        result = []
-        # Select the oldest record matching the criteria and flag it.
-        if partner and location:
-            sql_req = """
-                SELECT
-                m.id
-                ,m.date
-                FROM
-                stock_move m
-                WHERE
-                m.audit = FALSE
-                AND
-                (m.location_dest_id = %s)
-                AND
-                (m.vendor_id = %s)
-                AND
-                (m.state != 'done')
-                ORDER BY date ASC LIMIT 1;
-                """ % (location, partner)
-            cr.execute(sql_req)
-            sql_res = cr.dictfetchone()
-            if sql_res:  # Set the audit flag for move record obtained.
-                result.append(sql_res['id'])
-                update_sql = """
-                     update
-                       stock_move
-                     set
-                       audit = True
-                     where
-                       id = (%s);
-                    """ % result[0]
-                cr.execute(update_sql)
-                _logger.debug('<_flag_first_audit> First audit flagged: %s', str(result[0]))
-
-        if not result:
-            _logger.debug('<_flag_first_audit> No move records matching criteria exist: %s, %s', str(partner),
-                          str(location))
-
-        return result'''
 
         #add attr to vendor in database:
         # mobile: number of product need to be audited
@@ -641,7 +457,6 @@ class vmi_stock_picking(osv.osv):
         if context is None:
             context = {}
         res = {}
-        _logger.debug('<action_invoice_create> inherited')
         _logger.debug('<action_invoice_create> Group or not: %s', group)
         _logger.debug('<action_invoice_create> uid: %s, id: %s', uid, ids)
         invoice_obj = self.pool.get('account.invoice')
@@ -671,19 +486,18 @@ class vmi_stock_picking(osv.osv):
                 invoice_name = '-'.join([str(partner.name), str(picking.location_dest_id.name),
                                         str(move_line.product_id.categ_id.name)])
                 #create new invoice
-                if new_picking not in invoices_group.keys():
+                if invoice_name not in invoices_group.keys():
                     context['invoice_name'] = invoice_name
                     context['invoice_category'] = move_line.product_id.categ_id.id
                     context['invoice_location'] = picking.location_dest_id.id
                     _logger.debug('<action_invoice_create> invoice_name: %s', str(context['invoice_name']))
                     invoice_vals = self._prepare_invoice(cr, uid, picking, partner, inv_type, journal_id, context=context)
                     invoice_id = invoice_obj.create(cr, uid, invoice_vals, context=context)
-                    #invoices_group[partner.id] = invoice_id
                     invoices_group[invoice_name] = invoice_id
                 #invoice already existed
                 elif group:
                     _logger.debug('<action_invoice_create> Same group')
-                    invoice_id = invoices_group[new_picking]
+                    invoice_id = invoices_group[invoice_name]
                     invoice = invoice_obj.browse(cr, uid, invoice_id)
                     invoice_vals_group = self._prepare_invoice_group(cr, uid, picking, partner, invoice, context=context)
                     _logger.debug('<action_invoice_create> invoice_vals_group: %s', str(invoice_vals_group))
@@ -698,41 +512,6 @@ class vmi_stock_picking(osv.osv):
                     _logger.debug('<action_invoice_create> scrapped')
                     # do no invoice scrapped products
                     continue
-                #product_category = move_line.product_id.categ_id.name
-                '''if product_category not in invoice_vals['name']:
-                    _logger.debug('<action_invoice_create> Add product category')
-                    if new_picking in invoices_group.keys() and len(invoices_group) > 1:
-                        _logger.debug('<action_invoice_create> In move_line: different category')
-                        invoice_name = new_picking + '-' + product_category
-                        context['invoice_name'] = invoice_name
-                        _logger.debug('<action_invoice_create> In Move_line: Different category invoice_name: %s',
-                                      str(context['invoice_name']))
-                        invoice_vals = self._prepare_invoice(cr, uid, picking, partner, inv_type,
-                                                             journal_id, context=context)
-                        invoice_id = invoice_obj.create(cr, uid, invoice_vals, context=context)
-                        invoices_group[invoice_name] = invoice_id
-                    else:
-                        _logger.debug('<action_invoice_create> In move_line: new category')
-                        invoice_obj.write(cr, uid, [invoice_id], {
-                            'name': invoice_vals['name'] + '-' + product_category
-                        }, context=context)
-                    if len(invoices_group) == 1 or new_picking not in invoices_group.keys():
-                        _logger.debug('<action_invoice_create> In move_line: new category')
-                        invoice_obj.write(cr, uid, [invoice_id], {
-                            'name': invoice_vals['name'] + '-' + product_category
-                        }, context=context)
-                        #invoice_vals['name'] = invoice_vals['name'] + '-' + product_category
-                    #Product category is different
-                    else:
-                        _logger.debug('<action_invoice_create> In move_line: different category')
-                        invoice_name = new_picking + '-' + product_category
-                        context['invoice_name'] = invoice_name
-                        _logger.debug('<action_invoice_create> In Move_line: Different category invoice_name: %s',
-                                      str(context['invoice_name']))
-                        invoice_vals = self._prepare_invoice(cr, uid, picking, partner, inv_type,
-                                                             journal_id, context=context)
-                        invoice_id = invoice_obj.create(cr, uid, invoice_vals, context=context)
-                        invoices_group[invoice_name] = invoice_id'''
                 vals = self._prepare_invoice_line(cr, uid, group, picking, move_line,
                                 invoice_id, invoice_vals, context=context)
                 _logger.debug('<action_invoice_create> vals: %s', str(vals))
@@ -763,7 +542,7 @@ class vmi_stock_picking(osv.osv):
             @param: invoice_vals: dict used to created the invoice
             @return: dict that will be used to create the invoice line
         """
-        _logger.debug('<_prepare_invoice_line> into _prepare_invoice_line')
+        #_logger.debug('<_prepare_invoice_line> into _prepare_invoice_line')
 
         product_pricelist = self.pool.get('product.pricelist')
         pricelist_id = invoice_vals['pricelist_id']
@@ -780,21 +559,11 @@ class vmi_stock_picking(osv.osv):
                 account_id = move_line.product_id.categ_id.\
                         property_account_income_categ.id
         else:
-            _logger.debug('<_prepare_invoice_line> type is not out')
             _logger.debug('<_prepare_invoice_line> product_id: %s', move_line.product_id)
             account_id = invoice_vals['account_id']
-            #account_id = move_line.product_id.property_account_expense.id
-            '''if not account_id:
-                _logger.debug('<_prepare_invoice_line> do not find account_id in '
-                              'move_line.product_id.property_account_expense.id')
-                account_id = move_line.product_id.categ_id.\
-                        property_account_expense_categ.id'''
-        if invoice_vals['fiscal_position']:
-            #_logger.debug('<_prepare_invoice_line> fiscal_position')
             fp_obj = self.pool.get('account.fiscal.position')
             fiscal_position = fp_obj.browse(cr, uid, invoice_vals['fiscal_position'], context=context)
             account_id = fp_obj.map_account(cr, uid, fiscal_position, account_id)
-        _logger.debug('<_prepare_invoice_line> account_id: %s', str(account_id))
         # Check if there is an active pricelist for current supplier
         if pricelist_id:
             price = product_pricelist.price_get(cr, uid, [pricelist_id],
@@ -812,7 +581,6 @@ class vmi_stock_picking(osv.osv):
             'product_id': move_line.product_id.id,
             'account_id': account_id,
             'price_unit': price,
-            #'price_unit': self._get_price_unit_invoice(cr, uid, move_line, invoice_vals['type']),
             'discount': self._get_discount_invoice(cr, uid, move_line),
             'quantity': move_line.product_uos_qty or move_line.product_qty,
             'invoice_line_tax_id': [(6, 0, self._get_taxes_invoice(cr, uid, move_line, invoice_vals['type']))],
@@ -900,35 +668,281 @@ class vmi_account_invoice(osv.osv):
         'category_id': fields.many2one('product.category','Category', states={'done': [('readonly', True)]}, select=True, track_visibility='always', help="Select category for the current product"),
     }
 
+    def action_move_create(self, cr, uid, ids, context=None):
+        """Creates invoice related analytics and financial move lines"""
+        ait_obj = self.pool.get('account.invoice.tax')
+        cur_obj = self.pool.get('res.currency')
+        period_obj = self.pool.get('account.period')
+        payment_term_obj = self.pool.get('account.payment.term')
+        journal_obj = self.pool.get('account.journal')
+        move_obj = self.pool.get('account.move')
+        if context is None:
+            context = {}
+        for inv in self.browse(cr, uid, ids, context=context):
+            if not inv.journal_id.sequence_id:
+                raise osv.except_osv(_('Error!'), _('Please define sequence on the journal related to this invoice.'))
+            if not inv.invoice_line:
+                raise osv.except_osv(_('No Invoice Lines!'), _('Please create some invoice lines.'))
+            if inv.move_id:
+                continue
+
+            ctx = context.copy()
+            ctx.update({'lang': inv.partner_id.lang})
+            if not inv.date_invoice:
+                self.write(cr, uid, [inv.id], {'date_invoice': fields.date.context_today(self,cr,uid,context=context)}, context=ctx)
+            company_currency = self.pool['res.company'].browse(cr, uid, inv.company_id.id).currency_id.id
+            # create the analytical lines
+            # one move line per invoice line
+            iml = self._get_analytic_lines(cr, uid, inv.id, context=ctx)
+            # check if taxes are all computed
+            compute_taxes = ait_obj.compute(cr, uid, inv.id, context=ctx)
+            self.check_tax_lines(cr, uid, inv, compute_taxes, ait_obj)
+
+            # I disabled the check_total feature
+            '''group_check_total_id = self.pool.get('ir.model.data').get_object_reference(cr, uid, 'account', 'group_supplier_inv_check_total')[1]
+            group_check_total = self.pool.get('res.groups').browse(cr, uid, group_check_total_id, context=context)
+            if group_check_total and uid in [x.id for x in group_check_total.users]:
+                if (inv.type in ('in_invoice', 'in_refund') and abs(inv.check_total - inv.amount_total) >= (inv.currency_id.rounding/2.0)):
+                    raise osv.except_osv(_('Bad Total!'), _('Please verify the price of the invoice!\nThe encoded total does not match the computed total.'))'''
+
+            if inv.payment_term:
+                total_fixed = total_percent = 0
+                for line in inv.payment_term.line_ids:
+                    if line.value == 'fixed':
+                        total_fixed += line.value_amount
+                    if line.value == 'procent':
+                        total_percent += line.value_amount
+                total_fixed = (total_fixed * 100) / (inv.amount_total or 1.0)
+                if (total_fixed + total_percent) > 100:
+                    raise osv.except_osv(_('Error!'), _("Cannot create the invoice.\nThe related payment term is probably misconfigured as it gives a computed amount greater than the total invoiced amount. In order to avoid rounding issues, the latest line of your payment term must be of type 'balance'."))
+
+            # one move line per tax line
+            iml += ait_obj.move_line_get(cr, uid, inv.id)
+
+            entry_type = ''
+            if inv.type in ('in_invoice', 'in_refund'):
+                ref = inv.reference
+                entry_type = 'journal_pur_voucher'
+                if inv.type == 'in_refund':
+                    entry_type = 'cont_voucher'
+            else:
+                ref = self._convert_ref(cr, uid, inv.number)
+                entry_type = 'journal_sale_vou'
+                if inv.type == 'out_refund':
+                    entry_type = 'cont_voucher'
+
+            diff_currency_p = inv.currency_id.id <> company_currency
+            # create one move line for the total and possibly adjust the other lines amount
+            total = 0
+            total_currency = 0
+            total, total_currency, iml = self.compute_invoice_totals(cr, uid, inv, company_currency, ref, iml, context=ctx)
+            acc_id = inv.account_id.id
+
+            name = inv['name'] or inv['supplier_invoice_number'] or '/'
+            totlines = False
+            if inv.payment_term:
+                totlines = payment_term_obj.compute(cr,
+                        uid, inv.payment_term.id, total, inv.date_invoice or False, context=ctx)
+            if totlines:
+                res_amount_currency = total_currency
+                i = 0
+                ctx.update({'date': inv.date_invoice})
+                for t in totlines:
+                    if inv.currency_id.id != company_currency:
+                        amount_currency = cur_obj.compute(cr, uid, company_currency, inv.currency_id.id, t[1], context=ctx)
+                    else:
+                        amount_currency = False
+
+                    # last line add the diff
+                    res_amount_currency -= amount_currency or 0
+                    i += 1
+                    if i == len(totlines):
+                        amount_currency += res_amount_currency
+
+                    iml.append({
+                        'type': 'dest',
+                        'name': name,
+                        'price': t[1],
+                        'account_id': acc_id,
+                        'date_maturity': t[0],
+                        'amount_currency': diff_currency_p \
+                                and amount_currency or False,
+                        'currency_id': diff_currency_p \
+                                and inv.currency_id.id or False,
+                        'ref': ref,
+                    })
+            else:
+                iml.append({
+                    'type': 'dest',
+                    'name': name,
+                    'price': total,
+                    'account_id': acc_id,
+                    'date_maturity': inv.date_due or False,
+                    'amount_currency': diff_currency_p \
+                            and total_currency or False,
+                    'currency_id': diff_currency_p \
+                            and inv.currency_id.id or False,
+                    'ref': ref
+            })
+
+            date = inv.date_invoice or time.strftime('%Y-%m-%d')
+
+            part = self.pool.get("res.partner")._find_accounting_partner(inv.partner_id)
+
+            line = map(lambda x:(0,0,self.line_get_convert(cr, uid, x, part.id, date, context=ctx)),iml)
+
+            line = self.group_lines(cr, uid, iml, line, inv)
+
+            journal_id = inv.journal_id.id
+            journal = journal_obj.browse(cr, uid, journal_id, context=ctx)
+            if journal.centralisation:
+                raise osv.except_osv(_('User Error!'),
+                        _('You cannot create an invoice on a centralized journal. Uncheck the centralized counterpart box in the related journal from the configuration menu.'))
+
+            line = self.finalize_invoice_move_lines(cr, uid, inv, line)
+
+            move = {
+                'ref': inv.reference and inv.reference or inv.name,
+                'line_id': line,
+                'journal_id': journal_id,
+                'date': date,
+                'narration': inv.comment,
+                'company_id': inv.company_id.id,
+            }
+            period_id = inv.period_id and inv.period_id.id or False
+            ctx.update(company_id=inv.company_id.id,
+                       account_period_prefer_normal=True)
+            if not period_id:
+                period_ids = period_obj.find(cr, uid, inv.date_invoice, context=ctx)
+                period_id = period_ids and period_ids[0] or False
+            if period_id:
+                move['period_id'] = period_id
+                for i in line:
+                    i[2]['period_id'] = period_id
+
+            ctx.update(invoice=inv)
+            move_id = move_obj.create(cr, uid, move, context=ctx)
+            new_move_name = move_obj.browse(cr, uid, move_id, context=ctx).name
+            # make the invoice point to that move
+            self.write(cr, uid, [inv.id], {'move_id': move_id,'period_id':period_id, 'move_name':new_move_name}, context=ctx)
+            # Pass invoice in context in method post: used if you want to get the same
+            # account move reference when creating the same invoice after a cancelled one:
+            move_obj.post(cr, uid, [move_id], context=ctx)
+        self._log_event(cr, uid, ids)
+        return True
+
     def invoice_validate(self, cr, uid, ids, context=None):
-        self.write(cr, uid, ids, {'state': 'manager_approved'}, context=context)
+        """
+        When button "Validate" clicked, call this function to change the state and send notification if needed
+        :param cr:
+        :param uid:
+        :param ids:
+        :param context:
+        :return:
+        """
+        if context is None:
+            context = {}
+        invoice = self.browse(cr, uid, ids, context)[0]
+
+        #Check which partner need a notification
+        child_ids = invoice.partner_id.child_ids
+        recipient_ids = []
+        for child in child_ids:
+            if child.notification:
+                recipient_ids.append(int(child.id))
+
+        res = self.write(cr, uid, ids, {'state': 'manager_approved'}, context=context)
+        if res and len(recipient_ids) > 0:
+            context['recipient_ids'] = recipient_ids
+
+            #get email template, render it and send it
+            template_obj = self.pool.get('email.template')
+            template_id = template_obj.search(cr, uid, [('name', '=', 'Notification for Septa Manager Approved')])
+            if template_id:
+                mail = template_obj.send_mail(cr, uid, template_id[0], ids[0], True, context=context)
+            else:
+                raise osv.except_osv(_('Error!'), _('No Email Template Found, Please configure a email template under Email tab and named "Notification for Septa Manager Approved"'))
         return True
 
     # vendor approved the current invoice
     def invoice_vendor_approve(self, cr, uid, ids, context=None):
-        self.write(cr, uid, [int(ids)], {'state': 'vendor_approved'}, context=context)
+        """
+        When receiving a vendor approved invoice, call this function to change the state and send notification if needed
+        :param cr:
+        :param uid:
+        :param ids:
+        :param context:
+        :return:
+        """
+        if context is None:
+            context = {}
+
+        #check which manager need a notification
+        recipient_ids = []
+        partner_obj = self.pool.get('res.partner')
+        admin_id = partner_obj.search(cr, uid, [('name', '=', 'SEPTA Admin')])
+        admin = partner_obj.browse(cr, uid, admin_id, context=None)[0]
+        child_ids = admin.child_ids
+        for child in child_ids:
+            if child.notification:
+                recipient_ids.append(int(child.id))
+
+        res = self.write(cr, uid, [int(ids)], {'state': 'vendor_approved'}, context=context)
+        if res and len(recipient_ids) > 0:
+            context['recipient_ids'] = recipient_ids
+            template_obj = self.pool.get('email.template')
+            template_id = template_obj.search(cr, uid, [('name', '=', 'Notification for Vendor Approved')])
+            if template_id:
+                mail = template_obj.send_mail(cr, uid, template_id[0], int(ids), True, context=context)
+            else:
+                raise osv.except_osv(_('Error!'), _('No Email Template Found, Please configure a email template under Email tab and named "Notification for Vendor Approved"'))
         return True
 
-    # vendor denied the current invoice
-    # (must cancel the invoice first, then set it to vendor_denied, otherwise the invoice can not be re-validate)
     def invoice_vendor_deny(self, cr, uid, ids, context=None):
+        """
+        vendor denied the current invoice
+        (must cancel the invoice first, then set it to vendor_denied, otherwise the invoice can not be re-validate)
+        :param cr:
+        :param uid:
+        :param ids:
+        :param context:
+        :return:
+        """
+        if context is None:
+            context = {}
         #make "ids" a list ids (required if using existing method in any model)
         ids = [int(ids)]
+        recipient_ids = []
+        partner_obj = self.pool.get('res.partner')
+        admin_id = partner_obj.search(cr, uid, [('name', '=', 'SEPTA Admin')])
+        admin = partner_obj.browse(cr, uid, admin_id, context=None)[0]
+        child_ids = admin.child_ids
+        for child in child_ids:
+            if child.notification:
+                recipient_ids.append(int(child.id))
         # cancel the current invoice
         canceled = self.action_cancel(cr, uid, ids, None)
         if canceled:
             # set invoice from canceled to vendor_denied
-            self.write(cr, uid, ids, {'state': 'vendor_denied', 'comment': context['comment']}, None)
+            res = self.write(cr, uid, ids, {'state': 'vendor_denied', 'comment': context['comment']}, None)
             wf_service = netsvc.LocalService("workflow")
             for inv_id in ids:
                 wf_service.trg_delete(uid, 'account.invoice', inv_id, cr)
                 wf_service.trg_create(uid, 'account.invoice', inv_id, cr)
+            if res and len(recipient_ids) > 0:
+                context['recipient_ids'] = recipient_ids
+                template_obj = self.pool.get('email.template')
+                template_id = template_obj.search(cr, uid, [('name', '=', 'Notification for Vendor Denied')])
+                if template_id:
+                    mail = template_obj.send_mail(cr, uid, template_id[0], ids[0], True, context=context)
+                else:
+                    raise osv.except_osv(_('Error!'), _('No Email Template Found, Please configure a email template under Email tab and named "Notification for Vendor Denied"'))
         return True
 
 vmi_account_invoice()
 
 
-class account_invoice_line(osv.osv):
+class vmi_account_invoice_line(osv.osv):
 
     _name = "account.invoice.line"
     _inherit = "account.invoice.line"
@@ -937,15 +951,15 @@ class account_invoice_line(osv.osv):
         'stock_move_id': fields.many2one('stock.move', 'Reference', select=True,states={'done': [('readonly', True)]}),
     }
 
+vmi_account_invoice_line()
+
+
 class vmi_account_move(osv.osv):
     _name = "account.move"
     _inherit = "account.move"
     _description = "Account Entry"
 
     def button_cancel(self, cr, uid, ids, context=None):
-        '''for line in self.browse(cr, uid, ids, context=context):
-            if not line.journal_id.update_posted:
-                raise osv.except_osv(_('Error!'), _('You cannot modify a posted entry of this journal.\nFirst you should set the journal to allow cancelling entries.'))'''
         if ids:
             cr.execute('UPDATE account_move '\
                        'SET state=%s '\
@@ -953,3 +967,85 @@ class vmi_account_move(osv.osv):
         return True
 
 vmi_account_move()
+
+
+class vmi_email_template(osv.osv):
+    "Templates for sending email"
+    _name = "email.template"
+    _inherit = "email.template"
+    _description = 'Email Templates'
+
+    def send_mail(self, cr, uid, template_id, res_id, force_send=False, context=None):
+        """Generates a new mail message for the given template and record,
+           and schedules it for delivery through the ``mail`` module's scheduler.
+
+           :param int template_id: id of the template to render
+           :param int res_id: id of the record to render the template with
+                              (model is taken from the template)
+           :param bool force_send: if True, the generated mail.message is
+                immediately sent after being created, as if the scheduler
+                was executed for this message only.
+           :returns: id of the mail.message that was created
+        """
+        if context is None:
+            context = {}
+        mail_mail = self.pool.get('mail.mail')
+        ir_attachment = self.pool.get('ir.attachment')
+        invoice_obj = self.pool.get('account.invoice')
+        partner_obj = self.pool.get('res.partner')
+
+        # create a mail_mail based on values, without attachments
+        values = self.generate_email(cr, uid, template_id, res_id, context=context)
+        if not values.get('email_from'):
+            raise osv.except_osv(_('Warning!'),_("Sender email is missing or empty after template rendering. Specify one to deliver your message"))
+        # process email_recipients field that is a comma separated list of partner_ids -> recipient_ids
+        # NOTE: only usable if force_send is True, because otherwise the value is
+        # not stored on the mail_mail, and therefore lost -> fixed in v8
+        recipient_ids = context['recipient_ids']
+
+        email_recipients = values.pop('email_recipients', '')
+        if email_recipients:
+            for partner_id in email_recipients.split(','):
+                if partner_id:  # placeholders could generate '', 3, 2 due to some empty field values
+                    recipient_ids.append(int(partner_id))
+
+        attachment_ids = values.pop('attachment_ids', [])
+        attachments = values.pop('attachments', [])
+        msg_id = mail_mail.create(cr, uid, values, context=context)
+        mail = mail_mail.browse(cr, uid, msg_id, context=context)
+
+        message_obj = self.pool.get('mail.message')
+        for pid in recipient_ids:
+            message_obj.write(cr, uid, [mail.mail_message_id.id], {'partner_ids': [(4, pid)]}, None)
+
+        # manage attachments
+        for attachment in attachments:
+            attachment_data = {
+                'name': attachment[0],
+                'datas_fname': attachment[0],
+                'datas': attachment[1],
+                'res_model': 'mail.message',
+                'res_id': mail.mail_message_id.id,
+            }
+            context.pop('default_type', None)
+            attachment_ids.append(ir_attachment.create(cr, uid, attachment_data, context=context))
+        if attachment_ids:
+            values['attachment_ids'] = [(6, 0, attachment_ids)]
+            mail_mail.write(cr, uid, msg_id, {'attachment_ids': [(6, 0, attachment_ids)]}, context=context)
+
+        if force_send:
+            mail_mail.send(cr, uid, [msg_id], recipient_ids=recipient_ids, context=context)
+        return msg_id
+
+vmi_email_template()
+
+
+class vmi_res_partner(osv.osv):
+    """Add notification field to res.partner"""
+    _name = "res.partner"
+    _inherit = "res.partner"
+    _columns = {
+        'notification': fields.boolean('Email Notification', help="Check this box to enable email notifications")
+    }
+
+vmi_res_partner()
