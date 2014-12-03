@@ -79,8 +79,8 @@
       <lineStyle kind="LINEBELOW" colorName="#e6e6e6" start="3,-1" stop="3,-1"/>
       <lineStyle kind="LINEBELOW" colorName="#e6e6e6" start="4,-1" stop="4,-1"/>
       <lineStyle kind="LINEBELOW" colorName="#e6e6e6" start="5,-1" stop="5,-1"/>
-	  <lineStyle kind="LINEBELOW" colorName="#000000" start="6,-1" stop="6,-1"/>
-	  <lineStyle kind="LINEBELOW" colorName="#000000" start="7,-1" stop="7,-1"/>
+	  <lineStyle kind="LINEBELOW" colorName="#e6e6e6" start="6,-1" stop="6,-1"/>
+	  <lineStyle kind="LINEBELOW" colorName="#e6e6e6" start="7,-1" stop="7,-1"/>
     </blockTableStyle>
     <blockTableStyle id="Table10">
       <blockAlignment value="LEFT"/>

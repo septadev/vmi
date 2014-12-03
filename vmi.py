@@ -561,9 +561,9 @@ class vmi_stock_picking(osv.osv):
         else:
             _logger.debug('<_prepare_invoice_line> product_id: %s', move_line.product_id)
             account_id = invoice_vals['account_id']
-            fp_obj = self.pool.get('account.fiscal.position')
+            '''fp_obj = self.pool.get('account.fiscal.position')
             fiscal_position = fp_obj.browse(cr, uid, invoice_vals['fiscal_position'], context=context)
-            account_id = fp_obj.map_account(cr, uid, fiscal_position, account_id)
+            #account_id = fp_obj.map_account(cr, uid, fiscal_position, account_id)'''
         # Check if there is an active pricelist for current supplier
         if pricelist_id:
             price = product_pricelist.price_get(cr, uid, [pricelist_id],
@@ -993,6 +993,7 @@ class vmi_email_template(osv.osv):
         ir_attachment = self.pool.get('ir.attachment')
         invoice_obj = self.pool.get('account.invoice')
         partner_obj = self.pool.get('res.partner')
+        recipient_ids = []
 
         # create a mail_mail based on values, without attachments
         values = self.generate_email(cr, uid, template_id, res_id, context=context)
@@ -1001,7 +1002,8 @@ class vmi_email_template(osv.osv):
         # process email_recipients field that is a comma separated list of partner_ids -> recipient_ids
         # NOTE: only usable if force_send is True, because otherwise the value is
         # not stored on the mail_mail, and therefore lost -> fixed in v8
-        recipient_ids = context['recipient_ids']
+        if 'recipient_ids'in context.keys():
+            recipient_ids = context['recipient_ids']
 
         email_recipients = values.pop('email_recipients', '')
         if email_recipients:
