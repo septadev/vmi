@@ -30,6 +30,23 @@
 <script type="text/javascript" src="/vmi/static/src/js/datatables/extras/TableTools/media/js/TableTools.min.js"></script>
 <script type="text/javascript" src="/vmi/static/src/js/navigation.js"></script>
 <script src="/vmi/static/src/js/invoice.js"></script>
+<script type="text/javascript">
+    /*$(document).ready(function(){
+        $("#logout").click(function(){
+            console.log("logging out");
+            $.ajax({
+                type: "POST",
+                url: "/vmi/session/destroy",
+                contentType: "application/json; charset=utf-8",
+                data: '{"jsonrpc":"2.0","method":"call","params":{"session_id": null, "context": {}},"id":"r0"}',
+                success: function(data){
+                    alert("You've logged out");
+                    window.location.href = 'index';
+                }
+            })
+        });
+    });*/
+</script>
 </head>
 <body>
     <div id="wrapper">
@@ -38,8 +55,13 @@
         <h1 id="icon"> <img src="/vmi/static/src/img/logo.gif" alt="SEPTA" /></h1>
         <h1 id="title">  VMI Vendor Portal </h1>
         <div id="vendor"></div>
+        <button id="logout">Logout</button>
         </div>
 	</div>
+    <!--<div id="leave_comment" title="Comment">
+        <p>Please enter the comment regarding this invoice:</p>
+        <textarea rows="4" cols="50"></textarea>
+    </div>-->
     <div id="contactContent" class="container">
         <div id="list1">
             <!-- Menu bar -->

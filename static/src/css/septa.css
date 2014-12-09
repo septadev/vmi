@@ -109,6 +109,10 @@ div#vmi_menu ol li p {
 div#vmi_menu li:hover p {
     left: auto;
 }
+button#logout{
+    margin-left: 180px;
+    margin-top: 20px;
+}
 .dataTables_paginate {
     width: auto;
     line-height: 10px;

@@ -68,7 +68,11 @@ $(document).ready(function(){
                          //'<input type="image" name="denied" title="Deny" src="/vmi/static/src/img/gtk-no.png" alt="Submit" style="margin-left: 30px">'
                          '<button type="submit" class="approved" name="result" value="approved" title="Approve"><img title="Approve" src="/vmi/static/src/img/gtk-yes.png"></button>' +
                          '<button type="submit" class="denied" name="result" value="denied" title="Deny"><img title="Deny" src="/vmi/static/src/img/gtk-no.png"></button>' +
-                     '</form>';
+                     '</form>';/* +
+                     '<div id="leave_comment" title="Comment" type="hidden">' +
+                         '<p>Please enter the comment regarding this invoice:</p>' +
+                         '<textarea rows="4" cols="50"/textarea>' +
+                     '</div>';*/
                      /*function invoiceMessage(){
                          var message = prompt("Please enter the comment regarding this invoice:");
                          if (message != null){
@@ -130,19 +134,55 @@ $(document).ready(function(){
         }
         alert($("#comment").val());
     });*/
+    /*function getComment(){
+        message = $("#textarea").val();
+        if (message != null){
+            var app = '<input name="comment" value="' + message + '" type="hidden">';
+            $("form").append(app);
+        }
+    }
+    var dialog = "#leave_comment".dialog({
+        autoOpen: false,
+        height:300,
+        width: 350,
+        modal: true,
+        buttons:{
+            "Submit": getComment,
+            Cancel: function(){
+                dialog.dialog("close");
+            }
+        },
+        close: function(){
+            dialog.dialog("close");
+        }
+    });*/
     $(".denied").click(function(){
-        $("form").submit(function(){
+        $("form").submit(function(e){
+            //dialog.dialog("open");
+
+            /*var myWindow = window.open("","","width=600,height=450");
+            myWindow.document.write('<p>Please enter the comment regarding this invoice:</p>' +
+                '<textarea rows="4" cols="50"></textarea>' +
+                '<button id="submit_comment" onclick="get_comment()">Submit</button>' +
+                '<button id="cancel_comment" onclick="window.close()">Cancel</button>');
+            function get_comment(){
+                var message = $("#textarea").val();
+                window.close();
+            }*/
             var message = prompt("Please enter the comment regarding this invoice:");
             if (message != null){
-                var app = '<input name="comment" value="' + message + '" type="hidden">'
+                var app = '<input name="comment" value="' + message + '" type="hidden">';
                 $("form").append(app);
+            }
+            else {
+                e.preventDefault();
             }
         });
         //$(this).attr("type", "submit");
     });
     $(".approved").click(function(){
         $("form").submit(function(){
-            var app = '<input name="comment" value="" type="hidden">'
+            var app = '<input name="comment" value="" type="hidden">';
             $("form").append(app);
         });
     });
