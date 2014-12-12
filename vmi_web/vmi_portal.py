@@ -1,6 +1,5 @@
 # -*- encoding: utf-8 -*-
 
-import sys
 import random
 import string
 import operator
@@ -11,6 +10,7 @@ import simplejson
 import base64
 import logging
 from openerp import sql_db, pooler
+from datetime import date
 from types import *
 from simpletal import simpleTAL, simpleTALES
 import werkzeug.utils
@@ -416,12 +416,14 @@ def get_account_invoice(req, pid):
     :param pid: partner_id
     :return: dict
     """
+    today = date.today()
+    two_year_before = today.replace(year=today.year-2)
     invoices = None
     fields = ['name', 'number', 'date_invoice', 'state', 'partner_id', 'invoice_line', 'move_id', 'amount_untaxed',
               'amount_tax', 'amount_total']
     try:
         invoices = do_search_read(req, 'account.invoice', fields, 0, False, [('partner_id.id', '=', pid),
-            ('state', 'in', ['manager_approved', 'vendor_approved'])], None)
+            ('state', 'in', ['manager_approved', 'vendor_approved']), ('date_invoice', '>', two_year_before)], None)
     except Exception:
         _logger.debug('<get_account_invoice> No account.invoice instances found for partner ID: %s', pid)
 
@@ -514,6 +516,8 @@ class Session(vmiweb.Controller):
 
         return self.session_info(req)
 
+
+
     @vmiweb.jsonrequest
     def change_password(self, req, fields):
         old_password, new_password, confirm_password = operator.itemgetter('old_pwd', 'new_password', 'confirm_pwd')(
@@ -541,6 +545,8 @@ class Session(vmiweb.Controller):
     @vmiweb.jsonrequest
     def destroy(self, req):
         req.session._suicide = True
+
+
 
 # -----------------------------------------------| VMI Controller Methods.
 
@@ -659,14 +665,14 @@ class VmiController(vmiweb.Controller):
         #_logger.debug('_get_upload_history final result: %s', str(res))
         return res
 
-    def _get_invoice(self, req, pid, uid):
+    def _get_invoice(self, req, pid):
         """
         Return the Invoice that manager approved
         :param req: object
         :param pid: partner_id
         :return: search result object
         """
-        res = get_account_invoice(req, pid)['records']
+        '''res = get_account_invoice(req, pid)['records']
         _logger.debug('<_get_invoice> initial result: %s', str(res))
         if res:
             for line in res:
@@ -674,8 +680,10 @@ class VmiController(vmiweb.Controller):
                 lines = get_invoice_line(req, line_ids, uid)
                 line['line_items'] = lines
 
-        _logger.debug('<_get_invoice> final result: %s', str(res))
-        return res
+        _logger.debug('<_get_invoice> final result: %s', str(res))'''
+        return get_account_invoice(req, pid)['records']
+
+
 
     def _create_attachment(self, req, model, id, descr, ufile):
         """
@@ -1349,32 +1357,6 @@ function getSessionInfo(){
         template.expand(context, output)
         return output.getvalue()
 
-    @vmiweb.httprequest
-    def packing_slip(self, req, mod=None, **kwargs):
-        #vmi_client_page = self._get_vmi_client_page(req, 'upload')
-        req.session.ensure_valid()
-        js = 'var csvFields = new Array%s;' %str(self._packing_slip_fields)
-        input = open(
-            '/home/amir/dev/parts/openerp-7.0-20131118-002448/openerp/addons/vmi/vmi_web/template/vmi_packing_slip.html',
-            'r')
-        template = simpleTAL.compileHTMLTemplate(input)
-        input.close()
-        form_flag = True
-        sid = req.session_id
-        uid = req.session._uid
-        #pid = get_partner_id(uid)
-        context = simpleTALES.Context()
-        # Add a string to the context under the variable title
-        context.addGlobal("title", "SEPTA VMI Packing Slip")
-        context.addGlobal("script", js)
-        context.addGlobal("header", "Packing Slip")
-        context.addGlobal("form_flag", form_flag)
-        context.addGlobal("sid", sid)
-        #context.addGlobal("pid", pid)
-        context.addGlobal("uid", uid)
-        output = cStringIO.StringIO()
-        template.expand(context, output)
-        return output.getvalue()
 
     @vmiweb.httprequest
     def invoice(self, req, mod=None, **kwargs):
@@ -1432,7 +1414,7 @@ function getSessionInfo(){
 
         template = simpleTAL.compileHTMLTemplate(input)
         input.close()
-        invoice = simplejson.dumps(self._get_invoice(req, pid, uid))
+        invoice = simplejson.dumps(self._get_invoice(req, pid))
         js = 'var invoice_data = %s;\n' % invoice
         js += 'var mode = "%s";\n' % mod
         sid = req.session_id
@@ -1784,3 +1766,15 @@ function getSessionInfo(){
 
         kwargs = args.copy()
         return self.invoice(req, mod, **kwargs)
+
+    @vmiweb.jsonrequest
+    def get_invoice_lines(self, req, ids, uid):
+        """
+
+        :param req:
+        :param ids:
+        :param uid:
+        :return:
+        """
+        ids = [int(n) for n in ids.split(",")]
+        return get_invoice_line(req, ids, uid)
