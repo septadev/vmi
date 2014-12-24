@@ -57,9 +57,43 @@
             <p id="subtitle" tal:content="title">
               Title
             </p>
-            <p id="subheader" tal:content="header">
+            <!--<p id="subheader" tal:content="header">
               Header
-            </p>
+            </p>-->
+            <fieldset>
+                <label for="year">Year</label>
+                <select name="year" id="year">
+                    <option selected="selected" value="0"></option>
+                </select>
+                <label for="month">Month</label>
+                <select name="month" id="month">
+                    <option selected="selected" value="0"></option>
+                </select>
+                <label for="day">Day</label>
+                <select name="day" id="day">
+                    <option selected="selected" value="0"></option>
+                </select>
+                <label for="location">Location</label>
+                <select name="location" id="location">
+                    <option selected="selected" value="0"></option>
+                </select>
+                <label for="audit">Audit</label>
+                <select name="audit" id="audit">
+                    <option selected="selected" value="0"></option>
+                    <option value="no">No Audit</option>
+                    <option value="yes">Auditing</option>
+                    <option value="pass">Pass Audit</option>
+                    <option value="fail">Fail Audit</option>
+                </select>
+                <label for="invoice">Invoice</label>
+                <select name="invoice" id="invoice">
+                    <option selected="selected" value="0"></option>
+                    <option value="2binvoiced">To Be Invoiced</option>
+                    <option value="invoiced">Invoiced</option>
+                </select>
+                <button id="filter">Submit</button>
+
+            </fieldset>
         </div>
         <div id="uploader" class="info" tal:condition="form_flag">
             <form class="form_binary_form" action="#" tal:attributes="action form_action" method="post" enctype="multipart/form-data">
@@ -72,10 +106,11 @@
                     <thead>
                         <tr>
                             <th></th>
-                            <th>Date</th>
+                            <th>Deliver Date</th>
                             <th>Packing Slip</th>
-                            <th>Purchase Order</th>
                             <th>Status</th>
+                            <th>Audit Status</th>
+                            <th>Invoice Status</th>
                         </tr>
                     </thead>
                     <tbody>
