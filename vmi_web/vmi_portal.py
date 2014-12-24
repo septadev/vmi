@@ -21,7 +21,7 @@ import openerp.addons.web.http as vmiweb
 
 _logger = logging.getLogger(__name__)
 
-#session_created = False
+# session_created = False
 
 db = 'alpha'
 login = 'admin'
@@ -35,6 +35,7 @@ def fields_get(req, model):
     fields = Model.fields_get(False, req.context)
     #_logger.debug('fields: %s', fields)
     return fields
+
 
 #				 (req, 'dbe.vendor', ['id', 'company'], 0, False, [('vuid', '=', uid)], None)
 def do_search_read(req, model, fields=False, offset=0, limit=False, domain=None, sort=None):
@@ -131,7 +132,8 @@ def get_vendor_by_name(req, name):
     partner = None
     fields = fields_get(req, 'res.partner')
     try:
-        partner = do_search_read(req, 'res.partner', fields, 0, False, [('name', '=', name), ('supplier', '=', True)], None)
+        partner = do_search_read(req, 'res.partner', fields, 0, False, [('name', '=', name), ('supplier', '=', True)],
+                                 None)
     except Exception:
         _logger.debug('<get_vendor_by_name> Partner not found for ID: %s', name)
 
@@ -166,7 +168,7 @@ def get_partner_id(req, uid=None, **kwargs):
         partner_ids['records'].pop(0)
 
     _logger.debug('Partner ID: %s',
-                  partner_ids) #{'records': [{'groups_id': [3, 9, 19, 20, 24, 27], 'partner_id': (20, u'Partner'), 'id': 13, 'name': u'Partner'}], 'length': 1}
+                  partner_ids)  #{'records': [{'groups_id': [3, 9, 19, 20, 24, 27], 'partner_id': (20, u'Partner'), 'id': 13, 'name': u'Partner'}], 'length': 1}
     return partner_ids
 
 
@@ -189,6 +191,28 @@ def get_stock_locations(req, pid, **kwargs):
         raise Exception("AccessDenied")
     #_logger.debug('stock locations: %s', str(stock_locations['records']))
     return stock_locations
+
+
+def get_stocks(req, ids):
+    """
+    function to get all stocks in stock.location
+    :param req:
+    :param ids:
+    :return:
+    """
+    stocks = None
+    stock_locations_obj = req.session.model('stock.location')
+    fields = ['name', 'id', 'partner_id']
+    try:
+        stocks = do_search_read(req, 'stock.location', fields, 0, False, [('name', 'like', '% Stock')], None)
+    except Exception:
+        _logger.debug('stock warehouses not found for ids: %s', ids)
+
+    if not stocks:
+        raise Exception("AccessDenied")
+
+    return stocks
+
 
 def get_stock_location_by_id(req, ids, all=False):
     """
@@ -233,6 +257,7 @@ def get_uom_by_id(req, ids):
 
     return units
 
+
 def get_product_by_id(req, ids, all=False):
     """
     Search for products with specific ids.
@@ -256,6 +281,7 @@ def get_product_by_id(req, ids, all=False):
     #_logger.debug('products: %s', str(products['records']))
     return products
 
+
 def search_products_by_pn(req, pn, all=False):
     """
     Search for products with specific part numbers.
@@ -265,22 +291,25 @@ def search_products_by_pn(req, pn, all=False):
     @return: search result of specified product.product record(s).
     """
     products = None
-    fields = ['name', 'id', 'default_code', 'vendor_part_number', 'description', 'categ_id', 'seller_ids', 'standard_price', 'uom_id']
+    fields = ['name', 'id', 'default_code', 'vendor_part_number', 'description', 'categ_id', 'seller_ids',
+              'standard_price', 'uom_id']
     if all:
         fields = fields_get(req, 'product.product')
 
-    try: # Try finding records with SEPTA P/N.
+    try:  # Try finding records with SEPTA P/N.
         products = do_search_read(req, 'product.product', fields, 0, False, [('default_code', 'ilike', pn)], None)
     except Exception:
         _logger.debug('<search_products_by_pn> products not found for SEPTA part number: %s', pn)
 
     if products is not None and products['length'] < 1:
-        try: # Try finding records with vendor P/N.
-            products = do_search_read(req, 'product.product', fields, 0, False, [('vendor_part_number', 'ilike', pn)], None)
+        try:  # Try finding records with vendor P/N.
+            products = do_search_read(req, 'product.product', fields, 0, False, [('vendor_part_number', 'ilike', pn)],
+                                      None)
         except Exception:
             _logger.debug('<search_products_by_pn> products not found for vendor part number: %s', pn)
 
     return products
+
 
 def get_client_page(req, page):
     """
@@ -303,23 +332,32 @@ def get_client_page(req, page):
     return client
 
 
-def get_stock_moves_by_id(req, ids, all=False):
+def get_stock_moves_by_id(req, ids):
     """
     search stock.moves with specific ids.
     @param req: object
     @param ids: stock.move ids
-    @param all: selects all fields in result
     """
     moves = None
-    fields = ['id', 'origin', 'create_date', 'product_id', 'product_qty', 'product_uom', 'location_dest_id', 'note',
+    stock_move_obj = req.session.model('stock.move')
+    product_obj = req.session.model('product.product')
+    fields = ['id', 'origin', 'create_date', 'product_id', 'product_qty', 'product_uom', 'location_dest_id',
               'audit_fail', 'vendor_part_number']
-    if all:
-        fields = fields_get(req, 'stock.move')
-
     try:
-        moves = do_search_read(req, 'stock.move', fields, 0, False, [('id', 'in', ids)], None)
+        moves = stock_move_obj.read(ids, fields, None)
+        #moves = do_search_read(req, 'stock.move', fields, 0, False, [('id', 'in', ids)], None)
     except Exception:
         _logger.debug('<get_stock_moves_by_id> Moves not found for ids: %s', ids)
+
+    for line in moves:
+        if line['product_id']:
+            #product = get_product_by_id(req, [line['product_id'][0]])['records']
+            product = product_obj.read(line['product_id'][0],
+                                       ['default_code', 'vendor_part_number', 'categ_id', 'description'], None)
+            line['septa_part_number'] = product['default_code']
+            line['vendor_part_number'] = product['vendor_part_number']
+            line['categ_id'] = product['categ_id']
+            line['description'] = product['description']
 
     if not moves:
         raise Exception("AccessDenied")
@@ -367,21 +405,53 @@ def get_invoice_line(req, ids, uid):
     return lines
 
 
-def get_stock_pickings(req, pid, limit=10):
+'''def get_stock_pickings_ori(req, pid):
     """
     Search for last 100 packing slip uploads for the vendor.
     @param req: object
     @param pid: partner_id
-    @param limit: number of records in result
     @return: dict
     """
+    today = date.today()
+    two_years_before = str(today.replace(year=today.year - 2))
     pickings = None
     _logger.debug('<get_stock_pickings> partner ID: %s', pid)
-    fields = ['date', 'origin', 'purchase_id', 'state', 'partner_id', 'move_lines', 'product_id']
+    fields = ['date', 'origin', 'invoice_state', 'state', 'partner_id', 'move_lines', 'product_id']
     try:
-        pickings = do_search_read(req, 'stock.picking.in', fields, 0, limit, [('partner_id.id', '=', pid),
-                                                                              ('type', '=', 'in')
-                                                                             ], None)
+        pickings = do_search_read(req, 'stock.picking.in', fields, 0, False, [('partner_id.id', '=', pid),
+                                                                              ('type', '=', 'in'),
+                                                                              ('date_done', '>', two_years_before)
+        ], None)
+    except Exception:
+        _logger.debug('<get_stock_pickings> No stock.picking.in instances found for partner ID: %s', pid)
+
+    if not pickings:
+        raise Exception("AccessDenied")
+
+    return pickings'''
+
+
+def get_stock_pickings(req, pid):
+    """
+    get picking info from stock.picking, receive data from review page
+    :param req:
+    :param pid:
+    :return:
+    """
+    context = req.context
+
+    filters = [('date_done', 'like', '%(year)s-%(month)s-' % {'year': str(context['year']), 'month': '%02d' % int(context['month'])} + '%')]
+    if context['day'] != '0':
+        filters = [('date_done', 'like', '%(year)s-%(month)s-%(day)s' % {'year': str(context['year']), 'month': '%02d' % int(context['month']), 'day': '%02d' % int(context['day'])} + '%')]
+    if context['location'] != '0':
+        filters.append(('location_dest_id', '=', context['location']))
+    if context['audit'] != '0':
+        filters.append(('contains_audit', '=', context['audit']))
+    if context['invoice'] != '0':
+        filters.append(('invoice_state', '=', context['invoice']))
+    fields = ['date_done', 'origin', 'invoice_state', 'state', 'partner_id', 'move_lines', 'contains_audit']
+    try:
+        pickings = do_search_read(req, 'stock.picking.in', fields, 0, False, filters, None)
     except Exception:
         _logger.debug('<get_stock_pickings> No stock.picking.in instances found for partner ID: %s', pid)
 
@@ -389,6 +459,7 @@ def get_stock_pickings(req, pid, limit=10):
         raise Exception("AccessDenied")
 
     return pickings
+
 
 def get_stock_picking_by_id(req, picking_id):
     """
@@ -406,8 +477,9 @@ def get_stock_picking_by_id(req, picking_id):
         _logger.debug('<get_stock_pickings> No stock.picking.in instances found for ID: %s', picking_id)
 
     if not pickings:
-        raise  Exception("Access Denied")
+        raise Exception("Access Denied")
     return pickings
+
 
 def get_account_invoice(req, pid):
     """
@@ -417,13 +489,16 @@ def get_account_invoice(req, pid):
     :return: dict
     """
     today = date.today()
-    two_year_before = today.replace(year=today.year-2)
+    two_years_before = today.replace(year=today.year - 2)
     invoices = None
     fields = ['name', 'number', 'date_invoice', 'state', 'partner_id', 'invoice_line', 'move_id', 'amount_untaxed',
               'amount_tax', 'amount_total']
     try:
         invoices = do_search_read(req, 'account.invoice', fields, 0, False, [('partner_id.id', '=', pid),
-            ('state', 'in', ['manager_approved', 'vendor_approved']), ('date_invoice', '>', two_year_before)], None)
+                                                                             ('state', 'in',
+                                                                              ['manager_approved', 'vendor_approved']),
+                                                                             ('date_invoice', '>', two_years_before)],
+                                  None)
     except Exception:
         _logger.debug('<get_account_invoice> No account.invoice instances found for partner ID: %s', pid)
 
@@ -431,6 +506,7 @@ def get_account_invoice(req, pid):
         raise Exception("AccessDenied")
 
     return invoices
+
 
 def random_string(size, format):
     """
@@ -447,17 +523,18 @@ def random_string(size, format):
     format = format.lower()
     if format in formats:
         allowed = ''
-        if format == formats[1]:   # Generate string comprised of random letters.
+        if format == formats[1]:  # Generate string comprised of random letters.
             allowed = string.ascii_letters
-        elif format == formats[0]: # Generate string comprised of random letters and numbers.
+        elif format == formats[0]:  # Generate string comprised of random letters and numbers.
             allowed = string.hexdigits
-        elif format == formats[2]: # Generate string comprised of random numbers.
+        elif format == formats[2]:  # Generate string comprised of random numbers.
             allowed = string.digits
 
     else:
         raise TypeError
 
     return ''.join([allowed[random.randint(0, len(allowed) - 1)] for x in xrange(size)])
+
 
 # -----------------------------------------------| VMI Session Object.
 class Session(vmiweb.Controller):
@@ -471,8 +548,8 @@ class Session(vmiweb.Controller):
         _logger.debug('JSON Request ID: %s', request_id)
         res = {}
 
-        if request_id == 'VMI': # Check to see if user is a VMI vendor
-            try:                                                                                # Get Partner ID for session
+        if request_id == 'VMI':  # Check to see if user is a VMI vendor
+            try:  # Get Partner ID for session
                 vendor = get_partner_id(req, uid)['records'][0]
             except IndexError:
                 _logger.debug('Partner not found for user ID: %s', uid)
@@ -490,7 +567,7 @@ class Session(vmiweb.Controller):
                 "company": vendor['partner_id'][1],
                 "company_id": vendor['company_id'],
             }
-        else: # Allow login for valid user without Vendor or Partner such as Admin or Manager
+        else:  # Allow login for valid user without Vendor or Partner such as Admin or Manager
             res = {
                 "session_id": req.session_id,
                 "uid": req.session._uid,
@@ -515,7 +592,6 @@ class Session(vmiweb.Controller):
         req.session.authenticate(db, login, password, env)
 
         return self.session_info(req)
-
 
 
     @vmiweb.jsonrequest
@@ -547,7 +623,6 @@ class Session(vmiweb.Controller):
         req.session._suicide = True
 
 
-
 # -----------------------------------------------| VMI Controller Methods.
 
 
@@ -559,7 +634,7 @@ class VmiController(vmiweb.Controller):
 
     _modes = ('N', 'D', 'T')
     _error_page = '/vmi/error'
-    _default_stock_location_suffix = ' Stock' # This must match the naming convention for locations inside OpenERP.
+    _default_stock_location_suffix = ' Stock'  # This must match the naming convention for locations inside OpenERP.
     _packing_slip_fields = ('month',
                             'day',
                             'year',
@@ -626,6 +701,7 @@ class VmiController(vmiweb.Controller):
             </body>
         </html>
         """
+
     def _get_vmi_client_page(self, req, page):
 
         """
@@ -638,6 +714,14 @@ class VmiController(vmiweb.Controller):
 
         return get_client_page(req, page)
 
+    def _get_stocks(self, req):
+        """
+
+        :param req:
+        :param pid:
+        :return:
+        """
+        return get_stocks(req, [])
 
     def _get_upload_history(self, req, pid):
         """
@@ -647,9 +731,9 @@ class VmiController(vmiweb.Controller):
         @return: search result object
         """
         #import pdb; pdb.set_trace()
-        res = get_stock_pickings(req, pid)['records'] # Find the last 100 stock.picking.in records for current vendor.
+        res = get_stock_pickings(req, pid)['records']  # Find the last 100 stock.picking.in records for current vendor.
         #_logger.debug('_get_upload_history initial result count: %s', str(len(res)))
-        if res: # Find the associated stock.move records for the current picking.
+        '''if res: # Find the associated stock.move records for the current picking.
             for pick in res:
                 move_ids = pick['move_lines']
                 moves = get_stock_moves_by_id(req, move_ids)['records']
@@ -658,7 +742,7 @@ class VmiController(vmiweb.Controller):
                     prod_id = line['product_id'][0]
                     line['product_details'] = get_product_by_id(req, [prod_id])['records'] # Get product records.
                     if line['audit_fail']:
-                        pick['audit_fail'] = True # If any line item failed audit then the pick gets flagged as failed.
+                        pick['audit_fail'] = True # If any line item failed audit then the pick gets flagged as failed.'''
 
 
 
@@ -682,7 +766,6 @@ class VmiController(vmiweb.Controller):
 
         _logger.debug('<_get_invoice> final result: %s', str(res))'''
         return get_account_invoice(req, pid)['records']
-
 
 
     def _create_attachment(self, req, model, id, descr, ufile):
@@ -739,7 +822,8 @@ class VmiController(vmiweb.Controller):
         else:
             unique_part_numbers = list(set(csv_part_numbers))
             try:
-                res = do_search_read(req, 'product.product', fields, 0, False, [('default_code', 'in', unique_part_numbers)], None)
+                res = do_search_read(req, 'product.product', fields, 0, False,
+                                     [('default_code', 'in', unique_part_numbers)], None)
             except xmlrpclib.Fault, e:
                 args.update({'error': e.faultCode})
                 _logger.debug('<_validate_products> Error finding products in: %s', str(unique_part_numbers))
@@ -764,14 +848,14 @@ class VmiController(vmiweb.Controller):
 
 
     def _validate_csv_file(self, filedata, fields):
-    #validator = CSVValidator(fields)
-    ## basic header and record length checks
-    #validator.add_header_check('EX1', 'bad header')
-    #validator.add_record_length_check('EX2', 'unexpected record length')
-    #data = csv.reader(StringIO(filedata.read()), delimiter='\t')
-    #problems = validator.validate(data)
-    #if problems:
-    #_logger.debug('<_validate_csv_file> CSV file could not be validated: %s', filedata.filename)
+        #validator = CSVValidator(fields)
+        ## basic header and record length checks
+        #validator.add_header_check('EX1', 'bad header')
+        #validator.add_record_length_check('EX2', 'unexpected record length')
+        #data = csv.reader(StringIO(filedata.read()), delimiter='\t')
+        #problems = validator.validate(data)
+        #if problems:
+        #_logger.debug('<_validate_csv_file> CSV file could not be validated: %s', filedata.filename)
         return True
 
     def _csv_reader(self, filedata, fields):
@@ -797,7 +881,7 @@ class VmiController(vmiweb.Controller):
         if validated:
             dialect = sniffer.sniff(filedata.readline(), delimiters=',')
             filedata.seek(0)
-            reader = csv.DictReader(filedata.readlines(), dialect=csv.excel) # fieldnames=fields,
+            reader = csv.DictReader(filedata.readlines(), dialect=csv.excel)  # fieldnames=fields,
             try:
                 for row in reader:
                     res.append(row)
@@ -826,14 +910,14 @@ class VmiController(vmiweb.Controller):
         all_locations = []
         res = []
         if len(csv_rows) > 0:
-            for row in csv_rows: # Each unique packing slip number becomes a stock.picking.in instance.
+            for row in csv_rows:  # Each unique packing slip number becomes a stock.picking.in instance.
                 rnd = random_string(8, 'digits')
                 vendor = str(row['supplier']).strip()
                 partner = get_vendor_by_name(req, vendor)['records'][0]
                 #if partner['id'] != pid: # Check if supplier is the same as current user's parent partner.
                 #    _logger.debug('<_create_stock_picking> Supplier ID does not match PID: %s | %s', partner, pid)
                 #    continue
-                for location in locations['records']: # Find the matching stock.location id for the CSV location value.
+                for location in locations['records']:  # Find the matching stock.location id for the CSV location value.
 
                     destination_name = str(row['destination']).strip() + self._default_stock_location_suffix
                     location_name = str(row['supplier'])
@@ -845,7 +929,7 @@ class VmiController(vmiweb.Controller):
                         location_id = location['id']
                         if location['partner_id']:
                             location_partner = location['partner_id'][0]
-                        #_logger.debug('<_create_stock_picking> Location Id: %s, Location Name: %s', str(location_id), location_name)
+                            #_logger.debug('<_create_stock_picking> Location Id: %s, Location Name: %s', str(location_id), location_name)
 
                 if not destination_id:
                     raise ValueError("(%r) is not a proper value for destination location!" % str(row['destination']))
@@ -853,22 +937,27 @@ class VmiController(vmiweb.Controller):
                     all_locations.append(destination_id)
 
                 # Construct date from individual M D Y fields in CSV data.
-                delivery_date = str(row['year']).strip() + '/' + str(row['month']).strip() + '/' + str(row['day']).strip()
+                delivery_date = str(row['year']).strip() + '/' + str(row['month']).strip() + '/' + str(
+                    row['day']).strip()
                 #_logger.debug('<_create_stock_picking> CSV file: %s', str(row['packing_list_number']))
                 picking_id = Model.create({
-                                              'name': row['packing_list_number'].strip() + '.' + delivery_date + '.' + rnd,
+                                              'name': row[
+                                                          'packing_list_number'].strip() + '.' + delivery_date + '.' + rnd,
                                               'date_done': delivery_date,
                                               'min_date': delivery_date,
                                               'partner_id': partner['id'],
                                               'origin': row['packing_list_number'].strip(),
                                               'invoice_state': '2binvoiced',
                                               'state': 'done',
+                                              'contains_audit': 'no',
                                               'location_id': location_id,
                                               'location_dest_id': destination_id,
                                               #'purchase_id': row['purchase_order'].strip(),
-                                              'note': row['purchase_order'].strip()
+                                              'note': row['purchase_order'].strip(),
+
                                           }, req.context)
-                res.append({'picking_id': picking_id, 'packing_list': row['packing_list_number'].strip(), 'partner': partner['id']})
+                res.append({'picking_id': picking_id, 'packing_list': row['packing_list_number'].strip(),
+                            'partner': partner['id']})
                 #_logger.debug('<_create_stock_picking> picking_id: %s', res)
 
         return res
@@ -894,13 +983,13 @@ class VmiController(vmiweb.Controller):
         if len(csv_rows) > 0 and validated_products['valid']:
             product = None
             for csv_row in csv_rows:
-                for prod in validated_products['records']: # Verify products in CSV actually exist.
+                for prod in validated_products['records']:  # Verify products in CSV actually exist.
                     #_logger.debug('<_create_move_line> Current product: %s', prod['default_code'])
                     if prod['default_code'] == csv_row['septa_part_number'].strip():
                         product = prod
                         break
 
-                for location in locations['records']: # Find the matching stock.location id for the CSV location value.
+                for location in locations['records']:  # Find the matching stock.location id for the CSV location value.
 
                     destination_name = str(csv_row['destination']).strip() + self._default_stock_location_suffix
                     location_name = str(csv_row['supplier'])
@@ -912,10 +1001,11 @@ class VmiController(vmiweb.Controller):
                         location_id = location['id']
                         if location['partner_id']:
                             location_partner = location['partner_id'][0]
-                        #_logger.debug('<_create_move_line> Location Id: %s, Location Name: %s', str(location_id), location_name)
+                            #_logger.debug('<_create_move_line> Location Id: %s, Location Name: %s', str(location_id), location_name)
 
                 if not destination_id:
-                    raise ValueError("(%r) is not a proper value for destination location!" % str(csv_row['destination']))
+                    raise ValueError(
+                        "(%r) is not a proper value for destination location!" % str(csv_row['destination']))
                 else:
                     all_locations.append(destination_id)
 
@@ -925,7 +1015,8 @@ class VmiController(vmiweb.Controller):
                 #_logger.debug('<_create_move_line> csv row: %s', csv_row)
                 move_id = Model.create({
                     'product_id': product['id'],
-                    'name': csv_row['packing_list_number'].strip() + '.' + delivery_date + '.' + random_string(8, 'digits'),
+                    'name': csv_row['packing_list_number'].strip() + '.' + delivery_date + '.' + random_string(8,
+                                                                                                               'digits'),
                     'product_uom': product['uom_id'][0],
                     'product_qty': float(csv_row['quantity_shipped']),
                     'location_dest_id': destination_id,
@@ -946,7 +1037,8 @@ class VmiController(vmiweb.Controller):
                     _logger.debug('moves append failed: %s!', str(e))
 
         else:
-            _logger.debug('<_create_move_line> Moves not created due to bad products: %s', validated_products['records'])
+            _logger.debug('<_create_move_line> Moves not created due to bad products: %s',
+                          validated_products['records'])
 
         return {'moves': moves, 'locations': list(set(all_locations))}
 
@@ -972,7 +1064,7 @@ class VmiController(vmiweb.Controller):
                     pickings.append(record)
 
             picked = self._create_stock_picking(req, pickings, pid)
-            for pick in picked: # Attach the CSV file to the corresponding stock.picking objects.
+            for pick in picked:  # Attach the CSV file to the corresponding stock.picking objects.
                 attached = self._create_attachment(req, 'stock.picking.in', pick['picking_id'], pick['packing_list'],
                                                    filedata)
                 if attached.has_key('error'):
@@ -981,7 +1073,8 @@ class VmiController(vmiweb.Controller):
             for line in ps_lines:
                 for pick in picked:
                     if pick['packing_list'] == line['packing_list_number']:
-                        line.update(pick) # Append stock.picking IDs to create required associations between pickings and moves.
+                        line.update(
+                            pick)  # Append stock.picking IDs to create required associations between pickings and moves.
                         #del line['packing_list_number']
                         break
 
@@ -990,12 +1083,11 @@ class VmiController(vmiweb.Controller):
             except Exception, e:
                 _logger.debug('<_parse_packing_slip>_create_move_line failed: %s!', str(e))
 
-
         result.update({'stock_pickings': picked, 'move_lines': moves, 'pid': pid})
         #_logger.debug('<_parse_packing_slip> returned values: %s', str(result))
-        return result #{'stock_pickings': [{'picking_id': picking_id, 'packing_list': packing_list_number}],
-                      # 'move_lines': {'moves': [id], 'locations', [id]
-                      # 'pid': id}
+        return result  #{'stock_pickings': [{'picking_id': picking_id, 'packing_list': packing_list_number}],
+        # 'move_lines': {'moves': [id], 'locations', [id]
+        # 'pid': id}
 
 
     def _call_methods(self, req, model, method, args, **kwargs):
@@ -1044,8 +1136,8 @@ class VmiController(vmiweb.Controller):
         temp_sid = ''
         if params.has_key('session_id'):
             temp_sid = params['session_id']
-            _logger.debug('session_id from url is: %s', temp_sid)#session_id from request
-        _logger.debug('req.session_id is: %s', req.session_id)#session_id from local
+            _logger.debug('session_id from url is: %s', temp_sid)  #session_id from request
+        _logger.debug('req.session_id is: %s', req.session_id)  #session_id from local
 
         if temp_sid and (temp_sid == req.session_id):
             page_name = 'main_menu'
@@ -1056,7 +1148,7 @@ class VmiController(vmiweb.Controller):
         temp_globals = dict.fromkeys(self._template_keys, None)
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
 
-        if vmi_client_page: # Set the mode for the controller and template.
+        if vmi_client_page:  # Set the mode for the controller and template.
             for key in temp_globals:
                 temp_globals[key] = vmi_client_page[0][key]
 
@@ -1176,7 +1268,8 @@ function getSessionInfo(){
         try:
             input = open(temp_location, 'r')
         except IOError, e:
-            _logger.debug('opening the template file %s returned an error: %s, with message %s', e.filename, e.strerror, e.message)
+            _logger.debug('opening the template file %s returned an error: %s, with message %s', e.filename, e.strerror,
+                          e.message)
         finally:
             pass
 
@@ -1213,13 +1306,13 @@ function getSessionInfo(){
         page_name = 'upload'
         redirect_url = self._error_page
         req.session.ensure_valid()
-        uid = req.session._uid #newSession(req)
+        uid = req.session._uid  #newSession(req)
         _logger.debug('This is uid %s!', str(uid))
         vendor_record = get_partner_id(req, uid)['records'][0]
         _logger.debug('vendor_record: %s!', vendor_record)
         temp_globals = dict.fromkeys(self._template_keys, None)
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
-        if vmi_client_page: # Set the mode for the controller and template.
+        if vmi_client_page:  # Set the mode for the controller and template.
             for key in temp_globals:
                 temp_globals[key] = vmi_client_page[0][key]
 
@@ -1240,7 +1333,8 @@ function getSessionInfo(){
         try:
             input = open(temp_location, 'r')
         except IOError, e:
-            _logger.debug('opening the template file %s returned an error: %s, with message %s', e.filename, e.strerror, e.message)
+            _logger.debug('opening the template file %s returned an error: %s, with message %s', e.filename, e.strerror,
+                          e.message)
         finally:
             pass
 
@@ -1290,7 +1384,7 @@ function getSessionInfo(){
             pid = local_vals.get('pid')
             _logger.debug('Partner found ID: %s', pid)
         else:
-            try:    # Get Partner ID for session
+            try:  # Get Partner ID for session
                 vendor_record = get_partner_id(req, uid)['records'][0]
                 pid = vendor_record['company_id']
             except IndexError:
@@ -1301,12 +1395,12 @@ function getSessionInfo(){
         #req.session.ensure_valid()
         temp_globals = dict.fromkeys(self._template_keys, None)
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
-        if vmi_client_page: # Set the mode for the controller and template.
+        if vmi_client_page:  # Set the mode for the controller and template.
             for key in temp_globals:
                 temp_globals[key] = vmi_client_page[0][key]
 
-#            if mod is None:
-#                mod = vmi_client_page[0]['mode']
+            #            if mod is None:
+            #                mod = vmi_client_page[0]['mode']
         else:
             _logger.debug('No vmi.client.page record found for page name %s!', page_name)
             return req.not_found()
@@ -1316,7 +1410,8 @@ function getSessionInfo(){
         try:
             input = open(temp_location, 'r')
         except IOError, e:
-            _logger.debug('opening the template file %s returned an error: %s, with message %s', e.filename, e.strerror, e.message)
+            _logger.debug('opening the template file %s returned an error: %s, with message %s', e.filename, e.strerror,
+                          e.message)
         finally:
             pass
 
@@ -1327,18 +1422,21 @@ function getSessionInfo(){
 
         template = simpleTAL.compileHTMLTemplate(input)
         input.close()
-        history = simplejson.dumps(self._get_upload_history(req, pid))
+        #history = simplejson.dumps(self._get_upload_history(req, pid))get_warehouses
+        history = ''
+        stocks = simplejson.dumps(self._get_stocks(req))
         #history = self._get_upload_history(req, pid)
         #_logger.debug('history: %s', history)
-        js = 'var history_data = %s;\n' % history
+        #js = 'var history_data = %s;\n' % history
+        js = 'var stocks = %s;\n' % stocks
         js += 'var mode = "%s";\n' % mod
         sid = req.session_id
         _logger.debug('result sid: %s', sid)
         context = simpleTALES.Context()
-        if 'audit_result' in local_vals: # Append the result of audit flagging.
+        if 'audit_result' in local_vals:  # Append the result of audit flagging.
             js += 'var audit = "%s";\n' % simplejson.dumps(local_vals['audit_result'])
             context.addGlobal("audit_result", local_vals['audit_result'])
-        if 'error' in local_vals:        # Append errors generated by the parsing of the file.
+        if 'error' in local_vals:  # Append errors generated by the parsing of the file.
             js += 'var error = "%s";\n' % simplejson.dumps(local_vals['error'])
             context.addGlobal("error", local_vals['error'])
             temp_globals['form_flag'] = False
@@ -1377,7 +1475,7 @@ function getSessionInfo(){
             pid = local_vals.get('pid')
             _logger.debug('Partner found ID: %s', pid)
         else:
-            try:    # Get Partner ID for session
+            try:  # Get Partner ID for session
                 vendor_record = get_partner_id(req, uid)['records'][0]
                 pid = vendor_record['company_id']
             except IndexError:
@@ -1389,7 +1487,7 @@ function getSessionInfo(){
         temp_globals = dict.fromkeys(self._template_keys, None)
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
 
-        if vmi_client_page: # Set the mode for the controller and template.
+        if vmi_client_page:  # Set the mode for the controller and template.
             for key in temp_globals:
                 temp_globals[key] = vmi_client_page[0][key]
 
@@ -1404,7 +1502,8 @@ function getSessionInfo(){
         try:
             input = open(temp_location, 'r')
         except IOError, e:
-            _logger.debug('opening the template file %s returned an error: %s, with message %s', e.filename, e.strerror, e.message)
+            _logger.debug('opening the template file %s returned an error: %s, with message %s', e.filename, e.strerror,
+                          e.message)
         finally:
             pass
 
@@ -1420,7 +1519,7 @@ function getSessionInfo(){
         sid = req.session_id
         context = simpleTALES.Context()
         # Add a string to the context under the variable title
-        if 'error' in local_vals:        # Append errors generated by the parsing of the file.
+        if 'error' in local_vals:  # Append errors generated by the parsing of the file.
             js += 'var error = "%s";\n' % simplejson.dumps(local_vals['error'])
             context.addGlobal("error", local_vals['error'])
             temp_globals['form_flag'] = False
@@ -1458,12 +1557,15 @@ function getSessionInfo(){
             try:
                 self._parse_packing_slip(req, ufile, pid)
             except Exception, e:
-                args = {'error': str(e) }
+                args = {'error': str(e)}
 
             try:
-                input = open('C:\Program Files\OpenERP 7.0-20140622-231040\Server\server\openerp\addons\vmi_dev\vmi_web\template\upload.html', 'r')
+                input = open(
+                    'C:\Program Files\OpenERP 7.0-20140622-231040\Server\server\openerp\addons\vmi_dev\vmi_web\template\upload.html',
+                    'r')
             except IOError, e:
-                _logger.debug('opening the template file %s returned an error: %s, with message %s', e.filename, e.strerror, e.message)
+                _logger.debug('opening the template file %s returned an error: %s, with message %s', e.filename,
+                              e.strerror, e.message)
             finally:
                 pass
 
@@ -1555,7 +1657,7 @@ function getSessionInfo(){
         udb = req.session._db
         _logger.debug('This is uid %s!', str(uid))
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
-        if vmi_client_page: # Set the mode for the controller and template.
+        if vmi_client_page:  # Set the mode for the controller and template.
             temp_globals = dict.fromkeys(self._template_keys, None)
             for key in temp_globals:
                 temp_globals[key] = vmi_client_page[0][key]
@@ -1570,9 +1672,8 @@ function getSessionInfo(){
             if mod not in self._modes:
                 _logger.debug('<upload_document>The mode is not set to a recognized value: %s!', str(mod))
                 raise KeyError
-#            else:
-#                args.update({'mod': mod})
-
+            #            else:
+            #                args.update({'mod': mod})
 
         req.session.ensure_valid()
         uid = req.session._uid
@@ -1582,9 +1683,9 @@ function getSessionInfo(){
                 result = None
                 #import pdb; pdb.set_trace()
                 try:
-                    result = self._parse_packing_slip(req, ufile, pid) # Parse CSV file contents.
+                    result = self._parse_packing_slip(req, ufile, pid)  # Parse CSV file contents.
                 except Exception, e:
-                    args.update({'error': str(e) })
+                    args.update({'error': str(e)})
                     _logger.debug('<upload_document>_parse_packing_slip failed: %s!', str(e))
                     _logger.debug('Error on line %s', sys.exc_traceback.tb_lineno)
 
@@ -1599,14 +1700,14 @@ function getSessionInfo(){
             vals = args.copy()
             vals['pid'] = pid
             try:
-                result = self._call_methods(req, 'stock.picking.in', 'action_flag_audit', [vals, None]) # Flag audits.
+                result = self._call_methods(req, 'stock.move', 'action_flag_audit', [vals, None])  # Flag audits.
             except Exception, e:
-                args.update({'error': str(e) })
+                args.update({'error': str(e)})
                 _logger.debug('<upload_document>_call_methods failed: %s!', str(e))
 
             args.update({'audit_result': result})
         #_logger.debug('<upload_document> args after flag: %s!', args)
-        if 'audit_result' in args: # Call the Done method on moves that weren't flagged for audit.
+        if 'audit_result' in args:  # Call the Done method on moves that weren't flagged for audit.
 
             if 'move_lines' in args['parse_result']:
                 result = None
@@ -1621,10 +1722,10 @@ function getSessionInfo(){
                     result = self._call_methods(req, 'stock.move', 'action_done', [unflagged, None])
                     pass
                 except Exception, e:
-                    args.update({'error': str(e) })
+                    args.update({'error': str(e)})
                     _logger.debug('<upload_document>_call_methods failed: %s!', str(e))
 
-                #_logger.debug('<upload_document>unflagged moves set to done: %s!', str(unflagged))
+                    #_logger.debug('<upload_document>unflagged moves set to done: %s!', str(unflagged))
 
         _logger.debug('<upload_document3>This is uid %s!', str(uid))
         req.session.ensure_valid()
@@ -1648,7 +1749,7 @@ function getSessionInfo(){
         vendor_record = get_partner_id(req, uid)['records'][0]
         temp_globals = dict.fromkeys(self._template_keys, None)
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
-        if vmi_client_page: # Set the mode for the controller and template.
+        if vmi_client_page:  # Set the mode for the controller and template.
             for key in temp_globals:
                 temp_globals[key] = vmi_client_page[0][key]
 
@@ -1663,18 +1764,19 @@ function getSessionInfo(){
                 raise KeyError
 
         search_result = None
-        if search is not None: # If a value is submitted for search perform the part number search.
+        if search is not None:  # If a value is submitted for search perform the part number search.
             search_result = search_products_by_pn(req, search)['records']
 
         js = 'var mode = "%s";\n' % mod
-        if search_result: # Add result of part number search to javascript scope.
+        if search_result:  # Add result of part number search to javascript scope.
             js += 'var search_result = %s;\n' % simplejson.dumps(search_result)
         temp_location = os.path.join(vmi_client_page[0]['template_path'], vmi_client_page[0]['template_name'])
         input = ''
         try:
             input = open(temp_location, 'r')
         except IOError, e:
-            _logger.debug('opening the template file %s returned an error: %s, with message %s', e.filename, e.strerror, e.message)
+            _logger.debug('opening the template file %s returned an error: %s, with message %s', e.filename, e.strerror,
+                          e.message)
         finally:
             pass
 
@@ -1731,7 +1833,7 @@ function getSessionInfo(){
         #uid = req.session._uid
         _logger.debug('This is uid %s!', str(uid))
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
-        if vmi_client_page: # Set the mode for the controller and template.
+        if vmi_client_page:  # Set the mode for the controller and template.
             temp_globals = dict.fromkeys(self._template_keys, None)
             for key in temp_globals:
                 temp_globals[key] = vmi_client_page[0][key]
@@ -1746,9 +1848,8 @@ function getSessionInfo(){
             if mod not in self._modes:
                 _logger.debug('<invoice_processing>The mode is not set to a recognized value: %s!', str(mod))
                 raise KeyError
-#            else:
-#                args.update({'mod': mod})
-
+            #            else:
+            #                args.update({'mod': mod})
 
         req.session.ensure_valid()
         uid = req.session._uid
@@ -1770,7 +1871,7 @@ function getSessionInfo(){
     @vmiweb.jsonrequest
     def get_invoice_lines(self, req, ids, uid):
         """
-
+        function to process invoice lines searching when detail button clicked on invoice page.
         :param req:
         :param ids:
         :param uid:
@@ -1778,3 +1879,27 @@ function getSessionInfo(){
         """
         ids = [int(n) for n in ids.split(",")]
         return get_invoice_line(req, ids, uid)
+
+    @vmiweb.jsonrequest
+    def get_move_lines(self, req, ids):
+        """
+        function to process move lines searching when detail button clicked on review page.
+        :param req:
+        :param ids:
+        :param uid:
+        :return:
+        """
+        ids = [int(n) for n in ids.split(",")]
+        return get_stock_moves_by_id(req, ids)
+
+    @vmiweb.jsonrequest
+    def get_upload_history(self, req, pid):
+        """
+        function to process picking slip searching
+        :param req:
+        :param ids:
+        :param uid:
+        :return:
+        """
+        _logger.debug('Im here')
+        return get_stock_pickings(req, pid)
