@@ -87,6 +87,48 @@ class vmi_stock_move(osv.osv):
 
         return res
 
+    def action_flag_audit(self, cr, uid, vals, context=None):
+
+        """
+        move this function from stock_picking. Rewrite function using openerp ORM method instead of SQL query.
+        @param self:
+        @param cr:
+        @param user:
+        @param vals:
+        @param context:
+        """
+        result = []
+        pickings = []
+        stock_picking_obj = self.pool.get('stock.picking')
+        if 'pid' in vals:
+            res_partner_obj = self.pool.get('res.partner')
+            partner = res_partner_obj.browse(cr, uid, int(vals['pid']), None)
+            remained_audit = partner.mobile
+            last_record = partner.birthdate
+        '''for picking in vals['parse_result']['stock_pickings']:
+            picking_id = picking['picking_id']'''
+        if 'parse_result' in vals:
+            p = vals.get('parse_result')
+            if 'move_lines' in p:
+                new_moves_id = self.search(cr, uid, [('vendor_id', '=', int(vals['pid'])), ('id', '>', int(last_record)), ('audit_fail', '=', False)], None)
+                new_moves = self.browse(cr, uid, new_moves_id, None)
+                total_qty = sum(move.product_qty for move in new_moves)
+                last_record = max(move.id for move in new_moves)
+                number_to_flag = int(round(total_qty * 0.1) + float(remained_audit))
+                for move in new_moves:
+                    if number_to_flag > 0 and move.product_qty <= number_to_flag:
+                        result.append(move.id)
+                        number_to_flag -= move.product_qty
+                        if move.picking_id.id not in pickings:
+                            pickings.append(move.picking_id.id)
+
+                if result:
+                    self.write(cr, uid, result, {'audit': True}, None)
+                stock_picking_obj.write(cr, uid, pickings, {'contains_audit': 'yes'}, None)
+                res_partner_obj.write(cr, uid, int(vals['pid']), {'mobile': int(number_to_flag), 'birthdate': last_record}, None)
+
+        return result
+
     def flag_for_audit(self, cr, uid, ids, vals=[], context=None):
         return self.write(cr, uid, ids, {'audit': True}, context=context)
 
@@ -97,16 +139,29 @@ class vmi_stock_move(osv.osv):
         return self.write(cr, uid, ids, {'audit_fail': True}, context=context)
 
     def action_audit(self, cr, uid, ids, quantity, location, context=None):
+        """
+        Audit processing
+        :param cr:
+        :param uid:
+        :param ids:
+        :param quantity:
+        :param location:
+        :param context:
+        :return:
+        """
         if context is None:
             context = {}
         # audit quantity should be less than or equal to shipped quant.
-        if quantity <= 0:
-            raise osv.except_osv(_('Warning!'), _('Please provide a positive quantity.'))
+        if quantity < 0:
+            raise osv.except_osv(_('Warning!'), _('Please provide a non-negative quantity.'))
+        stock_picking_obj = self.pool.get('stock.picking')
         res = []
         user_obj = self.pool.get('res.users')
         storekeeper = user_obj.browse(cr, uid, uid).login
         note = "Audit conducted at %s by %s." % (str(time.strftime('%Y-%m-%d %H:%M:%S')), storekeeper.capitalize())
-        for move in self.browse(cr, uid, ids, context=context):
+        move = self.browse(cr, uid, ids[0], context=context)
+        if move:
+        #for move in self.browse(cr, uid, ids, context=context):
             move_qty = move.product_qty
             uos_qty = quantity / move_qty * move.product_uos_qty
             if move_qty != quantity:
@@ -125,11 +180,12 @@ class vmi_stock_move(osv.osv):
                     'note': note,
                 }
                 new_move = self.copy(cr, uid, move.id, default_val)
-                self.write(cr, uid, ids, {'product_qty': quantity, 'note': note}, context)
+                self.write(cr, uid, ids, {'product_qty': quantity, 'note': note, 'audit': False}, context)
                 self.action_done(cr, uid, ids, context)
                 res += [new_move]
                 note += " On stock.move ID %d" % move.id
                 _logger.debug('<action_audit> %s', note)
+                stock_picking_obj.change_picking_audit_result(cr, uid, move.picking_id.id, False, None)
                 product_obj = self.pool.get('product.product')
                 for product in product_obj.browse(cr, uid, [move.product_id.id], context=context):
                     if move.picking_id:
@@ -140,6 +196,7 @@ class vmi_stock_move(osv.osv):
             else:
                 move.unflag_for_audit()
                 move.action_done()
+                stock_picking_obj.change_picking_audit_result(cr, uid, move.picking_id.id, True, None)
 
         #self.unflag_for_audit(cr, uid, ids, [], context)
         #self.action_done(cr, uid, res, context)
@@ -181,11 +238,21 @@ class vmi_stock_picking_in(osv.osv):
     _table = "stock_picking"
     _order = 'date desc'
 
+    _columns = {
+        'contains_audit': fields.selection([
+            ('no', 'No Audit'),
+            ('yes', 'Auditing'),
+            ('pass', 'Pass Audit'),
+            ('fail', 'Fail Audit')], 'Contains Audit',
+            help="Specify whether this package contains Audited goods, If contains, Pass or Fail"),
+    }
+
+
         #add attr to vendor in database:
         # mobile: number of product need to be audited
         # birthdate: last record before upload
 
-    def action_flag_audit(self, cr, user, vals, context=None):
+    def action_flag_audit(self, cr, uid, vals, context=None):
 
         """
         args.parse_result:
@@ -199,7 +266,13 @@ class vmi_stock_picking_in(osv.osv):
         @param context:
         """
 
-        #_logger.debug('<action_flag_audit> vals: %s', vals)
+        '''if 'pid' in vals:
+            res_partner_obj = self.pool.get('res_partner')
+            partner = res_partner_obj.browse(cr, uid, [vals['pid']], None)
+            remained_audit = partner.mobile
+            last_record = partner.birthdate
+        for picking in vals['parse_result']['stock_pickings']:
+            picking_id = picking['picking_id']'''
         result = []
         i = 0
         if 'pid' in vals:
@@ -280,7 +353,7 @@ class vmi_stock_picking_in(osv.osv):
                                 , birthdate = '%s'
                             WHERE
                                 id = %s;
-                            """ % (remained_audit, last_record, pid)
+                            """ % (int(number_to_flag), last_record, pid)
                         cr.execute(update_sql)
 
         return result
@@ -295,6 +368,7 @@ class vmi_stock_picking_in(osv.osv):
 
     _defaults = {
         'invoice_state': '2binvoiced',
+        'contains_audit': 'no',
     }
 
 
@@ -439,7 +513,39 @@ class vmi_stock_picking(osv.osv):
     _table = "stock_picking"
     #_order = 'id desc'
 
-    _columns = {}
+    _columns = {
+        'contains_audit': fields.selection([
+            ('no', 'No Audit'),
+            ('yes', 'Auditing'),
+            ('pass', 'Pass Audit'),
+            ('fail', 'Fail Audit')], 'Contains Audit',
+            help="Specify whether this package contains Audited goods, If contains, Pass or Fail"),
+    }
+
+    _defaults = {
+        'contains_audit': 'no'
+    }
+
+    def change_picking_audit_result(self, cr, uid, ids, audit_pass, context=None):
+        """
+        When an audit performed, call this function to change the audit state in the picking slip
+        :param cr:
+        :param uid:
+        :param ids:
+        :param context:
+        :return:
+        """
+        picking = self.browse(cr, uid, ids, None)
+        if picking.contains_audit == u'yes':
+            if audit_pass is False:
+                self.write(cr, uid, ids, {'contains_audit': 'fail'})
+            else:
+                for move in picking.move_lines:
+                    if move.audit is True:
+                        return picking.contains_audit
+                self.write(cr, uid, ids, {'contains_audit': 'pass'})
+        return picking.contains_audit
+
 
     def action_invoice_create(self, cr, uid, ids, journal_id=False,
             group=False, type='in_invoice', context=None):
