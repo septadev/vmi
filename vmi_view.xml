@@ -385,6 +385,7 @@
                     <sheet position="inside">
                         <div>
                             <field name="notification"/><label for="notification"/>
+                            <field name="audit_notification"/><label for="audit_notification"/>
                         </div>
                     </sheet>
                 </form>
