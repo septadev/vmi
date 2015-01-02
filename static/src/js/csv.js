@@ -32,23 +32,30 @@ function isAPIAvailable() {
 function handleFileSelect(evt) {
     var files = evt.target.files; // FileList object
     var file = files[0];
-// read the file metadata
-    var output = ''
-    output += '<span style="font-weight:bold;">' + escape(file.name) + '</span><br />\n';
-    output += ' - FileType: ' + (file.type || 'n/a') + '<br />\n';
-    output += ' - FileSize: ' + file.size + ' bytes<br />\n';
-    output += ' - LastModified: ' + (file.lastModifiedDate ? file.lastModifiedDate.toLocaleDateString() : 'n/a') + '<br />\n';
-    // append submit button for upload form
-    output += ' <button class="oe_button oe_field_button" type="submit" id="OBEY"><span title="Start the upload of the selected file.">Upload File</span></button>'
+    if (file.type == "text/csv") {
+        // read the file metadata
+        var output = '';
+        output += '<span style="font-weight:bold;">' + file.name + '</span><br />\n';
+        output += ' - FileType: ' + (file.type || 'n/a') + '<br />\n';
+        output += ' - FileSize: ' + file.size + ' bytes<br />\n';
+        output += ' - LastModified: ' + (file.lastModifiedDate ? file.lastModifiedDate.toLocaleDateString() : 'n/a') + '<br />\n';
+        // append submit button for upload form
+        output += ' <button class="oe_button oe_field_button" type="submit" id="OBEY"><span title="Start the upload of the selected file.">Upload File</span></button>'
 // read the file contents
-    printTable(file);
+        printTable(file);
 // post the results
-    $('#list').append(output);
+        $('#list').append(output);
+    }
+    else{
+        alert("Please upload a csv file");
+    }
+
 }
 function printTable(file) {
     var reader = new FileReader();
     reader.readAsText(file);
     reader.onload = function (event) {
+        var invalid_data = false;
         var csv = event.target.result;
         var data = $.csv.toArrays(csv);
         // html for table header - this should be dynamic...
@@ -66,10 +73,18 @@ function printTable(file) {
 
         var html = header + footer + '<tbody>';
         // construct table from rows in csv file
-        for (var row in data) {
+        for (var row = 1; row < data.length; row++) {
             html += '<tr>\r\n';
             for (var item in data[row]) {
-                html += '<td>' + data[row][item] + '</td>\r\n';
+                if ([0, 1, 2, 8, 10, 13, 14, 15].indexOf(parseInt(item)) > -1 && data[row][item] == "") {
+                    //var error_msg =  'Invalid data in row: ' + row+1 + ", item: " +  data[0][item];
+                    html += '<td>' + data[row][item] + '</td>\r\n';
+                    alert('Invalid data in row: ' + row + ", item: " + data[0][item]);
+                    $("#OBEY").hide();
+                }
+                else {
+                    html += '<td>' + data[row][item] + '</td>\r\n';
+                }
             }
             html += '</tr>\r\n';
         }
@@ -83,6 +98,7 @@ function printTable(file) {
             },
             "sPaginationType": "full_numbers"
         });
+
 
     };
     reader.onerror = function () {
