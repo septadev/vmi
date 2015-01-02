@@ -70,6 +70,7 @@ class vmi_stock_move(osv.osv):
         'audit_fail': False,
         'scrapped': False,
     }
+    _order = 'date desc'
 
     def _default_destination_address(self, cr, uid, context=None):
         res = None
@@ -133,7 +134,10 @@ class vmi_stock_move(osv.osv):
         return self.write(cr, uid, ids, {'audit': True}, context=context)
 
     def unflag_for_audit(self, cr, uid, ids, vals=[], context=None):
-        return self.write(cr, uid, ids, {'audit': False}, context=context)
+        user_obj = self.pool.get('res.users')
+        storekeeper = user_obj.browse(cr, uid, uid).login
+        note = "Audit conducted at %s by %s." % (str(time.strftime('%Y-%m-%d %H:%M:%S')), storekeeper.capitalize())
+        return self.write(cr, uid, ids, {'audit': False, 'note': note}, context=context)
 
     def flag_fail_audit(self, cr, uid, ids, vals, context=None):
         return self.write(cr, uid, ids, {'audit_fail': True}, context=context)
@@ -155,11 +159,25 @@ class vmi_stock_move(osv.osv):
         if quantity < 0:
             raise osv.except_osv(_('Warning!'), _('Please provide a non-negative quantity.'))
         stock_picking_obj = self.pool.get('stock.picking')
+        partner_obj = self.pool.get('res.partner')
+        template_obj = self.pool.get('email.template')
+        #check which manager need a notification
+        recipient_ids = []
+        admin_id = partner_obj.search(cr, uid, [('name', '=', 'SEPTA Admin')])
+        admin = partner_obj.browse(cr, uid, admin_id, context=None)[0]
+        manager_child_ids = admin.child_ids
+        for child in manager_child_ids:
+            if child.audit_notification:
+                recipient_ids.append(int(child.id))
+        move = self.browse(cr, uid, ids[0], context=context)
+        vendor_child_ids = move.vendor_id.child_ids
+        for child in vendor_child_ids:
+            if child.audit_notification:
+                recipient_ids.append(int(child.id))
         res = []
         user_obj = self.pool.get('res.users')
-        storekeeper = user_obj.browse(cr, uid, uid).login
-        note = "Audit conducted at %s by %s." % (str(time.strftime('%Y-%m-%d %H:%M:%S')), storekeeper.capitalize())
-        move = self.browse(cr, uid, ids[0], context=context)
+
+
         if move:
         #for move in self.browse(cr, uid, ids, context=context):
             move_qty = move.product_qty
@@ -167,6 +185,8 @@ class vmi_stock_move(osv.osv):
             if move_qty != quantity:
                 difference_quant = move_qty - quantity
                 difference_uos = difference_quant * move.product_uos_qty
+                storekeeper = user_obj.browse(cr, uid, uid).login
+                note = "Missing %s product(s). Audit conducted at %s by %s." % (difference_quant, str(time.strftime('%Y-%m-%d %H:%M:%S')), storekeeper.capitalize())
                 default_val = {
                     'product_qty': difference_quant,
                     'product_uos_qty': difference_uos,
@@ -192,11 +212,26 @@ class vmi_stock_move(osv.osv):
                         uom = product.uom_id.name if product.uom_id else ''
                         message = _("%s %s %s has been moved to <b>Failed Audits</b>.") % (quantity, uom, product.name)
                         move.picking_id.message_post(body=message)
+                #find template id and send email
+                if len(recipient_ids) > 0:
+                    context['recipient_ids'] = recipient_ids
+                    template_id = template_obj.search(cr, uid, [('name', '=', 'Notification for Audit Fail')])
+                    if template_id:
+                        mail = template_obj.send_mail(cr, uid, template_id[0], move.id, True, context=context)
+                    else:
+                        raise osv.except_osv(_('Error!'), _('No Email Template Found, Please configure a email template under Email tab and named "Notification for Audit Fail"'))
 
             else:
                 move.unflag_for_audit()
                 move.action_done()
                 stock_picking_obj.change_picking_audit_result(cr, uid, move.picking_id.id, True, None)
+                if len(recipient_ids) > 0:
+                    context['recipient_ids'] = recipient_ids
+                    template_id = template_obj.search(cr, uid, [('name', '=', 'Notification for Audit Pass')])
+                    if template_id:
+                        mail = template_obj.send_mail(cr, uid, template_id[0], move.id, True, context=context)
+                    else:
+                        raise osv.except_osv(_('Error!'), _('No Email Template Found, Please configure a email template under Email tab and named "Notification for Audit Pass"'))
 
         #self.unflag_for_audit(cr, uid, ids, [], context)
         #self.action_done(cr, uid, res, context)
@@ -804,7 +839,7 @@ class vmi_account_invoice(osv.osv):
             compute_taxes = ait_obj.compute(cr, uid, inv.id, context=ctx)
             self.check_tax_lines(cr, uid, inv, compute_taxes, ait_obj)
 
-            # I disabled the check_total feature
+            # Disabled the check_total feature
             '''group_check_total_id = self.pool.get('ir.model.data').get_object_reference(cr, uid, 'account', 'group_supplier_inv_check_total')[1]
             group_check_total = self.pool.get('res.groups').browse(cr, uid, group_check_total_id, context=context)
             if group_check_total and uid in [x.id for x in group_check_total.users]:
@@ -1153,7 +1188,8 @@ class vmi_res_partner(osv.osv):
     _name = "res.partner"
     _inherit = "res.partner"
     _columns = {
-        'notification': fields.boolean('Email Notification', help="Check this box to enable email notifications")
+        'notification': fields.boolean('Email Notification for Invoice', help="Check this box to enable email notifications for invoices"),
+        'audit_notification': fields.boolean('Email Notification for Auditing', help="Check this box to enable email notifications for auditing")
     }
 
 vmi_res_partner()
