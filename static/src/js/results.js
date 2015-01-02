@@ -10,9 +10,62 @@ $(document).ready(function(){
     sessionid = sessionStorage.getItem('session_id');
     pid = sessionStorage.getItem(('company_id'));
     uid = sessionStorage.getItem(('user_id'));
+    var anOpen = [];
     var today = new Date();
     var yyyy = today.getFullYear();
     var fiveYearBefore = yyyy-5;
+    // Initialize table
+    var oTable = $('#contents').dataTable({
+        "sDom": 'T<"clear">lfrtip',
+        "oTableTools": {
+            "sSwfPath": "/vmi/static/src/js/datatables/extras/TableTools/media/swf/copy_csv_xls_pdf.swf"
+        },
+        "aoColumns": [
+            {
+                "mDataProp": null,
+                "sClass": "control center",
+                "sDefaultContent": '<img src="/vmi/static/src/img/details_open.png">'
+            },
+            {"mData": "date_done"},
+            {"mData": "origin"},
+            {"mData": "state"},
+            {"mData": function (source, type, val) {
+                var audit_state = source.contains_audit;
+                var result;
+                switch (audit_state) {
+                    case "no":
+                        result = "No Audit";
+                        break;
+                    case "yes":
+                        result = "Auditing";
+                        break;
+                    case "pass":
+                        result = "Pass Audit";
+                        break;
+                    case "fail":
+                        result = "Fail Audit";
+                        break;
+                }
+                return result;
+            }
+            },
+            {"mData": function (source, type, val) {
+                var invoice_state = source.invoice_state;
+                var result;
+                switch (invoice_state) {
+                    case "invoiced":
+                        result = "Invoiced";
+                        break;
+                    case "2binvoiced":
+                        result = "To Be Invoiced";
+                        break;
+                }
+                return result;
+            }
+            }
+        ],
+        "sPaginationType": "full_numbers"
+    });
 
     //Add options to picking slip filter
     $('#year').each(function(){
@@ -82,116 +135,64 @@ $(document).ready(function(){
                     } // if
                     else { // successful transaction
                         console.log('Success');
-                        var anOpen = [];
                         //destroy old table and generate a new one with respond data
-                        var oTable = $('#contents').dataTable({
-                            "bDestroy": true,
-                            "aaData": data.result['records'],
-                            "sDom": 'T<"clear">lfrtip',
-                            "oTableTools": {
-                                "sSwfPath": "/vmi/static/src/js/datatables/extras/TableTools/media/swf/copy_csv_xls_pdf.swf"
-                            },
-                            "aoColumns": [
-                                {
-                                    "mDataProp": null,
-                                    "sClass": "control center",
-                                    "sDefaultContent": '<img src="/vmi/static/src/img/details_open.png">'
-                                },
-                                {"mData": "date_done"},
-                                {"mData": "origin"},
-                                {"mData": "state"},
-                                {"mData": function (source, type, val) {
-                                    var audit_state = source.contains_audit;
-                                    var result;
-                                    switch (audit_state) {
-                                        case "no":
-                                            result = "No Audit";
-                                            break;
-                                        case "yes":
-                                            result = "Auditing";
-                                            break;
-                                        case "pass":
-                                            result = "Pass Audit";
-                                            break;
-                                        case "fail":
-                                            result = "Fail Audit";
-                                            break;
-                                    }
-                                    return result;
-                                }
-                                },
-                                {"mData": function (source, type, val) {
-                                    var invoice_state = source.invoice_state;
-                                    var result;
-                                    switch (invoice_state) {
-                                        case "invoiced":
-                                            result = "Invoiced";
-                                            break;
-                                        case "2binvoiced":
-                                            result = "To Be Invoiced";
-                                            break;
-                                    }
-                                    return result;
-                                }
-                                }
-                            ],
-                            "sPaginationType": "full_numbers"
-                        });
-
-                        //Function when detail button clicked.
-                        $('#contents td.control').live('click', function () {
-                            var nTr = this.parentNode;
-                            var i = $.inArray(nTr, anOpen);
-
-                            if (i === -1) {
-                                $('img', this).attr('src', "/vmi/static/src/img/details_close.png");
-                                var aData = oTable.fnGetData(nTr);
-                                var line_ids = aData.move_lines;
-                                var uid = sessionStorage.getItem(('user_id'));
-                                var rowDetails;
-                                $.ajax({
-                                    type: "POST",
-                                    url: "/vmi/get_move_lines",
-                                    contentType: "application/json; charset=utf-8",
-                                    dataType: "json",
-                                    data: '{"jsonrpc": "2.0","method":"call","params":{"session_id": "' + sessionid + '", "context": {}, "ids": "' + line_ids + '"},"id":"VMI"}',
-                                    error: function (XMLHttpRequest, textStatus, errorThrown) {
-
-                                    },
-                                    success: function (data) {
-                                        if (data.result && data.result.error) { // script returned error
-                                            $('div#loginResult').text("Warning: " + data.result.error);
-                                            $('div#loginResult').addClass("notice");
-                                        }
-                                        else if (data.error) { // OpenERP error
-                                            $('div#loginResult').text("Error-Message: " + data.error.message + " | Error-Code: " + data.error.code + " | Error-Type: " + data.error.data.type);
-                                            $('div#loginResult').addClass("error");
-                                        } // if
-                                        else { // successful transaction
-                                            var nDetailsRow = oTable.fnOpen(nTr, generate_detail_table(data.result), 'details');
-                                            $('div.innerDetails', nDetailsRow).slideDown();
-                                            anOpen.push(nTr);
-                                            //rowDetails = data.result;
-                                        }
-
-                                    }
-                                });
-
-                            }
-                            else {
-                                $('img', this).attr('src', "/vmi/static/src/img/details_open.png");
-                                $('div.innerDetails', $(nTr).next()[0]).slideUp(function () {
-                                    oTable.fnClose(nTr);
-                                    anOpen.splice(i, 1);
-                                });
-                            }
-                        });
+                        oTable.fnClearTable(0);
+                        oTable.fnAddData(data.result['records']);
+                        oTable.fnDraw();
                     }
                 }
             })
         }
     });
 
+    //Function when detail button clicked.
+    $('#contents td.control').live('click', function () {
+        var nTr = this.parentNode;
+        var i = $.inArray(nTr, anOpen);
+
+        if (i === -1) {
+            $('img', this).attr('src', "/vmi/static/src/img/details_close.png");
+            var aData = oTable.fnGetData(nTr);
+            var line_ids = aData.move_lines;
+            var uid = sessionStorage.getItem(('user_id'));
+            var rowDetails;
+            $.ajax({
+                type: "POST",
+                url: "/vmi/get_move_lines",
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                data: '{"jsonrpc": "2.0","method":"call","params":{"session_id": "' + sessionid + '", "context": {}, "ids": "' + line_ids + '"},"id":"VMI"}',
+                error: function (XMLHttpRequest, textStatus, errorThrown) {
+
+                },
+                success: function (data) {
+                    if (data.result && data.result.error) { // script returned error
+                        $('div#loginResult').text("Warning: " + data.result.error);
+                        $('div#loginResult').addClass("notice");
+                    }
+                    else if (data.error) { // OpenERP error
+                        $('div#loginResult').text("Error-Message: " + data.error.message + " | Error-Code: " + data.error.code + " | Error-Type: " + data.error.data.type);
+                        $('div#loginResult').addClass("error");
+                    } // if
+                    else { // successful transaction
+                        var nDetailsRow = oTable.fnOpen(nTr, generate_detail_table(data.result), 'details');
+                        $('div.innerDetails', nDetailsRow).slideDown();
+                        anOpen.push(nTr);
+                        //rowDetails = data.result;
+                    }
+
+                }
+            });
+
+        }
+        else {
+            $('img', this).attr('src', "/vmi/static/src/img/details_open.png");
+            $('div.innerDetails', $(nTr).next()[0]).slideUp(function () {
+                oTable.fnClose(nTr);
+                anOpen.splice(i, 1);
+            });
+        }
+    });
     /*
     var anOpen = [];
     var oTable = $('#contents').dataTable({
