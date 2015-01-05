@@ -438,20 +438,30 @@ def get_stock_pickings(req, pid):
     :param pid:
     :return:
     """
+    pickings = {}
     context = req.context
-
-    filters = [('date_done', 'like', '%(year)s-%(month)s-' % {'year': str(context['year']), 'month': '%02d' % int(context['month'])} + '%')]
-    if context['day'] != '0':
-        filters = [('date_done', 'like', '%(year)s-%(month)s-%(day)s' % {'year': str(context['year']), 'month': '%02d' % int(context['month']), 'day': '%02d' % int(context['day'])} + '%')]
-    if context['location'] != '0':
-        filters.append(('location_dest_id', '=', context['location']))
-    if context['audit'] != '0':
-        filters.append(('contains_audit', '=', context['audit']))
-    if context['invoice'] != '0':
-        filters.append(('invoice_state', '=', context['invoice']))
-    fields = ['date_done', 'origin', 'invoice_state', 'state', 'partner_id', 'move_lines', 'contains_audit']
+    current_year = date.today().year
+    current_month = date.today().month
+    if 'year' not in context or 'month' not in context:
+        context['year'] = current_year
+        context['month'] = current_month
+        filters = [('date_done', 'like', '%(year)s-%(month)s-' % {'year': str(context['year']), 'month': '%02d' % int(context['month'])} + '%')]
+    else:
+        if context['day'] != '0':
+            filters = [('date_done', 'like', '%(year)s-%(month)s-%(day)s' % {'year': str(context['year']), 'month': '%02d' % int(context['month']), 'day': '%02d' % int(context['day'])} + '%')]
+        else:
+            filters = [('date_done', 'like', '%(year)s-%(month)s-' % {'year': str(context['year']), 'month': '%02d' % int(context['month'])} + '%')]
+        if context['location'] != '0':
+            filters.append(('location_dest_id', '=', context['location']))
+        if context['audit'] != '0':
+            filters.append(('contains_audit', '=', context['audit']))
+        if context['invoice'] != '0':
+            filters.append(('invoice_state', '=', context['invoice']))
+    fields = ['date_done', 'origin', 'invoice_state', 'state', 'partner_id', 'move_lines', 'contains_audit', 'location_dest_id']
     try:
         pickings = do_search_read(req, 'stock.picking.in', fields, 0, False, filters, None)
+        for picking in pickings['records']:
+            picking['location_dest_id'] = str(picking['location_dest_id']).split('/')[2]
     except Exception:
         _logger.debug('<get_stock_pickings> No stock.picking.in instances found for partner ID: %s', pid)
 
@@ -731,7 +741,7 @@ class VmiController(vmiweb.Controller):
         @return: search result object
         """
         #import pdb; pdb.set_trace()
-        res = get_stock_pickings(req, pid)['records']  # Find the last 100 stock.picking.in records for current vendor.
+        res = get_stock_pickings(req, pid)['records']
         #_logger.debug('_get_upload_history initial result count: %s', str(len(res)))
         '''if res: # Find the associated stock.move records for the current picking.
             for pick in res:
@@ -1423,12 +1433,12 @@ function getSessionInfo(){
         template = simpleTAL.compileHTMLTemplate(input)
         input.close()
         #history = simplejson.dumps(self._get_upload_history(req, pid))get_warehouses
-        history = ''
+        #history = ''
         stocks = simplejson.dumps(self._get_stocks(req))
-        #history = self._get_upload_history(req, pid)
+        history = simplejson.dumps(self._get_upload_history(req, pid))
         #_logger.debug('history: %s', history)
-        #js = 'var history_data = %s;\n' % history
-        js = 'var stocks = %s;\n' % stocks
+        js = 'var latest_history = %s;\n' % history
+        js += 'var stocks = %s;\n' % stocks
         js += 'var mode = "%s";\n' % mod
         sid = req.session_id
         _logger.debug('result sid: %s', sid)
