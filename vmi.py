@@ -126,7 +126,7 @@ class vmi_stock_move(osv.osv):
                 if result:
                     self.write(cr, uid, result, {'audit': True}, None)
                 stock_picking_obj.write(cr, uid, pickings, {'contains_audit': 'yes'}, None)
-                res_partner_obj.write(cr, uid, int(vals['pid']), {'mobile': int(number_to_flag), 'birthdate': last_record}, None)
+                res_partner_obj.write(cr, uid, int(vals['pid']), {'mobile': str(int(number_to_flag)), 'birthdate': last_record}, None)
 
         return result
 
@@ -609,10 +609,14 @@ class vmi_stock_picking(osv.osv):
         product_category = None
         res = {}
         inv_type = type
+        # check whether there is product to be audited
         for picking in self.browse(cr, uid, ids, context=context):
-            _logger.debug('<action_invoice_create> Into the picking loop')
             if picking.invoice_state != '2binvoiced':
-                continue
+                raise osv.except_osv(_('error!'),_("There is at least one shipment has been invoiced"))
+            if picking.contains_audit == 'yes':
+                raise osv.except_osv(_('error!'),_("There is at least one product to be audited"))
+        #Create Invoices
+        for picking in self.browse(cr, uid, ids, context=context):
             partner = self._get_partner_to_invoice(cr, uid, picking, context=context)
             if isinstance(partner, int):
                 partner = partner_obj.browse(cr, uid, [partner], context=context)[0]
@@ -805,6 +809,7 @@ class vmi_account_invoice(osv.osv):
             \n* The \'Paid\' status is set automatically when the invoice is paid. Its related journal entries may or may not be reconciled. \
             \n* The \'Cancelled\' status is used when user cancel invoice.'),
         'invoice_line': fields.one2many('account.invoice.line', 'invoice_id', 'Invoice Lines', states={'draft':[('readonly',False)]}),
+        'account_line': fields.one2many('account.invoice.account.line', 'invoice_id', 'Account Lines'),
         'location_id': fields.many2one('stock.location', 'Location', states={'done': [('readonly', True)]}, select=True, track_visibility='always', help="Location that stocks the finished products in current invoice."),
         'category_id': fields.many2one('product.category','Category', states={'done': [('readonly', True)]}, select=True, track_visibility='always', help="Select category for the current product"),
     }
@@ -1080,6 +1085,62 @@ class vmi_account_invoice(osv.osv):
                     raise osv.except_osv(_('Error!'), _('No Email Template Found, Please configure a email template under Email tab and named "Notification for Vendor Denied"'))
         return True
 
+    def prepare_to_pay(self, cr, uid, ids, context=None):
+
+        account_obj = self.pool.get('account.account')
+        account_invoice_line_obj = self.pool.get('account.invoice.line')
+        account_invoice_account_line_obj = self.pool.get('account.invoice.account.line')
+        invoice = self.browse(cr, uid, ids[0], None)
+
+        account_product_id = account_obj.search(cr, uid, [('product_ids', '!=', '')], None)
+        account_product = account_obj.browse(cr, uid, account_product_id, None)
+        products = {}
+        for account_p in account_product:
+            for product in account_p.product_ids:
+                products[product.id] = account_p.id
+
+        account_ids = account_obj.search(cr, uid, [], None)
+        accounts = account_obj.browse(cr, uid, account_ids, None)
+        for account in accounts:
+            for location in account.location_ids:
+                if location.id == invoice.location_id.location_id.id:
+                    for category in account.category_ids:
+                        if category.id == invoice.category_id.id:
+                            account_id = account.id
+
+        items = 0
+        total = 0.0
+        values = [{'account_id': None, 'items': items, 'total': total}]
+        for line in invoice['invoice_line']:
+            if line.product_id.id in products.keys():
+                account_id = products[line.product_id.id]
+            for value in values:
+                if value['account_id'] == account_id:
+                    value['items'] += value['items']
+                    value['total'] += value['total']
+                else:
+                    items += 1
+                    total += line.price_subtotal
+                    values.append({'account_id': products[line.product_id.id], 'items': items, 'total': total})
+            account_invoice_line_obj.write(cr, uid, line.id, {'account_id': account_id}, None)
+
+        if values:
+            for value in values:
+                account_invoice_account_line_obj.create(cr, uid, value, None)
+
+        '''datas = {
+            'ids': ids,
+            'model': 'account.invoice',
+            'form': self.read(cr, uid, ids[0], context=context)
+        }
+        return {
+            'type': 'ir.actions.report.xml',
+            'report_name': 'account.invoice',
+            'datas': datas,
+            'nodestroy' : True
+        }'''
+        return True
+
 vmi_account_invoice()
 
 
@@ -1193,3 +1254,56 @@ class vmi_res_partner(osv.osv):
     }
 
 vmi_res_partner()
+
+
+class account_invoice_allocate(osv.osv_memory):
+    """
+    This wizard will allocate the all the selected invoices to matched account
+    """
+
+    _name = "account.invoice.allocate"
+    _description = "Allocate the selected invoices to accounts"
+
+    def invoice_allocate(self, cr, uid, ids, context=None):
+        wf_service = netsvc.LocalService('workflow')
+        if context is None:
+            context = {}
+        account_invoice_obj = self.pool.get('account.invoice')
+        #valid_ids = []
+        data_inv = self.pool.get('account.invoice').read(cr, uid, context['active_ids'], ['state'], context=context)
+
+        for record in data_inv:
+            if record['state'] != 'vendor_approved':
+                raise osv.except_osv(_('Warning!'), _("Selected invoice(s) cannot be allocated as they are not in 'Vendor Approved' state."))
+            #wf_service.trg_validate(uid, 'account.invoice', record['id'], 'invoice_open', cr)
+            #valid_ids.append(record['id'])
+            account_invoice_obj.prepare_to_pay(cr, uid, record['id'])
+
+        return {'type': 'ir.actions.act_window_close'}
+
+account_invoice_allocate()
+
+
+class account_invoice_account_line(osv.osv_memory):
+    _name = 'account.invoice.account.line'
+    _description = 'Account Line'
+    _columns = {
+        'account_id': fields.many2one('account.account', 'Account', required=True, help="This account related to the selected invoice"),
+        'invoice_id': fields.many2one('account.invoice', 'Invoice Reference', ondelete='cascade', select=True),
+        'items': fields.integer('Total Items'),
+        'total': fields.float('Total Amount')
+    }
+
+account_invoice_account_line()
+
+
+class vmi_account_account(osv.osv):
+    _name = 'account.account'
+    _inherit = 'account.account'
+    _columns = {
+        'location_ids': fields.many2many('stock.location', 'account_account_location_rel', 'account_id', 'location_id'),
+        'category_ids': fields.many2many('product.category', 'account_account_category_rel', 'account_id', 'category_id'),
+        'product_ids': fields.many2many('product.product', 'account_account_product_rel', 'account_id', 'product_id')
+    }
+
+vmi_account_account()
