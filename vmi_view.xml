@@ -135,6 +135,49 @@
                 </button>
             </field>
         </record>
+        <!--Modify incoming shipment tree, form and filter-->
+        <record id="view_picking_in_tree_inherit" model="ir.ui.view">
+            <field name="name">stock.picking.in.tree</field>
+            <field name="model">stock.picking.in</field>
+            <field name="inherit_id" ref="stock.view_picking_in_tree"/>
+            <field name="arch" type="xml">
+                <tree position="attributes">
+					<attribute name="colors">blue:contains_audit=='yes';green:contains_audit=='no';green:contains_audit=='pass';red:contains_audit=='fail'</attribute>
+				</tree>
+                <field name="backorder_id" position="replace"/>
+                <field name="min_date" position="replace">
+                    <field name="date_done"/>
+                    <field name="contains_audit"/>
+                </field>
+                <field name="stock_journal_id" position="replace"/>
+            </field>
+        </record>
+
+        <record id="view_picking_in_form_inherit" model="ir.ui.view">
+            <field name="name">stock.picking.in.form</field>
+            <field name="model">stock.picking.in</field>
+            <field name="inherit_id" ref="stock.view_picking_form"/>
+            <field name="arch" type="xml">
+                <field name="min_date" position="replace">
+                    <field name="date_done"/>
+                </field>
+                <field name="stock_journal_id" position="replace"/>
+            </field>
+        </record>
+
+        <record id="view_picking_in_search_inherit" model="ir.ui.view">
+            <field name="name">stock.picking.in.search</field>
+            <field name="model">stock.picking.in</field>
+            <field name="inherit_id" ref="stock.view_picking_in_search"/>
+            <field name="arch" type="xml">
+                <filter string="Order Date" position="replace"/>
+                <filter string="Expected Date" position="replace">
+                    <filter string="Date of Transfer" icon="terp-go-month" domain="[]" context="{'group_by':'date_done'}"/>
+                    <filter string="Supplier" domain="[]" context="{'group_by':'partner_id'}"/>
+                </filter>
+                <filter string="Journal" position="replace"/>
+            </field>
+        </record>
         <!-- VMI Client Page -->
         <record id="vmi_client_page_form" model="ir.ui.view">
             <field name="name">vmi.client.page.form</field>
@@ -236,18 +279,13 @@
             <field name="arch" type="xml">
                 <button name="invoice_open" position="replace">
                     <button name="invoice_open" states="draft,vendor_denied" string="Validate" class="oe_highlight"/>
+                    <button name="prepare_to_pay" states="vendor_approved" string="Prepare to Pay" type="object" class="oe_highlight"/>
                 </button>
                 <button name="invoice_cancel" position="replace">
                     <button name="invoice_cancel" states="draft,manager_approved,vendor_approved,vendor_denied" string="Cancel Invoice"/>
                     <button name="action_invoice_sent" type="object" string="Send by Email"/>
                 </button>
                 <button name="action_invoice_sent" position="replace"/>
-
-                <!--<label string="Draft Invoice" position="after">
-                    <label string="Manager Approved Invoice" attrs="'invisible': ['|',('state','&lt;&gt;','manager_approved'), ('type','&lt;&gt;','in_invoice')]"/>
-                    <label string="Vendor Approved Invoice" attrs="'invisible': ['|',('state','&lt;&gt;','vendor_approved'), ('type','&lt;&gt;','in_invoice')]"/>
-                    <label string="Vendor Denied Invoice" attrs="'invisible': ['|',('state','&lt;&gt;','vendor_denied'), ('type','&lt;&gt;','in_invoice')]"/>
-                </label>-->
                 <field name="state" position="replace">
                     <field name="state" widget="statusbar" statusbar_visible="draft,manager_approved,vendor_approved,paid"/>
                 </field>
@@ -257,6 +295,16 @@
                 </field>
                 <field name="fiscal_position" position="replace"/>
                 <field name="check_total" position="replace"/>
+                <field name="account_id" position="replace"/>
+                <field name="tax_line" position="replace">
+                    <field name="account_line">
+                        <tree editable="bottom" string="Account Summary">
+                            <field name="account_id"/>
+                            <field name="items"/>
+                            <field name="total"/>
+                        </tree>
+                    </field>
+                </field>
             </field>
         </record>
         <!--Add Category and Location to group by-->
@@ -391,6 +439,80 @@
                 </form>
             </field>
         </record>
+
+
+        <record id="account_invoice_confirm_view" model="ir.ui.view">
+            <field name="name">account.invoice.allocate.form</field>
+            <field name="model">account.invoice.allocate</field>
+            <field name="arch" type="xml">
+                <form string="Prepare to Pay" version="7.0">
+                    <p class="oe_grey">
+                    </p>
+                    <footer>
+                        <button string="Prepare Invoices" name="invoice_allocate" type="object" default_focus="1" class="oe_highlight"/>
+                        or
+                        <button string="Cancel" class="oe_link" special="cancel"/>
+                    </footer>
+                </form>
+            </field>
+        </record>
+
+        <act_window id="action_account_invoice_allocate"
+            multi="True"
+            key2="client_action_multi" name="Prepare to Pay"
+            res_model="account.invoice.allocate" src_model="account.invoice"
+            view_mode="form" target="new" view_type="form" />
+
+        <record id="view_users_form_inherit" model="ir.ui.view">
+            <field name="name">res.users.form.inherit</field>
+            <field name="model">res.users</field>
+            <field name="inherit_id" ref="base.view_users_form"/>
+            <field name="arch" type="xml">
+                <field name="company_id" position="after">
+                    <field name="partner_id" widget="selection"/>
+                </field>
+            </field>
+        </record>
+
+        <!--<record id="vmi_account_account_tree" model="ir.ui.view">
+            <field name="name">vmi.account.account.tree</field>
+            <field name="model">account.account</field>
+            <field name="arch" type="xml">
+                <tree string="Accounts">
+                    <field name="name"/>
+                </tree>
+            </field>
+        </record>-->
+
+        <record id="vmi_account_account_form" model="ir.ui.view">
+            <field name="name">vmi.account.account.form</field>
+            <field name="model">account.account</field>
+            <field name="inherit_id" ref="account.view_account_form"/>
+            <field name="arch" type="xml">
+                <field name="note" position="after">
+                    <notebook>
+                        <page string="Locations">
+                            <field name="location_ids"/>
+                        </page>
+                        <page string="Categories">
+                            <field name="category_ids"/>
+                        </page>
+                        <page string="Products">
+                            <field name="product_ids"/>
+                        </page>
+                    </notebook>
+                </field>
+            </field>
+        </record>
+
+        <!--<record id="action_vmi_account" model="ir.actions.act_window">
+            <field name="name">Account Configuration</field>
+            <field name="res_model">account.account</field>
+            <field name="view_type">form</field>
+            <field name="view_mode">form,tree</field>
+            <field name="help" type="html"></field>
+        </record>
+        <menuitem action="action_vmi_account" id="menu_action_vmi_account" parent="account.menu_action_account_form"/>-->
 
 	</data>			  
 </openerp>	
