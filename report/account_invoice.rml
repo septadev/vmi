@@ -191,7 +191,7 @@
           <para style="terp_tblheader_General_Centre"><b>Invoice Date</b></para>
         </td>
         <td>
-          <para style="terp_tblheader_General_Centre"><b>Amount</b></para>
+          <para style="terp_tblheader_General_Centre"><b>Total Amount</b></para>
         </td>
         <td>
           <para style="terp_tblheader_General_Centre"><b>State</b></para>
@@ -214,6 +214,26 @@
         </td>
         <td>
           <para style="terp_default_Centre_9">[[ o.state or ' ' ]]</para>
+        </td>
+      </tr>
+    </blockTable>
+	<blockTable colWidths="106.00,424.00" style="Table_Invoice_General_Header">
+	  <tr>
+        <td>
+          <para style="terp_tblheader_General_Centre"><b>Amount</b></para>
+        </td>
+		<td>
+          <para style="terp_tblheader_General_Centre"><b>Account</b></para>
+        </td>
+      </tr>
+	</blockTable>
+	<blockTable colWidths="106.00,424.00" style="Table_General_Detail_Content">
+      <tr>
+        <td>
+          <para style="terp_default_Centre_9">[[ o.amount_total or '' ]]</para>
+        </td>
+		<td>
+          <para style="terp_default_Centre_9">[[ o.account_id.name or ' ' ]]</para>
         </td>
       </tr>
     </blockTable>
