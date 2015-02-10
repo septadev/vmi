@@ -279,6 +279,7 @@
             <field name="arch" type="xml">
                 <button name="invoice_open" position="replace">
                     <button name="invoice_open" states="draft,vendor_denied" string="Validate" class="oe_highlight"/>
+                    <!--<button name="invoice_validate" states="draft,vendor_denied" string="Validate" type="object" class="oe_highlight"/>-->
                     <button name="prepare_to_pay" states="vendor_approved" string="Prepare to Pay" type="object" class="oe_highlight"/>
                 </button>
                 <button name="invoice_cancel" position="replace">
@@ -287,13 +288,15 @@
                 </button>
                 <button name="action_invoice_sent" position="replace"/>
                 <field name="state" position="replace">
-                    <field name="state" widget="statusbar" statusbar_visible="draft,manager_approved,vendor_approved,paid"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,manager_approved,vendor_approved,ready"/>
                 </field>
                 <field name="partner_id" position="after">
                     <field name="location_id" groups="stock.group_locations"/>
                     <field name="category_id" />
                 </field>
-                <field name="fiscal_position" position="replace"/>
+                <field name="fiscal_position" position="attributes">
+                    <attribute name="invisible">True</attribute>
+                </field>
                 <field name="check_total" position="replace"/>
                 <field name="account_id" position="replace"/>
                 <field name="tax_line" position="replace">

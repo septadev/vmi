@@ -116,6 +116,7 @@ class vmi_stock_move(osv.osv):
                 total_qty = sum(move.product_qty for move in new_moves)
                 last_record = max(move.id for move in new_moves)
                 number_to_flag = int(round(total_qty * 0.1) + float(remained_audit))
+                new_moves = sorted(new_moves, key=lambda k: k.product_qty, reverse=True)
                 for move in new_moves:
                     if number_to_flag > 0 and move.product_qty <= number_to_flag:
                         result.append(move.id)
@@ -225,6 +226,7 @@ class vmi_stock_move(osv.osv):
                 move.unflag_for_audit()
                 move.action_done()
                 stock_picking_obj.change_picking_audit_result(cr, uid, move.picking_id.id, True, None)
+                '''
                 if len(recipient_ids) > 0:
                     context['recipient_ids'] = recipient_ids
                     template_id = template_obj.search(cr, uid, [('name', '=', 'Notification for Audit Pass')])
@@ -232,7 +234,7 @@ class vmi_stock_move(osv.osv):
                         mail = template_obj.send_mail(cr, uid, template_id[0], move.id, True, context=context)
                     else:
                         raise osv.except_osv(_('Error!'), _('No Email Template Found, Please configure a email template under Email tab and named "Notification for Audit Pass"'))
-
+                '''
         #self.unflag_for_audit(cr, uid, ids, [], context)
         #self.action_done(cr, uid, res, context)
         return res
@@ -799,7 +801,7 @@ class vmi_account_invoice(osv.osv):
             ('manager_approved', 'Septa Manager Approved'),
             ('vendor_denied', 'Vendor Denied'),
             ('vendor_approved', 'Vendor Approved'),
-            ('paid', 'Paid'),
+            ('ready', 'Ready for AP'),
             ('cancel', 'Cancelled'),
             ], 'Status', select=True, readonly=True, track_visibility='onchange',
             help=' * The \'Draft\' status is used when a user is encoding a new and unconfirmed Invoice, waiting for confirmation by manager. \
@@ -977,6 +979,10 @@ class vmi_account_invoice(osv.osv):
         self._log_event(cr, uid, ids)
         return True
 
+    def finalize_invoice_move_lines(self, cr, uid, invoice_browse, move_lines):
+
+        return move_lines
+
     def invoice_validate(self, cr, uid, ids, context=None):
         """
         When button "Validate" clicked, call this function to change the state and send notification if needed
@@ -1091,14 +1097,14 @@ class vmi_account_invoice(osv.osv):
         account_invoice_line_obj = self.pool.get('account.invoice.line')
         account_invoice_account_line_obj = self.pool.get('account.invoice.account.line')
         invoice = self.browse(cr, uid, ids[0], None)
-
-        account_product_id = account_obj.search(cr, uid, [('product_ids', '!=', '')], None)
+        #get all special products
+        account_product_id = account_obj.search(cr, uid, [('product_ids', '!=', False)], None)
         account_product = account_obj.browse(cr, uid, account_product_id, None)
         products = {}
         for account_p in account_product:
             for product in account_p.product_ids:
                 products[product.id] = account_p.id
-
+        #Find the account number for this location & category
         account_ids = account_obj.search(cr, uid, [], None)
         accounts = account_obj.browse(cr, uid, account_ids, None)
         for account in accounts:
@@ -1106,39 +1112,36 @@ class vmi_account_invoice(osv.osv):
                 if location.id == invoice.location_id.location_id.id:
                     for category in account.category_ids:
                         if category.id == invoice.category_id.id:
-                            account_id = account.id
+                            group_account_id = account.id
 
-        items = 0
-        total = 0.0
-        values = [{'account_id': None, 'items': items, 'total': total}]
+        values = []
         for line in invoice['invoice_line']:
+            #Check if special product exist
             if line.product_id.id in products.keys():
                 account_id = products[line.product_id.id]
+            else:
+                account_id = group_account_id
+
+            #Check if id exist
+            account_exist = False
             for value in values:
                 if value['account_id'] == account_id:
-                    value['items'] += value['items']
-                    value['total'] += value['total']
-                else:
-                    items += 1
-                    total += line.price_subtotal
-                    values.append({'account_id': products[line.product_id.id], 'items': items, 'total': total})
-            account_invoice_line_obj.write(cr, uid, line.id, {'account_id': account_id}, None)
+                    value['items'] += 1
+                    value['total'] += line.price_subtotal
+                    account_exist = True
+            if not account_exist:
+                items = 1
+                total = line.price_subtotal
+                values.append({'invoice_id': ids[0], 'account_id': account_id, 'items': items, 'total': total})
 
-        if values:
+            #update account_id to this line
+            res = account_invoice_line_obj.write(cr, uid, line.id, {'account_id': account_id}, None)
+
+        if res:
             for value in values:
                 account_invoice_account_line_obj.create(cr, uid, value, None)
+            change_state = self.write(cr, uid, ids, {'state': 'ready'}, None)
 
-        '''datas = {
-            'ids': ids,
-            'model': 'account.invoice',
-            'form': self.read(cr, uid, ids[0], context=context)
-        }
-        return {
-            'type': 'ir.actions.report.xml',
-            'report_name': 'account.invoice',
-            'datas': datas,
-            'nodestroy' : True
-        }'''
         return True
 
 vmi_account_invoice()
@@ -1275,8 +1278,6 @@ class account_invoice_allocate(osv.osv_memory):
         for record in data_inv:
             if record['state'] != 'vendor_approved':
                 raise osv.except_osv(_('Warning!'), _("Selected invoice(s) cannot be allocated as they are not in 'Vendor Approved' state."))
-            #wf_service.trg_validate(uid, 'account.invoice', record['id'], 'invoice_open', cr)
-            #valid_ids.append(record['id'])
             account_invoice_obj.prepare_to_pay(cr, uid, record['id'])
 
         return {'type': 'ir.actions.act_window_close'}
@@ -1284,7 +1285,7 @@ class account_invoice_allocate(osv.osv_memory):
 account_invoice_allocate()
 
 
-class account_invoice_account_line(osv.osv_memory):
+class account_invoice_account_line(osv.osv):
     _name = 'account.invoice.account.line'
     _description = 'Account Line'
     _columns = {
