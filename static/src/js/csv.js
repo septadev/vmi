@@ -92,10 +92,6 @@ function printTable(file) {
         $('#contents').html(html);   // append table to DOM
         // intitialize and instantiate the datatable plugin
         $('#contents').dataTable({
-            "sDom": 'T<"clear">lfrtip',
-            "oTableTools": {
-                "sSwfPath": "/vmi/static/src/js/datatables/extras/TableTools/media/swf/copy_csv_xls_pdf.swf"
-            },
             "sPaginationType": "full_numbers"
         });
 

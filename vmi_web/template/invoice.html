@@ -82,7 +82,6 @@
               Header
             </p>
         </div>
-        <p>"This is a Invoice!!"</p>
         <div id="invoice" class="info" tal:condition="form_flag">
             <form class="form_binary_form" method="post" enctype="multipart/form-data">
                 <hr><!-- Invoice history table -->
@@ -105,11 +104,6 @@
                 </table>
             </form>
         </div>
-            <div id="no_uploader" tal:condition="not:form_flag" class="notice">
-                <p> <!-- Notify user that they cannot upload any files -->
-                    <b tal:content="error">Packing Slips cannot be submitted at this time!</b> <br />
-                </p>
-            </div>
     </div>
     </div>
 </body>

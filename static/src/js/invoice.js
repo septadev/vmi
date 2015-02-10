@@ -11,10 +11,6 @@ $(document).ready(function() {
     var anOpen = [];
     var oTable = $('#contents').dataTable({
         "aaData": invoice_data,
-        "sDom": 'T<"clear">lfrtip',
-        "oTableTools": {
-            "sSwfPath": "/vmi/static/src/js/datatables/extras/TableTools/media/swf/copy_csv_xls_pdf.swf"
-        },
         "aoColumns": [
             {
                 "mDataProp": null,
@@ -36,8 +32,8 @@ $(document).ready(function() {
                     case "vendor_approved":
                         result = "Vendor Approved";
                         break;
-                    case "paid":
-                        result = "Septa Paid";
+                    case "ready":
+                        result = "Ready to Pay";
                         break;
                     case "cancel":
                         result = "Cancelled";

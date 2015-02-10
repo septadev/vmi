@@ -16,11 +16,7 @@ $(document).ready(function(){
     var fiveYearBefore = yyyy-5;
     // Initialize table
     var oTable = $('#contents').dataTable({
-        "sDom": 'T<"clear">lfrtip',
         "aaData": latest_history,
-        "oTableTools": {
-            "sSwfPath": "/vmi/static/src/js/datatables/extras/TableTools/media/swf/copy_csv_xls_pdf.swf"
-        },
         "aoColumns": [
             {
                 "mDataProp": null,

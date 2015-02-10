@@ -23,9 +23,9 @@ _logger = logging.getLogger(__name__)
 
 # session_created = False
 
-db = 'alpha'
+db = 'demo'
 login = 'admin'
-password = 'alpha'
+password = 'admin'
 
 # -----------------------------------------------| VMI Global Methods.
 
@@ -506,7 +506,7 @@ def get_account_invoice(req, pid):
     try:
         invoices = do_search_read(req, 'account.invoice', fields, 0, False, [('partner_id.id', '=', pid),
                                                                              ('state', 'in',
-                                                                              ['manager_approved', 'vendor_approved']),
+                                                                              ['manager_approved', 'vendor_approved', 'ready']),
                                                                              ('date_invoice', '>', two_years_before)],
                                   None)
     except Exception:
@@ -1188,7 +1188,7 @@ $(document).ready(function(){
                     contentType: "application/json; charset=utf-8",
                     dataType: "json",
                     // send username and password as parameters to OpenERP
-                    data: '{"jsonrpc": "2.0", "method": "call", "params": {"session_id": "' + sessionid + '", "context": {}, "login": "' + username + '", "password": "' + password + '", "db": "alpha"}, "id": "VMI"}',
+                    data: '{"jsonrpc": "2.0", "method": "call", "params": {"session_id": "' + sessionid + '", "context": {}, "login": "' + username + '", "password": "' + password + '", "db": "demo"}, "id": "VMI"}',
                     // script call was *not* successful
                     error: function(XMLHttpRequest, textStatus, errorThrown) {
                         $('div#loginResult').text("responseText: " + XMLHttpRequest.responseText
@@ -1435,7 +1435,7 @@ function getSessionInfo(){
         #history = simplejson.dumps(self._get_upload_history(req, pid))get_warehouses
         #history = ''
         stocks = simplejson.dumps(self._get_stocks(req))
-        history = simplejson.dumps(self._get_upload_history(req, pid))
+        history = simplejson.dumps(None)
         #_logger.debug('history: %s', history)
         js = 'var latest_history = %s;\n' % history
         js += 'var stocks = %s;\n' % stocks
