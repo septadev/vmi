@@ -23,17 +23,17 @@
     'version': '0.2',
     'category': 'VMI',
     'description': """
-This module modifies the OpenERP Warehouse modules 
+This module modifies the OpenERP Warehouse modules and Accounting modules
 for use with VMI requirments.
      """,
     'author': 'M. A. Ruberto & Xiang Li',
     'website': 'http://septa.org',
-    'depends': ['stock', 'product', 'base', ],
+    'depends': ['stock', 'product', 'base', 'purchase', 'account_accountant'],
     'data': [
         'vmi_view.xml',
     ],
     'demo': [],
-    'test':[],
+    'test': [],
     'installable': True,
     'images': [],
 }
