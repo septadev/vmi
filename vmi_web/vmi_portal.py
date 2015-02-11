@@ -9,6 +9,7 @@ import xmlrpclib
 import simplejson
 import base64
 import logging
+import optparse
 from openerp import sql_db, pooler
 from datetime import date
 from types import *
@@ -17,18 +18,19 @@ import werkzeug.utils
 import werkzeug.wrappers
 import openerp
 from openerp.tools.translate import _
+from openerp.tools.config import configmanager
 import openerp.addons.web.http as vmiweb
 
 _logger = logging.getLogger(__name__)
 
 # session_created = False
 
-db = 'demo'
-login = 'admin'
-password = 'admin'
+config = configmanager()
+db = config.options['client_db']
+login = config.options['client_user']
+password = config.options['client_password']
 
 # -----------------------------------------------| VMI Global Methods.
-
 
 def fields_get(req, model):
     Model = req.session.model(model)
