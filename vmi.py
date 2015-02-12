@@ -4,14 +4,15 @@ from openerp.osv import fields
 from openerp import SUPERUSER_ID
 from openerp import pooler, tools, netsvc
 from openerp.tools.translate import _
+from openerp.tools.config import configmanager
 import openerp.addons.decimal_precision as dp
+import optparse
 import time
 import base64
 import datetime
 import functools
 
 _logger = logging.getLogger(__name__)
-
 
 class vmi_client_page(osv.osv):
     """object to hold dynamic values inserted into client side templates"""
