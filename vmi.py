@@ -1092,12 +1092,48 @@ class vmi_account_invoice(osv.osv):
                     raise osv.except_osv(_('Error!'), _('No Email Template Found, Please configure a email template under Email tab and named "Notification for Vendor Denied"'))
         return True
 
+    def calculate_service_fee(self, cr, uid, ids, context=None):
+        wf_service = netsvc.LocalService('workflow')
+        if context is None:
+            context = {}
+        account_invoice_obj = self.pool.get('account.invoice')
+        #valid_ids = []
+        data_inv = self.pool.get('account.invoice').read(cr, uid, context['active_ids'], ['state'], context=context)
+        for record in data_inv:
+            if record['state'] != 'vendor_approved':
+                raise osv.except_osv(_('Warning!'), _("Selected invoice(s) cannot be allocated as they are not in 'Vendor Approved' state."))
+            account_invoice_obj.prepare_to_pay(cr, uid, record['id'])
+
+        return {'type': 'ir.actions.act_window_close'}
+
     def prepare_to_pay(self, cr, uid, ids, context=None):
 
+        invoice = self.browse(cr, uid, ids[0], None)
+        '''if str(invoice.category_id.name) == 'Delivery Fee':
+            selected = self.match_delivery_fee(cr, uid, ids, context)
+            ir_model_data_obj = self.pool.get('ir.model.data')
+            view_ref = ir_model_data_obj.get_object_reference(cr, uid, 'vmi', 'view_delivery_fee_tree')
+            view_id = view_ref and view_ref[1] or False
+            filter_ref = ir_model_data_obj.get_object_reference(cr, uid, 'vmi', 'view_account_invoice_filter_inherit')
+            filter_id = filter_ref and filter_ref[1] or False
+            return {
+            'name': 'Invoice',
+            'view_type': 'tree',
+            'view_mode': 'tree',
+            'res_model': 'account.invoice',
+            #'domain': "('id', 'in', %s)" % selected,
+            'domain': [('state', '=', 'vendor_approved')],
+            'context': {'state': 'vendor_approved'},
+            #'view_id': False,
+            'view_id': view_id,
+            #'search_view_id': filter_id,
+            'type': 'ir.actions.act_window',
+            'target': 'new'
+            }'''
         account_obj = self.pool.get('account.account')
         account_invoice_line_obj = self.pool.get('account.invoice.line')
         account_invoice_account_line_obj = self.pool.get('account.invoice.account.line')
-        invoice = self.browse(cr, uid, ids[0], None)
+
         #get all special products
         account_product_id = account_obj.search(cr, uid, [('product_ids', '!=', False)], None)
         account_product = account_obj.browse(cr, uid, account_product_id, None)
@@ -1248,6 +1284,14 @@ class vmi_email_template(osv.osv):
 vmi_email_template()
 
 
+class vmi_mail_mail(osv.osv):
+    _name = "mail.mail"
+    _inherit = "mail.mail"
+
+    def send_get_mail_body(self, cr, uid, mail, partner=None, context=None):
+        return mail.body_html
+
+
 class vmi_res_partner(osv.osv):
     """Add notification field to res.partner"""
     _name = "res.partner"
@@ -1286,6 +1330,90 @@ class account_invoice_allocate(osv.osv_memory):
 account_invoice_allocate()
 
 
+class account_invoice_calculate(osv.osv_memory):
+    """
+    This wizard will allocate the all the selected invoices to matched account
+    """
+
+    _name = "account.invoice.calculate"
+    _description = "Calculate the service fee based on selected invoiced"
+
+    def invoice_calculate(self, cr, uid, ids, context=None):
+        if context is None:
+            context = {}
+        account_invoice_obj = self.pool.get('account.invoice')
+        product_category_obj = self.pool.get('product.category')
+        stock_location_obj = self.pool.get('stock.location')
+        account_account_obj = self.pool.get('account.account')
+        account_invoice_account_line_obj = self.pool.get('account.invoice.account.line')
+        #account = account_account_obj.search(cr, uid, [('category_ids', 'in', [22]), ('location_ids', 'in', [58])])
+        #Get id of category "Delivery Fee"
+        category_delivery = product_category_obj.search(cr, uid, [('name', '=', 'Delivery Fee')])
+        data_inv = account_invoice_obj.browse(cr, uid, context['active_ids'], context=context)
+        invoice_delivery = []
+        category_sum = {}
+        location_ratio = {}
+        #Check if selections are valid, record service fee invoice and calculate sum for each category
+        for record in data_inv:
+            if record.state not in ['vendor_approved', 'ready']:
+                raise osv.except_osv(_('Warning!'), _("Selected invoice(s) cannot be allocated as they are not in 'Vendor Approved' state."))
+            #found invoice for service fee
+            if record.category_id.id == category_delivery[0]:
+                invoice_delivery.append(record.id)
+                '''for item in record.invoice_line:
+                    item_info = str(item.product_id.name).split('-')
+                    if len(item_info) == 3:
+                        invoice_delivery.append({'id': record.id, 'line_id': item.id, 'category': item_info[0]})'''
+            #found normal invoice
+            elif record.category_id.id in category_sum.keys():
+                category_sum[record.category_id.id] += record.amount_total
+            else:
+                category_sum[record.category_id.id] = record.amount_total
+
+        if len(invoice_delivery) == 0:
+            raise osv.except_osv(_('Warning!'), _('Please make sure to select at least one "Service Fee Invoice"!'))
+
+        #Calculate ratio
+        for record in data_inv:
+            if record.category_id.id in category_sum.keys():
+                location_ratio[(record.category_id.id, record.location_id.location_id.id)] = record.amount_total/category_sum[record.category_id.id]
+
+        #Match accounts
+        #account_ids = account_account_obj.search(cr, uid, [], None)
+        #accounts = account_account_obj.browse(cr, uid, account_ids, None)
+        invoices = account_invoice_obj.browse(cr, uid, invoice_delivery)
+        for invoice in invoices:
+            values = []
+            for line in invoice['invoice_line']:
+                account_amount = {}
+                line_info = str(line.product_id.name).split('-')
+                line_category = product_category_obj.search(cr, uid, [('name', '=', line_info[0])])
+                for cate_loc in location_ratio.keys():
+                    account = account_account_obj.search(cr, uid, [('category_ids', 'in', category_delivery), ('location_ids', 'in', [cate_loc[1]])])
+                    if line_category[0] == cate_loc[0]:
+                        amount = location_ratio[cate_loc]*line.price_subtotal
+                        if account[0] in account_amount.keys():
+                            account_amount[account[0]] += amount
+                        else:
+                            account_amount[account[0]] = amount
+                for key in account_amount.keys():
+                    values.append({'invoice_id': invoice['id'], 'account_id': key, 'total': account_amount[key]})
+            if len(values)>0:
+                for value in values:
+                    account_line = account_invoice_account_line_obj.create(cr, uid, value, None)
+                change_state = self.write(cr, uid, invoice['id'], {'state': 'ready'}, None)
+
+                    #account_amount.append({'invoice_id': invoice['id'], 'account_id': account[0], 'total': amount})
+            '''for account in accounts:
+                for category in account.category_ids:
+                    if category.id == category_delivery[0]:
+                        for location in account.location_ids:
+                            if location in location_ratio:'''
+
+        return {'type': 'ir.actions.act_window_close'}
+
+account_invoice_allocate()
+
 class account_invoice_account_line(osv.osv):
     _name = 'account.invoice.account.line'
     _description = 'Account Line'
@@ -1293,7 +1421,7 @@ class account_invoice_account_line(osv.osv):
         'account_id': fields.many2one('account.account', 'Account', required=True, help="This account related to the selected invoice"),
         'invoice_id': fields.many2one('account.invoice', 'Invoice Reference', ondelete='cascade', select=True),
         'items': fields.integer('Total Items'),
-        'total': fields.float('Total Amount')
+        'total': fields.float('Total Amount', digits_compute=dp.get_precision('Account'))
     }
 
 account_invoice_account_line()
