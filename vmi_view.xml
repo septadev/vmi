@@ -68,12 +68,10 @@
 			<field eval="5" name="priority"/>
 			<field name="arch" type="xml">
 				<tree position="attributes">
-					  <attribute name="colors">blue:audit=='true'</attribute>
-					  <!-- <attribute name="colors">grey:audit_fail=='true'</attribute> -->
+					<attribute name="colors">blue:audit=='true'</attribute>
+                    <attribute name="create">false</attribute>
+					<!-- <attribute name="colors">grey:audit_fail=='true'</attribute> -->
 				</tree>
-                <field name="partner_id" position="after">
-                    <field name="vendor_id" />
-                </field>
 				<field name="date" position="after">
 				  <field name="audit" invisible="1" />
 				  <field name="audit_fail" invisible="1" />
@@ -82,8 +80,14 @@
 				  <button name="%(vmi.move_audit)d" icon="gtk-find" type="action" colspan="1" help="Audit" attrs="{'invisible': ['|',('state','=','done'),('audit','&lt;&gt;', True)]}" />
 				  <button name="fail_audit" icon="gtk-dialog-warning" type="object" colspan="1" help="Failed Audit" attrs="{'invisible': [('audit_fail','&lt;&gt;', True)]}" />
 				</field>
+                <field name="prodlot_id" position="replace"/>
+                <button string="Split in Serial Numbers" position="replace"/>
+                <field name="tracking_id" position="replace"/>
+                <button string="Put in current pack" position="replace"/>
+                <button string="Put in a new pack" position="replace"/>
 			</field>
 		</record>
+
 <!-- Stock Move Form (inherit)-->
 		<record id="stock_move_form_inherit" model="ir.ui.view">
 			<field name="name">stock.move.form.inherit</field>
@@ -91,6 +95,10 @@
 			<field name="inherit_id" ref="stock.view_move_form" />
 			<field eval="5" name="priority"/>
 			<field name="arch" type="xml">
+                <form position="attributes">
+                    <attribute name="create">false</attribute>
+                    <attribute name="edit">false</attribute>
+                </form>
                 <field name="name" position="after">
                   <field name="vendor_id" />
                 </field>
@@ -130,9 +138,18 @@
             <field name="model">stock.picking.in</field>
             <field name="inherit_id" ref="stock.view_picking_in_form"/>
             <field name="arch" type="xml">
+                <form position="attributes">
+                    <attribute name="create">false</attribute>
+                    <attribute name="edit">false</attribute>
+                </form>
                 <button string="Create Invoice/Refund" position="replace">
                     <button name="%(stock.action_stock_invoice_onshipping)d" string="Create Invoice"  attrs="{'invisible': ['|','|',('state','&lt;&gt;','done'),('invoice_state','=','invoiced'),('invoice_state','=','none')]}"  type="action" class="oe_highlight"/>
                 </button>
+                <xpath expr="//button[@name='%(stock.act_stock_return_picking)d']" position="replace"/>
+                <field name="min_date" position="replace">
+                    <field name="date_done"/>
+                </field>
+                <field name="stock_journal_id" position="replace"/>
             </field>
         </record>
         <!--Modify incoming shipment tree, form and filter-->
@@ -153,18 +170,6 @@
             </field>
         </record>
 
-        <record id="view_picking_in_form_inherit" model="ir.ui.view">
-            <field name="name">stock.picking.in.form</field>
-            <field name="model">stock.picking.in</field>
-            <field name="inherit_id" ref="stock.view_picking_form"/>
-            <field name="arch" type="xml">
-                <field name="min_date" position="replace">
-                    <field name="date_done"/>
-                </field>
-                <field name="stock_journal_id" position="replace"/>
-            </field>
-        </record>
-
         <record id="view_picking_in_search_inherit" model="ir.ui.view">
             <field name="name">stock.picking.in.search</field>
             <field name="model">stock.picking.in</field>
@@ -174,10 +179,12 @@
                 <filter string="Expected Date" position="replace">
                     <filter string="Date of Transfer" icon="terp-go-month" domain="[]" context="{'group_by':'date_done'}"/>
                     <filter string="Supplier" domain="[]" context="{'group_by':'partner_id'}"/>
+                    <filter name="group_location_cate_id" string="Destination" domain="[]" context="{'group_by':'location_dest_id'}"/>
                 </filter>
                 <filter string="Journal" position="replace"/>
             </field>
         </record>
+
         <!-- VMI Client Page -->
         <record id="vmi_client_page_form" model="ir.ui.view">
             <field name="name">vmi.client.page.form</field>
