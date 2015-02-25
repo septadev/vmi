@@ -32,7 +32,17 @@ function isAPIAvailable() {
 function handleFileSelect(evt) {
     var files = evt.target.files; // FileList object
     var file = files[0];
-    if (file.type == "text/csv") {
+    var file_types = ['text/csv',
+    'text/plain',
+    'application/csv',
+    'text/comma-separated-values',
+    'application/excel',
+    'application/vnd.ms-excel',
+    'application/vnd.msexcel',
+    'text/anytext',
+    'application/octet-stream',
+    'application/txt'];
+    if ($.inArray(file.type, file_types) > -1) {
         // read the file metadata
         var output = '';
         output += '<span style="font-weight:bold;">' + file.name + '</span><br />\n';

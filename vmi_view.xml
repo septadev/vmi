@@ -99,6 +99,11 @@
                     <attribute name="create">false</attribute>
                     <attribute name="edit">false</attribute>
                 </form>
+                <button string="Process Later" position="replace"/>
+                <button string="Process Entirely" position="replace"/>
+                <button string="Process Partially" position="replace"/>
+                <button string="Set Available" position="replace"/>
+                <button string="Scrap" position="replace"/>
                 <field name="name" position="after">
                   <field name="vendor_id" />
                 </field>
@@ -111,6 +116,7 @@
 				  <button name="%(vmi.move_audit)d" icon="gtk-find" type="action" class="oe_highlight" string="Audit" help="Audit" attrs="{'invisible': ['|',('state','=','done'),('audit','&lt;&gt;', True)]}" />
 				  <button name="fail_audit" icon="gtk-dialog-warning" type="object" class="oe_highlight" string="Failed Audit" help="Failed Audit" attrs="{'invisible': [('audit_fail','&lt;&gt;', True)]}" />			  
 				</field>
+                <group string="Traceability" position="replace"/>
 		  </field>
 		</record>
 		<!-- Stock Picking Move Tree -->
