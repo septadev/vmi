@@ -124,12 +124,10 @@ $(document).ready(function(){
                 },
                 success: function (data) {
                     if (data.result && data.result.error) { // script returned error
-                        $('div#loginResult').text("Warning: " + data.result.error);
-                        $('div#loginResult').addClass("notice");
+
                     }
                     else if (data.error) { // OpenERP error
-                        $('div#loginResult').text("Error-Message: " + data.error.message + " | Error-Code: " + data.error.code + " | Error-Type: " + data.error.data.type);
-                        $('div#loginResult').addClass("error");
+
                     } // if
                     else { // successful transaction
                         console.log('Success');

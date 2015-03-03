@@ -1060,20 +1060,15 @@ class VmiController(vmiweb.Controller):
         return {'moves': moves, 'locations': list(set(all_locations))}
 
 
-    def _parse_packing_slip(self, req, filedata, pid):
+    def _parse_packing_slip(self, req, res, pid):
         result = {}
-        ps_vals = {}
         ps_lines = []
         fields = self._packing_slip_fields
-        res = self._csv_reader(filedata, fields)
-        if res.has_key('error'):
-            #_logger.debug('<_parse_packing_slip> CSV reader returned an error: %s', res['error'])
-            return res
-        else:
+        if res:
             #res['records'].sort(cmp=lambda x,y : cmp(x['packing_list_number'], y['packing_list_number']))
             unique_slips = []
             pickings = []
-            for record in res['records']:
+            for record in res:
                 ps_lines.append(record.copy())
                 #_logger.debug('<_parse_packing_slip> ps_lines: %s', ps_lines)
                 if record['packing_list_number'] not in unique_slips:
@@ -1081,11 +1076,11 @@ class VmiController(vmiweb.Controller):
                     pickings.append(record)
 
             picked = self._create_stock_picking(req, pickings, pid)
-            for pick in picked:  # Attach the CSV file to the corresponding stock.picking objects.
+            '''for pick in picked:  # Attach the CSV file to the corresponding stock.picking objects.
                 attached = self._create_attachment(req, 'stock.picking.in', pick['picking_id'], pick['packing_list'],
-                                                   filedata)
+                                                   res)
                 if attached.has_key('error'):
-                    _logger.debug('<_parse_packing_slip> _create_attachment returned an error: %s', attached['error'])
+                    _logger.debug('<_parse_packing_slip> _create_attachment returned an error: %s', attached['error'])'''
             #_logger.debug('<_parse_packing_slip> ps_lines: %s', ps_lines)
             for line in ps_lines:
                 for pick in picked:
@@ -1548,7 +1543,7 @@ class VmiController(vmiweb.Controller):
                  ('Content-Disposition', content_disposition(filename, req))])'''
 
 
-    @vmiweb.httprequest
+    '''@vmiweb.httprequest
     def upload_document(self, req, pid, uid, contents_length, callback, ufile):
 
         """
@@ -1649,7 +1644,7 @@ class VmiController(vmiweb.Controller):
         _logger.debug('<upload_document3>This is uid %s!', str(uid))
         req.session.ensure_valid()
         kwargs = args.copy()
-        return self.result(req, mod, **kwargs)
+        return self.result(req, mod, **kwargs)'''
 
     @vmiweb.httprequest
     def products(self, req, mod=None, search=None, **kwargs):
@@ -1788,6 +1783,57 @@ class VmiController(vmiweb.Controller):
         return self.invoice(req, mod, **kwargs)
 
     @vmiweb.jsonrequest
+    def upload_file(self, req, pid, data):
+        """
+
+        :param req:
+        :param ids:
+        :param uid:
+        :return:
+        """
+        _logger.debug('Im here')
+        args = {}
+        if len(data) > 0:
+            try:
+                result = self._parse_packing_slip(req, data, pid)
+            except Exception, e:
+                args.update({'error': str(e)})
+                _logger.debug('Error on line %s', sys.exc_traceback.tb_lineno)
+
+            args.update({'parse_result': result})
+        else:
+            args.update({'error': 'File is empty or invalid!'})
+        if 'error' not in args:
+            result = None
+            vals = args.copy()
+            vals['pid'] = pid
+            try:
+                result = self._call_methods(req, 'stock.move', 'action_flag_audit', [vals, None])  # Flag audits.
+            except Exception, e:
+                args.update({'error': str(e)})
+                _logger.debug('<upload_file>_call_methods failed: %s!', str(e))
+
+            args.update({'audit_result': result})
+        if 'audit_result' in args:  # Call the Done method on moves that weren't flagged for audit.
+
+            if 'move_lines' in args['parse_result']:
+                result = None
+                moves = args['parse_result']['move_lines']
+                unflagged = []
+                for move in moves['moves']:
+                    if move not in args['audit_result']:
+                        unflagged.append(move)
+
+                try:
+                    #rewrite function: action_done
+                    result = self._call_methods(req, 'stock.move', 'action_done', [unflagged, None])
+                    pass
+                except Exception, e:
+                    args.update({'error': str(e)})
+                    _logger.debug('<upload_file>_call_methods failed: %s!', str(e))
+        return args
+
+    @vmiweb.jsonrequest
     def get_invoice_lines(self, req, ids, uid):
         """
         function to process invoice lines searching when detail button clicked on invoice page.
@@ -1820,5 +1866,5 @@ class VmiController(vmiweb.Controller):
         :param uid:
         :return:
         """
-        _logger.debug('Im here')
+
         return get_stock_pickings(req, pid)

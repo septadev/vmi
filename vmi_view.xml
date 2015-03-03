@@ -85,6 +85,8 @@
                 <field name="tracking_id" position="replace"/>
                 <button string="Put in current pack" position="replace"/>
                 <button string="Put in a new pack" position="replace"/>
+                <button string="Scrap Products" position="replace"/>
+                <button name="action_done" position="replace"/>
 			</field>
 		</record>
 
@@ -127,17 +129,54 @@
 				<field eval="4" name="priority"/>
 				<field name="arch" type="xml">
 					<tree position="attributes">
-					  <attribute name="colors">blue:audit=='true'</attribute>
-					  <attribute name="colors">red:audit_fail=='true'</attribute>
+					    <attribute name="colors">blue:audit=='true'</attribute>
+					    <attribute name="colors">red:audit_fail=='true'</attribute>
 					</tree>
-							<field name="product_qty" position="after">
-							  <field name="audit" invisible="1" />
-							  <field name="audit_fail" invisible="1" />
-							  <button name="%(vmi.move_audit)d" icon="gtk-find" type="action" colspan="1" help="Audit" attrs="{'invisible': ['|',('state','=','done'),('audit','&lt;&gt;', True)]}" />
-							  <button name="fail_audit" icon="gtk-dialog-warning" type="object" colspan="1" help="Failed Audit" attrs="{'invisible': [('audit_fail','&lt;&gt;', True)]}" />
-							</field>
+					<field name="product_qty" position="after">
+						<field name="audit" invisible="1" />
+						<field name="audit_fail" invisible="1" />
+						<button name="%(vmi.move_audit)d" icon="gtk-find" type="action" colspan="1" help="Audit" attrs="{'invisible': ['|',('state','=','done'),('audit','&lt;&gt;', True)]}" />
+						<button name="fail_audit" icon="gtk-dialog-warning" type="object" colspan="1" help="Failed Audit" attrs="{'invisible': [('audit_fail','&lt;&gt;', True)]}" />
+					</field>
+                    <button string="Scrap Products" position="replace"/>
+                    <button string="Split in Serial Number" position="replace"/>
+                    <button string="Put in current pack" position="replace"/>
+                    <button string="Put in a new pack" position="replace"/>
+
 				</field>
 		</record>
+
+        <record id="view_move_search_inherit" model="ir.ui.view">
+            <field name="name">stock.move.search</field>
+            <field name="model">stock.move</field>
+            <field name="inherit_id" ref="stock.view_move_search"/>
+            <field name="arch" type="xml">
+                <filter name="done" position="after">
+                    <filter name="audit_location" string="To Be Audit" domain="[('audit', '=', True)]" help="Parts to be audited"/>
+                </filter>
+            </field>
+        </record>
+
+        <record id="action_reception_picking_move_inherit" model="ir.actions.act_window">
+            <field name="name">Parts To Be Audited By Location</field>
+            <field name="res_model">stock.move</field>
+            <field name="type">ir.actions.act_window</field>
+            <field name="view_type">form</field>
+            <field name="view_mode">tree,form</field>
+            <field name="domain">['|','&amp;',('picking_id','=',False),('location_id.usage', 'in', ['customer','supplier']),'&amp;',('picking_id','!=',False),('picking_id.type','=','in')]</field>
+            <field name="view_id" ref="stock_move_tree2_inherit"/>
+            <field name="context">{'product_receive': True, 'search_default_audit_location': True, 'search_default_groupby_dest_location_id': True, 'picking_type': 'in'}</field>
+            <field name="help" type="html">
+              <p>
+                Here you can receive individual products, no matter what
+                purchase order or picking order they come from. You will find
+                the list of all products you are waiting for. Once you receive
+                an order, you can filter based on the name of the supplier or
+                the purchase order reference. Then you can confirm all products
+                received using the buttons on the right of each line.
+              </p>
+            </field>
+        </record>
 
         <record id="view_picking_in_form_inherit" model="ir.ui.view">
             <field name="name">stock.picking.in.form.inherit</field>
@@ -149,7 +188,7 @@
                     <attribute name="edit">false</attribute>
                 </form>
                 <button string="Create Invoice/Refund" position="replace">
-                    <button name="%(stock.action_stock_invoice_onshipping)d" string="Create Invoice"  attrs="{'invisible': ['|','|',('state','&lt;&gt;','done'),('invoice_state','=','invoiced'),('invoice_state','=','none')]}"  type="action" class="oe_highlight"/>
+                    <!--<button name="%(stock.action_stock_invoice_onshipping)d" string="Create Invoice"  attrs="{'invisible': ['|','|',('state','&lt;&gt;','done'),('invoice_state','=','invoiced'),('invoice_state','=','none')]}"  type="action" class="oe_highlight"/>-->
                 </button>
                 <xpath expr="//button[@name='%(stock.act_stock_return_picking)d']" position="replace"/>
                 <field name="min_date" position="replace">
@@ -188,6 +227,25 @@
                     <filter name="group_location_cate_id" string="Destination" domain="[]" context="{'group_by':'location_dest_id'}"/>
                 </filter>
                 <filter string="Journal" position="replace"/>
+            </field>
+        </record>
+
+        <record id="action_picking_tree4_inherit" model="ir.actions.act_window">
+            <field name="name">Packaging Slip By Location</field>
+            <field name="res_model">stock.picking.in</field>
+            <field name="type">ir.actions.act_window</field>
+            <field name="view_type">form</field>
+            <field name="view_mode">tree,form,calendar</field>
+            <field name="domain">[('type','=','in')]</field>
+            <field name="context">{'contact_display': 'partner_address', 'default_type': 'in', 'search_default_group_location_cate_id': True}</field>
+            <field name="view_id" ref="view_picking_in_tree_inherit"/>
+            <field name="help" type="html">
+              <p>
+                The Incoming Shipments is the list of all orders you will
+                receive from your suppliers. An incoming shipment contains a
+                list of products to be received according to the original
+                purchase order.
+              </p>
             </field>
         </record>
 
