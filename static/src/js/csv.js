@@ -6,8 +6,19 @@ $(document).ready(function() {
     sessionid = sessionStorage.getItem('session_id');
     pid = sessionStorage.getItem(('company_id'));
     uid = sessionStorage.getItem(('user_id'));
+    file_selected = false;
     if(isAPIAvailable()) {
         $('#files').bind('change', handleFileSelect);
+        $('#files').bind('change', function(){
+            if (file_selected){
+                //$('#list').empty();
+                //oTable.fnClearTable(0);
+            }
+            else{
+                file_selected = true;
+            }
+            handleFileSelect;
+        });
     }
     $(':file').change(function(){
         var file = this.files[0];
@@ -32,15 +43,26 @@ $(document).ready(function() {
                     console.log(XMLHttpRequest, textStatus, errorThrown);
                 },
                 success: function (data) {
-                    if (data.result && data.result.error) { // script returned error
+                    if (data.result && data.result.code) { // script returned error
+                        var output = '<div id="error" title="Upload Failed" style="color: #ff0000">';
+                        output += 'Error code: ' + data.result.code + '<br />\n';
+                        output += 'Error type: ' + data.result.data.type + '<br />\n';
+                        output += 'Error detail: ' + data.result.data.text + '<br />\n';
+                        output += '</div>';
+                        // post the results
+                        $('#list').append(output);
 
                     }
                     else if (data.error) { // OpenERP error
-
+                        var output = '<div id="error" title="Upload Failed" style="color: #ff0000">';
+                        output += 'Server Error' + '<br />\n';
+                        output += '</div>';
+                        // post the results
+                        $('#list').append(output);
                     } // if
                     else { // successful transaction
                         //console.log('Success');
-                        if ("error" in data.result){
+                        if ("code" in data.result){
                             alert(data.result["error"]);
                         }
                         else{
@@ -96,10 +118,11 @@ function handleFileSelect(evt) {
         output += ' - FileSize: ' + file.size + ' bytes<br />\n';
         output += ' - LastModified: ' + (file.lastModifiedDate ? file.lastModifiedDate.toLocaleDateString() : 'n/a') + '<br />\n';
         // append submit button for upload form
-        output += ' <button class="oe_button oe_field_button" id="OBEY"><span title="Start the upload of the selected file.">Upload File</span></button>'
+        output += ' <button class="oe_button oe_field_button" id="OBEY"><span title="Start the upload of the selected file.">Upload File</span></button>';
         // read the file contents
         printTable(file);
         // post the results
+        $('#list').empty();
         $('#list').append(output);
     }
     else{
@@ -157,13 +180,19 @@ function printTable(file) {
             html += '</tr>\r\n';
         }
         html += '</tbody>\r\n';
+
         $('#contents').html(html);   // append table to DOM
         // intitialize and instantiate the datatable plugin
-        $('#contents').dataTable({
-            "sPaginationType": "full_numbers"
-        });
-
-
+        if (oTable){
+            fnClearTable(0);
+        }
+        else{
+            var oTable = $('#contents').dataTable({
+                //"bRetrieve": true,
+                "bDestroy": true,
+                "sPaginationType": "full_numbers"
+            });
+        }
     };
     reader.onerror = function () {
         alert('Unable to read ' + file.fileName);
