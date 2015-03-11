@@ -16,27 +16,37 @@ $(document).ready(function(){
                 contentType: "application/json; charset=utf-8",
                 dataType: "json",
                 // send username and password as parameters to OpenERP
-                data: '{"jsonrpc": "2.0", "method": "call", "params": {"session_id": "' + sessionid + '", "context": {}, "login": "' + username + '", "password": "' + password + '", "db": "' + db + '"}, "id": "VMI"}',
+                data: '{"jsonrpc": "2.0", "method": "call", "params": {"session_id": "' + sessionid + '", "context": {}, "login": "' + username + '", "password": "' + password + '"}, "id": "VMI"}',
                 // script call was *not* successful
                 error: function (XMLHttpRequest, textStatus, errorThrown) {
-                    $('div#loginResult').text("responseText: " + XMLHttpRequest.responseText
+                    $('div#loginError').html("responseText: " + XMLHttpRequest.responseText
                         + ", textStatus: " + textStatus
                         + ", errorThrown: " + errorThrown);
-                    $('div#loginResult').addClass("error");
+                    $('div#loginError').addClass("error");
+                    $('div#loginError').fadeIn();
                 }, // error
                 // script call was successful
                 // data contains the JSON values returned by OpenERP
                 success: function (data) {
-                    if (data.result.error) { // script returned error
-                        $('div#loginResult').text("data.result.title: " + data.result.error);
-                        $('div#loginResult').addClass("error");
+                    if (data.error) { // script returned error
+                        $('div#loginError').html("Server Error");
+                        $('div#loginError').addClass("error");
+                        $('div#loginError').fadeIn();
                     } // if
-                    else { // login was successful
+                    else if (data.result.code){
+                        $('div#loginError').text("Incorrect Username or Password!");
+                        $('div#loginError').addClass("error");
+                        $('div#loginError').fadeIn();
+                    }
+                    else{ // login was successful
                         $('form#loginForm').hide();
                         $('div#loginResult').html("<h2>Success!</h2> "
                             + " Welcome <b>" + data.result.company + "</b>");
                         $('div#loginResult').addClass("success");
                         $('#vendor').html("Hi, " + data.result.company);
+                        $('div#loginResult').fadeIn();
+                        $('div#contactContent').fadeIn();
+                        $('div#vendor').fadeIn();
                         responseData = data.result;
                         sessionid = data.result.session_id;
                         partnerid = data.result.partner_id;
@@ -63,9 +73,6 @@ $(document).ready(function(){
             $('div#loginResult').text("enter username and password");
             $('div#loginResult').addClass("error");
         } // else
-        $('div#loginResult').fadeIn();
-        $('div#contactContent').fadeIn();
-        $('div#vendor').fadeIn();
         return false;
     });
     });
