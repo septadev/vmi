@@ -643,7 +643,6 @@ class Session(vmiweb.Controller):
                 "session_id": req.session_id,
                 "uid": req.session._uid,
                 "user_context": req.session.get_context() if req.session._uid else {},
-                "db": req.session._db,
                 "username": req.session._login,
                 "partner_id": vendor['partner_id'][0],
                 "company": vendor['partner_id'][1],
@@ -1509,7 +1508,7 @@ class VmiController(vmiweb.Controller):
         local_vals = {}
         if kwargs is not None:
             local_vals.update(kwargs)
-            pid = local_vals.get('pid')
+            pid = local_vals.get('company_id')
             _logger.debug('Partner found ID: %s', pid)
         else:
             try:  # Get Partner ID for session
@@ -1846,13 +1845,13 @@ class VmiController(vmiweb.Controller):
         return output.getvalue()
 
     @vmiweb.httprequest
-    def invoice_processing(self, req, uid, pid, callback, invoice_id, comment, result):
+    def invoice_processing(self, req, uid, company_id, callback, invoice_id, comment, result):
 
         """
 
         :param req: object
         :param uid: user id
-        :param pid: partner id
+        :param company_id: partner id
         :param callback:
         :param invoice_id: invoice id that need to be processed
         :param comment: a comment that explained why vendor denied the current invoice
@@ -1865,7 +1864,7 @@ class VmiController(vmiweb.Controller):
 
         mod = None
         args = {}
-        args.update({'pid': pid})
+        args.update({'company_id': company_id})
         args.update({'uid': uid})
         #uid = req.session._uid
         _logger.debug('This is uid %s!', str(uid))
@@ -1906,7 +1905,7 @@ class VmiController(vmiweb.Controller):
         return self.invoice(req, mod, **kwargs)
 
     @vmiweb.jsonrequest
-    def upload_file(self, req, pid, data):
+    def upload_file(self, req, company_id, data):
         """
 
         :param req:
@@ -1918,7 +1917,7 @@ class VmiController(vmiweb.Controller):
         args = {}
         if len(data) > 0:
             try:
-                result = self._parse_packing_slip(req, data, pid)
+                result = self._parse_packing_slip(req, data, company_id)
             except Exception, e:
                 args.update({'error': str(e)})
                 _logger.debug('Error on line %s', sys.exc_traceback.tb_lineno)
@@ -1938,7 +1937,7 @@ class VmiController(vmiweb.Controller):
         if 'error' not in args:
             result = None
             vals = args.copy()
-            vals['pid'] = pid
+            vals['pid'] = company_id
             try:
                 result = self._call_methods(req, 'stock.move', 'action_flag_audit', [vals, None])  # Flag audits.
             except Exception, e:
@@ -1990,7 +1989,7 @@ class VmiController(vmiweb.Controller):
         return get_stock_moves_by_id(req, ids)
 
     @vmiweb.jsonrequest
-    def get_upload_history(self, req, pid):
+    def get_upload_history(self, req, company_id):
         """
         function to process picking slip searching
         :param req:
@@ -1999,4 +1998,4 @@ class VmiController(vmiweb.Controller):
         :return:
         """
 
-        return get_stock_pickings(req, pid)
+        return get_stock_pickings(req, company_id)

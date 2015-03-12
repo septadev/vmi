@@ -4,7 +4,7 @@
 
 $(document).ready(function() {
     sessionid = sessionStorage.getItem('session_id');
-    pid = sessionStorage.getItem(('company_id'));
+    company_id = sessionStorage.getItem(('company_id'));
     uid = sessionStorage.getItem(('user_id'));
     console.log('before re-authentication: ' + sessionid);
 
@@ -51,7 +51,7 @@ $(document).ready(function() {
                             '<form class="respond" id="respond" action="/vmi/invoice_processing" method="post" enctype="multipart/form-data">' +
                             '<input name="callback" value="debug" type="hidden">' +
                             '<input name="uid" value="' + uid + '" type="hidden">' +
-                            '<input name="pid" value="' + pid + '" type="hidden">' +
+                            '<input name="company_id" value="' + company_id + '" type="hidden">' +
                             '<input name="session_id" value="' + sessionid + '" type="hidden">' +
                             '<input name="invoice_id" value="' + full["id"] + '" type="hidden">' +
                             //'<input id="comment" name="comment" type="hidden">' +

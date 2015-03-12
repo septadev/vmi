@@ -12,7 +12,7 @@ $(document).ready(function(){
       $('a').each(function()
       {
           var href = $(this).attr('href');
-          href += (href.match(/\?/) ? '&' : '?') + 'session_id=' + sessionid + '&pid=' + companyid;
+          href += (href.match(/\?/) ? '&' : '?') + 'session_id=' + sessionid + '&company_id=' + companyid;
           $(this).attr('href', href);
       });
   /* show company name*/

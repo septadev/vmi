@@ -8,7 +8,7 @@
 
 $(document).ready(function(){
     sessionid = sessionStorage.getItem('session_id');
-    pid = sessionStorage.getItem(('company_id'));
+    company_id = sessionStorage.getItem(('company_id'));
     uid = sessionStorage.getItem(('user_id'));
     var anOpen = [];
     var today = new Date();
@@ -117,7 +117,7 @@ $(document).ready(function(){
                     '"location": "' + $('#location').val() + '",' +
                     '"audit": "' + $('#audit').val() + '",' +
                     '"invoice": "' + $('#invoice').val() + '"}, ' +
-                    '"pid": "' + pid + '"' +
+                    '"company_id": "' + company_id + '"' +
                     '},"id":"VMI"}',
                 error: function (XMLHttpRequest, textStatus, errorThrown) {
 

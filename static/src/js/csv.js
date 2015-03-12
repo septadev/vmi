@@ -4,7 +4,7 @@
 
 $(document).ready(function() {
     sessionid = sessionStorage.getItem('session_id');
-    pid = sessionStorage.getItem(('company_id'));
+    company_id = sessionStorage.getItem(('company_id'));
     uid = sessionStorage.getItem(('user_id'));
     file_selected = false;
     if(isAPIAvailable()) {
@@ -38,7 +38,7 @@ $(document).ready(function() {
                 url: "/vmi/upload_file",
                 contentType: "application/json; charset=utf-8",
                 dataType: "json",
-                data: '{"jsonrpc": "2.0", "method": "call", "params": {"session_id": "' + sessionid + '", "context": {}, "pid": "' + pid + '", "data": '+ str +'}, "id":"VMI"}',
+                data: '{"jsonrpc": "2.0", "method": "call", "params": {"session_id": "' + sessionid + '", "context": {}, "company_id": "' + company_id + '", "data": '+ str +'}, "id":"VMI"}',
                 error: function (XMLHttpRequest, textStatus, errorThrown) {
                     console.log(XMLHttpRequest, textStatus, errorThrown);
                 },
