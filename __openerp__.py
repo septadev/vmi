@@ -28,7 +28,7 @@ for use with VMI requirments.
      """,
     'author': 'M. A. Ruberto & Xiang Li',
     'website': 'http://septa.org',
-    'depends': ['stock', 'product', 'base', 'purchase', 'account_accountant'],
+    'depends': ['stock', 'product', 'base', 'purchase', 'account_accountant', 'auth_ldap'],
     'data': [
         'vmi_view.xml',
     ],

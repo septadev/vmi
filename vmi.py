@@ -11,6 +11,7 @@ import time
 import base64
 import datetime
 import functools
+import ldap
 
 _logger = logging.getLogger(__name__)
 
@@ -718,6 +719,9 @@ class vmi_stock_picking(osv.osv):
                     move_line.product_id.id, move_line.product_uos_qty or move_line.product_qty,
                     invoice_vals['partner_id'] or False)[pricelist_id]
         else:
+            price = move_line.product_id.standard_price
+
+        if not price:
             price = move_line.product_id.standard_price
 
         return {
@@ -1437,3 +1441,53 @@ class vmi_account_account(osv.osv):
     }
 
 vmi_account_account()
+
+class vmi_product_pricelist_item(osv.osv):
+    _name = 'product.pricelist.item'
+    _inherit = 'product.pricelist.item'
+    _columns = {
+        'price_discount': fields.float('Price Discount', digits=(16, 6)),
+    }
+
+vmi_product_pricelist_item()
+
+'''class CompanyLDAP(osv.osv):
+    _name = 'res.company.ldap'
+    _inherit = 'res.company.ldap'
+
+    def query(self, conf, filter, retrieve_attributes=None):
+        """
+        Query an LDAP server with the filter argument and scope subtree.
+
+        Allow for all authentication methods of the simple authentication
+        method:
+
+        - authenticated bind (non-empty binddn + valid password)
+        - anonymous bind (empty binddn + empty password)
+        - unauthenticated authentication (non-empty binddn + empty password)
+
+        .. seealso::
+           :rfc:`4513#section-5.1` - LDAP: Simple Authentication Method.
+
+        :param dict conf: LDAP configuration
+        :param filter: valid LDAP filter
+        :param list retrieve_attributes: LDAP attributes to be retrieved. \
+        If not specified, return all attributes.
+        :return: ldap entries
+        :rtype: list of tuples (dn, attrs)
+
+        """
+
+        results = []
+        try:
+            conn = self.connect(conf)
+            conn.simple_bind_s(conf['ldap_binddn'] or '',
+                               conf['ldap_password'] or '')
+            results = conn.search_st(conf['ldap_base'], ldap.SCOPE_BASE,
+                                     filter, retrieve_attributes, timeout=60)
+            conn.unbind()
+        except ldap.INVALID_CREDENTIALS:
+            _logger.error('LDAP bind failed.')
+        except ldap.LDAPError, e:
+            _logger.error('An LDAP exception occurred: %s', e)
+        return results'''
