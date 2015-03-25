@@ -587,7 +587,7 @@ class vmi_stock_picking(osv.osv):
 
 
     def action_invoice_create(self, cr, uid, ids, journal_id=False,
-            group=False, type='in_invoice', context=None):
+            group=True, type='in_invoice', context=None):
         """
 
         :param cr:
@@ -601,18 +601,17 @@ class vmi_stock_picking(osv.osv):
         """
         if context is None:
             context = {}
-        res = {}
-        _logger.debug('<action_invoice_create> Group or not: %s', group)
-        _logger.debug('<action_invoice_create> uid: %s, id: %s', uid, ids)
         invoice_obj = self.pool.get('account.invoice')
         invoice_line_obj = self.pool.get('account.invoice.line')
         partner_obj = self.pool.get('res.partner')
-        invoice_name = []
-        new_picking = []
+        journal_obj = self.pool.get('invoice.journal')
         invoices_group = {}
-        product_category = None
         res = {}
         inv_type = type
+        group = True
+        # get journal_id
+        if not journal_id:
+            journal_id = self.search(cr, uid, [('type', '=', 'purchase'), ('name', '=', 'Purchase Journal')], context)
         # check whether there is product to be audited
         for picking in self.browse(cr, uid, ids, context=context):
             if picking.invoice_state != '2binvoiced':
@@ -795,6 +794,12 @@ class vmi_stock_picking(osv.osv):
         return invoice_vals
 
 vmi_stock_picking()
+
+class vmi_stock_invoice_onshipping(osv.osv):
+    _name = 'stock.invoice.onshipping'
+    _inherit = 'stock.invoice.onshipping'
+
+
 
 class vmi_account_invoice(osv.osv):
     _name = 'account.invoice'
