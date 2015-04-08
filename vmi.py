@@ -64,13 +64,17 @@ class vmi_stock_move(osv.osv):
         'vendor_id': fields.many2one('res.partner', 'Vendor', required=False, readonly=True),
         'audit': fields.boolean('Audit'),
         'audit_fail': fields.boolean('Failed Audit'),
-        #'scrapped': fields.related('location_dest_id', 'scrap_location', type='boolean', relation='stock.location',
-                                   #string='Scrapped', readonly=False),
+        'invoice_status': fields.selection([
+            ("invoiced", "Invoiced"),
+            ("2binvoiced", "To Be Invoiced"),
+            ("none", "Not Applicable")], "Invoice Control",
+            select=True, required=True, readonly=True),
     }
     _defaults = {
         'audit': False,
         'audit_fail': False,
         'scrapped': False,
+        'invoice_status': '2binvoiced',
     }
     _order = 'date desc'
 
@@ -605,6 +609,7 @@ class vmi_stock_picking(osv.osv):
         invoice_line_obj = self.pool.get('account.invoice.line')
         partner_obj = self.pool.get('res.partner')
         journal_obj = self.pool.get('invoice.journal')
+        stock_move_obj = self.pool.get('stock.move')
         invoices_group = {}
         res = {}
         inv_type = type
@@ -630,44 +635,47 @@ class vmi_stock_picking(osv.osv):
                 inv_type = self._get_invoice_type(picking)
             pricelist_id = partner.property_product_pricelist_purchase.id
             for move_line in picking.move_lines:
-                _logger.debug('<action_invoice_create> invoices_group: %s', str(invoices_group))
-                invoice_name = '-'.join([str(partner.name), str(picking.location_dest_id.name),
-                                        str(move_line.product_id.categ_id.name)])
-                #create new invoice
-                if invoice_name not in invoices_group.keys():
-                    context['invoice_name'] = invoice_name
-                    context['invoice_category'] = move_line.product_id.categ_id.id
-                    context['invoice_location'] = picking.location_dest_id.id
-                    _logger.debug('<action_invoice_create> invoice_name: %s', str(context['invoice_name']))
-                    invoice_vals = self._prepare_invoice(cr, uid, picking, partner, inv_type, journal_id, context=context)
-                    invoice_id = invoice_obj.create(cr, uid, invoice_vals, context=context)
-                    invoices_group[invoice_name] = invoice_id
-                #invoice already existed
-                elif group:
-                    _logger.debug('<action_invoice_create> Same group')
-                    invoice_id = invoices_group[invoice_name]
-                    invoice = invoice_obj.browse(cr, uid, invoice_id)
-                    invoice_vals_group = self._prepare_invoice_group(cr, uid, picking, partner, invoice, context=context)
-                    _logger.debug('<action_invoice_create> invoice_vals_group: %s', str(invoice_vals_group))
-                    invoice_obj.write(cr, uid, [invoice_id], invoice_vals_group, context=context)
+                #only invoice those un-invoiced lines
+                if move_line.invoice_status == '2binvoiced':
+                    _logger.debug('<action_invoice_create> invoices_group: %s', str(invoices_group))
+                    invoice_name = '-'.join([str(partner.name), str(picking.location_dest_id.name),
+                                            str(move_line.product_id.categ_id.name)])
+                    #create new invoice
+                    if invoice_name not in invoices_group.keys():
+                        context['invoice_name'] = invoice_name
+                        context['invoice_category'] = move_line.product_id.categ_id.id
+                        context['invoice_location'] = picking.location_dest_id.id
+                        _logger.debug('<action_invoice_create> invoice_name: %s', str(context['invoice_name']))
+                        invoice_vals = self._prepare_invoice(cr, uid, picking, partner, inv_type, journal_id, context=context)
+                        invoice_id = invoice_obj.create(cr, uid, invoice_vals, context=context)
+                        invoices_group[invoice_name] = invoice_id
+                    #invoice already existed
+                    elif group:
+                        _logger.debug('<action_invoice_create> Same group')
+                        invoice_id = invoices_group[invoice_name]
+                        invoice = invoice_obj.browse(cr, uid, invoice_id)
+                        invoice_vals_group = self._prepare_invoice_group(cr, uid, picking, partner, invoice, context=context)
+                        _logger.debug('<action_invoice_create> invoice_vals_group: %s', str(invoice_vals_group))
+                        invoice_obj.write(cr, uid, [invoice_id], invoice_vals_group, context=context)
 
-                res[picking.id] = invoice_id
-                invoice_vals['pricelist_id'] = pricelist_id
-                if move_line.state == 'cancel':
-                    _logger.debug('<action_invoice_create> canceled')
-                    continue
-                if move_line.scrapped:
-                    _logger.debug('<action_invoice_create> scrapped')
-                    # do no invoice scrapped products
-                    continue
-                vals = self._prepare_invoice_line(cr, uid, group, picking, move_line,
-                                invoice_id, invoice_vals, context=context)
-                _logger.debug('<action_invoice_create> vals: %s', str(vals))
-                if vals:
-                    _logger.debug('<action_invoice_create> vals existed: %s', str(vals))
-                    invoice_line_id = invoice_line_obj.create(cr, uid, vals, context=context)
-                    self._invoice_line_hook(cr, uid, move_line, invoice_line_id)
-
+                    res[picking.id] = invoice_id
+                    invoice_vals['pricelist_id'] = pricelist_id
+                    if move_line.state == 'cancel':
+                        _logger.debug('<action_invoice_create> canceled')
+                        continue
+                    if move_line.scrapped:
+                        _logger.debug('<action_invoice_create> scrapped')
+                        # do no invoice scrapped products
+                        continue
+                    vals = self._prepare_invoice_line(cr, uid, group, picking, move_line,
+                                    invoice_id, invoice_vals, context=context)
+                    _logger.debug('<action_invoice_create> vals: %s', str(vals))
+                    if vals:
+                        _logger.debug('<action_invoice_create> vals existed: %s', str(vals))
+                        invoice_line_id = invoice_line_obj.create(cr, uid, vals, context=context)
+                        self._invoice_line_hook(cr, uid, move_line, invoice_line_id)
+                        #Set move_line's invoiced states to True
+                        stock_move_obj.write(cr, uid, move_line.id, {'invoice_status': 'invoiced'})
             invoice_obj.button_compute(cr, uid, [invoice_id], context=context,
                     set_total=(inv_type in ('in_invoice', 'in_refund')))
             self.write(cr, uid, [picking.id], {
@@ -1115,30 +1123,9 @@ class vmi_account_invoice(osv.osv):
 
         return {'type': 'ir.actions.act_window_close'}
 
-    def prepare_to_pay(self, cr, uid, ids, context=None):
+    '''def prepare_to_pay(self, cr, uid, ids, context=None):
 
         invoice = self.browse(cr, uid, ids[0], None)
-        '''if str(invoice.category_id.name) == 'Delivery Fee':
-            selected = self.match_delivery_fee(cr, uid, ids, context)
-            ir_model_data_obj = self.pool.get('ir.model.data')
-            view_ref = ir_model_data_obj.get_object_reference(cr, uid, 'vmi', 'view_delivery_fee_tree')
-            view_id = view_ref and view_ref[1] or False
-            filter_ref = ir_model_data_obj.get_object_reference(cr, uid, 'vmi', 'view_account_invoice_filter_inherit')
-            filter_id = filter_ref and filter_ref[1] or False
-            return {
-            'name': 'Invoice',
-            'view_type': 'tree',
-            'view_mode': 'tree',
-            'res_model': 'account.invoice',
-            #'domain': "('id', 'in', %s)" % selected,
-            'domain': [('state', '=', 'vendor_approved')],
-            'context': {'state': 'vendor_approved'},
-            #'view_id': False,
-            'view_id': view_id,
-            #'search_view_id': filter_id,
-            'type': 'ir.actions.act_window',
-            'target': 'new'
-            }'''
         account_obj = self.pool.get('account.account')
         account_invoice_line_obj = self.pool.get('account.invoice.line')
         account_invoice_account_line_obj = self.pool.get('account.invoice.account.line')
@@ -1188,6 +1175,130 @@ class vmi_account_invoice(osv.osv):
                 account_invoice_account_line_obj.create(cr, uid, value, None)
             change_state = self.write(cr, uid, ids, {'state': 'ready'}, None)
 
+        return True'''
+
+    def prepare_to_pay(self, cr, uid, ids, context=None):
+        """
+
+        :param cr:
+        :param uid: user id
+        :param ids: invoice id to pay
+        :param context:
+        :return:
+        """
+        account_invoice_account_line_obj = self.pool.get('account.invoice.account.line')
+        account_rule_line_obj = self.pool.get('account.account.rule.line')
+
+
+        invoice = self.browse(cr, uid, ids[0], None)
+
+        #Get all rule lines find if there is a rule for product
+        products = {}
+        product_rules_id = account_rule_line_obj.search(cr, uid, [('product_id', '!=', None)], None)
+        if product_rules_id:
+            product_rules = account_rule_line_obj.browse(cr, uid, ids, None)
+            for rule in product_rules:
+                products[rule.product_id.id] = rule.account_id
+        #match location and category find account(s)
+        account_rules_id = account_rule_line_obj.search(cr, uid, [('location_id', '=', invoice.location_id.location_id.id), ('category_id', '=', invoice.category_id.id)], None)
+        if account_rules_id:
+            account_rules = account_rule_line_obj.browse(cr, uid, account_rules_id, None)
+
+        accounts = {}
+        total = 0
+        for line in invoice['invoice_line']:
+            #Check if special product exist
+            if line.product_id.id in products.keys():
+                if products[line.product_id.id] in accounts.keys():
+                    accounts[products[line.product_id.id]] += line.price_subtotal
+                else:
+                    accounts[products[line.product_id.id]] = line.price_subtotal
+            #no special product, sum the price
+            else:
+                total += line.price_subtotal
+        #Match account and calculate total by ratio
+        if total > 0:
+            for rule in account_rules:
+                if rule.account_id.id in accounts.keys():
+                    accounts[rule.account_id.id] += total * rule.ratio
+                else:
+                    accounts[rule.account_id.id] = total * rule.ratio
+        #Create account line
+        if accounts:
+            for account in accounts.keys():
+                account_invoice_account_line_obj.create(cr, uid, {'invoice_id': ids[0], 'account_id': account, 'total': accounts[account]}, None)
+            change_state = self.write(cr, uid, ids, {'state': 'ready'}, None)
+
+        return True
+
+    def invoice_cancel(self, cr, uid, ids, context=None):
+        if context is None:
+            context = {}
+        account_move_obj = self.pool.get('account.move')
+        account_invoice_line_obj = self.pool.get('account.invoice.line')
+        stock_move_obj = self.pool.get('stock.move')
+        stock_picking_obj = self.pool.get('stock.picking')
+
+        invoices = self.read(cr, uid, ids, ['move_id', 'payment_ids', 'invoice_line'])
+        account_move_ids = [] # ones that we will need to remove
+        stock_move_ids = []
+        stock_picking_ids = []
+        for i in invoices:
+            if i['move_id']:
+                account_move_ids.append(i['move_id'][0])
+            if i['payment_ids']:
+                account_move_line_obj = self.pool.get('account.move.line')
+                pay_ids = account_move_line_obj.browse(cr, uid, i['payment_ids'])
+                for move_line in pay_ids:
+                    if move_line.reconcile_partial_id and move_line.reconcile_partial_id.line_partial_ids:
+                        raise osv.except_osv(_('Error!'), _('You cannot cancel an invoice which is partially paid. You need to unreconcile related payment entries first.'))
+            # Get related stock_move's
+            lines = account_invoice_line_obj.browse(cr, uid, i['invoice_line'])
+            for line in lines:
+                stock_move_ids.append(line.stock_move_id.id)
+                if line.stock_move_id.picking_id.id not in stock_picking_ids:
+                    stock_picking_ids.append(line.stock_move_id.picking_id.id)
+        # Change the statues in related stock move and stock picking
+        stock_move_obj.write(cr, uid, stock_move_ids, {'invoice_status': '2binvoiced'})
+        stock_picking_obj.write(cr, uid, stock_picking_ids, {'invoice_state': '2binvoiced'})
+
+        # First, set the invoices as cancelled and detach the move ids
+        self.write(cr, uid, ids, {'state':'cancel', 'move_id':False})
+        if account_move_ids:
+            # second, invalidate the move(s)
+            account_move_obj.button_cancel(cr, uid, account_move_ids, context=context)
+            # delete the move this invoice was pointing to
+            # Note that the corresponding move_lines and move_reconciles
+            # will be automatically deleted too
+            account_move_obj.unlink(cr, uid, account_move_ids, context=context)
+        self._log_event(cr, uid, ids, -1.0, 'Cancel Invoice')
+        return True
+
+
+    def set_to_draft(self, cr, uid, ids, context=None):
+        """ Cancels the stock move and change inventory state to draft.
+        @return: True
+        """
+
+        stock_move_obj = self.pool.get('stock.move')
+        stock_picking_obj = self.pool.get('stock.picking')
+        stock_move_ids = []
+        stock_picking_ids = []
+        change_picking = True
+        for inv in self.browse(cr, uid, ids, context=context):
+            #self.pool.get('stock.move').action_cancel(cr, uid, [x.id for x in inv.move_ids], context=context)
+            for line in inv.invoice_line:
+                stock_move_ids.append(line.stock_move_id.id)
+                if line.stock_move_id.picking_id.id not in stock_picking_ids:
+                    stock_picking_ids.append(line.stock_move_id.picking_id.id)
+            self.write(cr, uid, [inv.id], {'state': 'draft'}, context=context)
+        stock_move_obj.write(cr, uid, stock_move_ids, {'invoice_status': 'invoiced'})
+        for picking in stock_picking_obj.browse(cr, uid, stock_picking_ids):
+            for line in picking.move_lines:
+                if line.invoice_status != 'invoiced':
+                    change_picking = False
+        if change_picking:
+            stock_picking_obj.write(cr, uid, stock_picking_ids, {'invoice_state': 'invoiced'})
         return True
 
 vmi_account_invoice()
@@ -1200,6 +1311,7 @@ class vmi_account_invoice_line(osv.osv):
     _description = "Invoice Line"
     _columns = {
         'stock_move_id': fields.many2one('stock.move', 'Reference', select=True,states={'done': [('readonly', True)]}),
+        'account_id': fields.many2one('account.account', 'Account', domain=[('type','<>','view'), ('type', '<>', 'closed')], help="The income or expense account related to the selected product."),
     }
 
 vmi_account_invoice_line()
@@ -1429,11 +1541,24 @@ class account_invoice_account_line(osv.osv):
     _columns = {
         'account_id': fields.many2one('account.account', 'Account', required=True, help="This account related to the selected invoice"),
         'invoice_id': fields.many2one('account.invoice', 'Invoice Reference', ondelete='cascade', select=True),
-        'items': fields.integer('Total Items'),
         'total': fields.float('Total Amount', digits_compute=dp.get_precision('Account'))
     }
 
 account_invoice_account_line()
+
+
+class account_account_rule_line(osv.osv):
+    _name = 'account.account.rule.line'
+    _description = 'Rule Line'
+    _columns = {
+        'account_id': fields.many2one('account.account', 'Account', required=True, help="This account related to the selected invoice"),
+        'location_id': fields.many2one('stock.location', 'Location'),
+        'category_id': fields.many2one('product.category', 'Category'),
+        'ratio': fields.float('Ratio'),
+        'product_id': fields.many2one('product.product', 'Product')
+    }
+
+account_account_rule_line()
 
 
 class vmi_account_account(osv.osv):
@@ -1442,7 +1567,8 @@ class vmi_account_account(osv.osv):
     _columns = {
         'location_ids': fields.many2many('stock.location', 'account_account_location_rel', 'account_id', 'location_id'),
         'category_ids': fields.many2many('product.category', 'account_account_category_rel', 'account_id', 'category_id'),
-        'product_ids': fields.many2many('product.product', 'account_account_product_rel', 'account_id', 'product_id')
+        'product_ids': fields.many2many('product.product', 'account_account_product_rel', 'account_id', 'product_id'),
+        'rule_line': fields.one2many('account.account.rule.line', 'account_id', 'Rule Lines'),
     }
 
 vmi_account_account()

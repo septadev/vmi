@@ -82,7 +82,9 @@
 				</field>
                 <field name="prodlot_id" position="replace"/>
                 <button string="Split in Serial Numbers" position="replace"/>
-                <field name="tracking_id" position="replace"/>
+                <field name="tracking_id" position="replace">
+                    <field name="invoice_status" string="Invoice Status"/>
+                </field>
                 <button string="Put in current pack" position="replace"/>
                 <button string="Put in a new pack" position="replace"/>
                 <button string="Scrap Products" position="replace"/>
@@ -108,6 +110,7 @@
                 <button string="Scrap" position="replace"/>
                 <field name="name" position="after">
                   <field name="vendor_id" />
+                  <field name="invoice_status" string="Invoice Status"/>
                 </field>
 				<field name="date" position="after">
 				  <field name="audit" invisible="1" />
@@ -116,7 +119,7 @@
 				</field>
 				<field name="product_uom" position="after">
 				  <button name="%(vmi.move_audit)d" icon="gtk-find" type="action" class="oe_highlight" string="Audit" help="Audit" attrs="{'invisible': ['|',('state','=','done'),('audit','&lt;&gt;', True)]}" />
-				  <button name="fail_audit" icon="gtk-dialog-warning" type="object" class="oe_highlight" string="Failed Audit" help="Failed Audit" attrs="{'invisible': [('audit_fail','&lt;&gt;', True)]}" />			  
+				  <button name="fail_audit" icon="gtk-dialog-warning" type="object" class="oe_highlight" string="Failed Audit" help="Failed Audit" attrs="{'invisible': [('audit_fail','&lt;&gt;', True)]}" />
 				</field>
                 <group string="Traceability" position="replace"/>
 		  </field>
@@ -145,6 +148,18 @@
 
 				</field>
 		</record>
+
+        <!--<record id="view_move_picking_form_inherit" model="ir.ui.view">
+            <field name="name">stock.move.form</field>
+            <field name="model">stock.move</field>
+            <field name="inherit_id" ref="stock.view_move_picking_form" />
+            <field name="arch" type="xml">
+                <field name="product_uom" position="after">
+                    <field name="invoice_status" string="Invoice Status"/>
+                </field>
+            </field>
+        </record>-->
+
 
         <record id="view_move_search_inherit" model="ir.ui.view">
             <field name="name">stock.move.search</field>
@@ -195,6 +210,22 @@
                     <field name="date_done"/>
                 </field>
                 <field name="stock_journal_id" position="replace"/>
+                <field name="move_lines" position="replace">
+                    <field name="move_lines">
+                        <tree editable="bottom" string="Stock Move">
+                            <field name="product_id"/>
+                            <field name="product_qty"/>
+                            <field name="product_uom"/>
+                            <field name="location_dest_id"/>
+                            <field name="audit" invisible="1" />
+						    <field name="audit_fail" invisible="1" />
+						    <button name="%(vmi.move_audit)d" icon="gtk-find" type="action" colspan="1" help="Audit" attrs="{'invisible': ['|',('state','=','done'),('audit','&lt;&gt;', True)]}" />
+						    <button name="fail_audit" icon="gtk-dialog-warning" type="object" colspan="1" help="Failed Audit" attrs="{'invisible': [('audit_fail','&lt;&gt;', True)]}" />
+                            <field name="invoice_status" string="Invoice Status"/>
+                            <field name="state"/>
+                        </tree>
+                    </field>
+                </field>
             </field>
         </record>
         <!--Modify incoming shipment tree, form and filter-->
@@ -364,8 +395,11 @@
                     <button name="prepare_to_pay" states="vendor_approved" string="Prepare to Pay" type="object" class="oe_highlight"/>
                 </button>
                 <button name="invoice_cancel" position="replace">
-                    <button name="invoice_cancel" states="draft,manager_approved,vendor_approved,vendor_denied" string="Cancel Invoice"/>
+                    <button name="invoice_cancel" states="draft,manager_approved,vendor_approved,vendor_denied" type="object" string="Cancel Invoice"/>
                     <button name="action_invoice_sent" type="object" string="Send by Email"/>
+                </button>
+                <button name="action_cancel_draft" position="replace">
+                    <button name="set_to_draft" states="cancel" string="Set to Draft" type="object" groups="account.group_account_invoice"/>
                 </button>
                 <button name="action_invoice_sent" position="replace"/>
                 <field name="state" position="replace">
@@ -383,7 +417,6 @@
                     <field name="account_line">
                         <tree editable="bottom" string="Account Summary">
                             <field name="account_id"/>
-                            <field name="items"/>
                             <field name="total"/>
                         </tree>
                     </field>
@@ -619,7 +652,7 @@
             <field name="inherit_id" ref="account.view_account_form"/>
             <field name="arch" type="xml">
                 <field name="note" position="after">
-                    <notebook>
+                    <!--<notebook>
                         <page string="Locations">
                             <field name="location_ids"/>
                         </page>
@@ -629,7 +662,16 @@
                         <page string="Products">
                             <field name="product_ids"/>
                         </page>
-                    </notebook>
+
+                    </notebook>-->
+                    <field name="rule_line">
+                        <tree editable="bottom" string="Account Rules">
+                            <field name="location_id"/>
+                            <field name="category_id"/>
+                            <field name="ratio"/>
+                            <field name="product_id"/>
+                        </tree>
+                    </field>
                 </field>
             </field>
         </record>
