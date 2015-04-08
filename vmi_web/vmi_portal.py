@@ -521,7 +521,7 @@ def get_stock_pickings(req, pid):
     return pickings
 
 
-def get_stock_picking_by_id(req, picking_id):
+def get_stock_picking_by_number(req, pid):
     """
 
     :param req:
@@ -529,15 +529,18 @@ def get_stock_picking_by_id(req, picking_id):
     :param picking_id:
     :return:
     """
+    picking_no = req.context['picking_no']
     pickings = None
-    fields = ['origin', 'date_done']
+    fields = ['date_done', 'origin', 'invoice_state', 'state', 'partner_id', 'move_lines', 'contains_audit',
+              'location_dest_id']
     try:
-        pickings = do_search_read(req, 'stock.picking.in', fields, 0, False, [('id', '=', picking_id)], None)
+        pickings = do_search_read(req, 'stock.picking.in', fields, 0, False, [('origin', '=', picking_no)], None)
     except Exception:
-        _logger.debug('<get_stock_pickings> No stock.picking.in instances found for ID: %s', picking_id)
+        _logger.debug('<get_stock_pickings> No stock.picking.in instances found for No.: %s', picking_no)
 
     if not pickings:
         raise Exception("Access Denied")
+
     return pickings
 
 
@@ -1096,6 +1099,7 @@ class VmiController(vmiweb.Controller):
                             'vendor_id': line['vendor_id'],
                             'date_expected': line['date_expected'],
                             'scrapped': line['scrapped'],
+                            'invoice_status': '2binvoiced'
                     })
 
         return move_id
@@ -1999,3 +2003,13 @@ class VmiController(vmiweb.Controller):
         """
 
         return get_stock_pickings(req, company_id)
+
+    @vmiweb.jsonrequest
+    def get_picking_no(self, req, company_id):
+        """
+
+        :param req:
+        :param company_id:
+        :return:
+        """
+        return get_stock_picking_by_number(req, company_id)

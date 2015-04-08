@@ -14,6 +14,21 @@
             }
 			table.display thead th, table.display td { font-size: 13px; }
 
+            .overlay
+            {
+             position: absolute;
+             background-color: white;
+             top: 0px;
+             left: 0px;
+             width: 100%;
+             height: 100%;
+             opacity: 0.8;
+             -moz-opacity: 0.8;
+             filter: alpha(opacity=80);
+             -ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=80)";
+             z-index: 10000;
+            }
+
 		</style>
 <link rel="stylesheet" type="text/css" media="screen, projection" href="/vmi/static/src/css/screen_rev2.css" />
 <link rel="stylesheet" type="text/css" media="screen, projection" href="/vmi/static/src/js/datatables/media/css/jquery.dataTables.css" />
@@ -24,15 +39,13 @@
 <script type="text/javascript" src="/vmi/static/src/js/datatables/media/js/jquery.dataTables.js"></script>
 <script type="text/javascript" src="/vmi/static/src/js/datatables/extras/TableTools/media/js/TableTools.min.js"></script>
 <script type="text/javascript" src="/vmi/static/src/js/navigation.js"></script>
-<script type="text/javascript">
-    /*$(document).ready( function () {
-        $('#contents').dataTable( {
-            "pagingType": "full_numbers"
-    } );
-    } );*/
-</script>
 </head>
 <body>
+    <Progresstemplate>
+        <div class="overlay" style="display: none">
+            <img src="/vmi/static/src/img/loading.gif" style="margin-top: 25%; margin-left: 45%"/>
+        </div>
+    </Progresstemplate>
     <div id="wrapper">
 	<div id="header">
         <div id="header-inside">

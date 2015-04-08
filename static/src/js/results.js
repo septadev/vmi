@@ -13,6 +13,7 @@ $(document).ready(function(){
     var anOpen = [];
     var today = new Date();
     var yyyy = today.getFullYear();
+    var mm = today.getMonth()+1;
     var fiveYearBefore = yyyy-5;
     // Initialize table
     var oTable = $('#contents').dataTable({
@@ -71,18 +72,21 @@ $(document).ready(function(){
             $('#year').append($("<option></option>").text(i))
                 .attr("value", i);
         }
+        $(this).val(yyyy);
     });
     $('#month').each(function(){
         for (var i=1;i<=12;i++){
             $('#month').append($("<option></option>").text(i))
                 .attr("value", i);
         }
+        $(this).val(mm);
     });
     $('#day').each(function(){
         for (var i=1;i<=31;i++){
             $('#day').append($("<option></option>").text(i))
                 .attr("value", i);
         }
+        $(this).val(null);
     });
     $('#location').each(function(){
         var locations = stocks;
@@ -93,7 +97,38 @@ $(document).ready(function(){
 
     //functions when submit the filter. An ajax call to pass parameters to the server. Year and month are mandatory.
     $('#filter').click(function(){
-        if ($('#year').val() == 0 || $('#month').val() == 0){
+        if ($('#picking_no').val() != null){
+            console.log("search picking no")
+            $.ajax({
+                type: "POST",
+                url: "/vmi/get_picking_no",
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                data: '{"jsonrpc": "2.0","method":"call","params":{"session_id": "' + sessionid + '",' +
+                    '"context": {"picking_no": "' + $('#picking_no').val() + '"}, ' +
+                    '"company_id": "' + company_id + '"' +
+                    '},"id":"VMI"}',
+                error: function (XMLHttpRequest, textStatus, errorThrown) {
+
+                },
+                success: function (data) {
+                    if (data.result && data.result.error) { // script returned error
+
+                    }
+                    else if (data.error) { // OpenERP error
+
+                    } // if
+                    else { // successful transaction
+                        console.log('Success');
+                        //destroy old table and generate a new one with respond data
+                        oTable.fnClearTable(0);
+                        oTable.fnAddData(data.result['records']);
+                        oTable.fnDraw();
+                    }
+                }
+            })
+        }
+        else if ($('#year').val() == 0 || $('#month').val() == 0){
             alert('please select specify both year and month')
         }
         else {

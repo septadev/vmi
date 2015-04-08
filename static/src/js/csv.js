@@ -33,6 +33,7 @@ $(document).ready(function() {
         //$('#upload_form').serialize();
         //var formData = new FormData($(this)[0]);
         if (str){
+            $('.overlay').show();
             $.ajax({
                 type: "POST",
                 url: "/vmi/upload_file",
@@ -69,6 +70,7 @@ $(document).ready(function() {
                             location.reload();
                         }
                     }
+
                 }
             });
         }
