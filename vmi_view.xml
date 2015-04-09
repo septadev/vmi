@@ -209,6 +209,9 @@
                 <field name="min_date" position="replace">
                     <field name="date_done"/>
                 </field>
+                <field name="invoice_state" position="replace">
+                    <field name="invoice_state"/>
+                </field>
                 <field name="stock_journal_id" position="replace"/>
                 <field name="move_lines" position="replace">
                     <field name="move_lines">
@@ -241,6 +244,9 @@
                 <field name="min_date" position="replace">
                     <field name="date_done"/>
                     <field name="contains_audit"/>
+                </field>
+                <field name="invoice_state" position="replace">
+                    <field name="invoice_state"/>
                 </field>
                 <field name="stock_journal_id" position="replace"/>
             </field>

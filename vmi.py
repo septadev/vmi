@@ -1582,6 +1582,14 @@ class vmi_product_pricelist_item(osv.osv):
 
 vmi_product_pricelist_item()
 
+
+class vmi_product_product(osv.osv):
+    _name = "product.product"
+    _inherit = 'product.product'
+    _sql_constraints = [
+        ('default_code_unique', 'unique (default_code)', 'SEPTA P/N must be unique!')
+    ]
+
 '''class CompanyLDAP(osv.osv):
     _name = 'res.company.ldap'
     _inherit = 'res.company.ldap'
@@ -1622,3 +1630,4 @@ vmi_product_pricelist_item()
         except ldap.LDAPError, e:
             _logger.error('An LDAP exception occurred: %s', e)
         return results'''
+
