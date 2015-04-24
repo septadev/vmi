@@ -1,19 +1,34 @@
 import logging
+import time
+import sys
+import os
+import random
+from datetime import date
+from ftplib import FTP
+
 from openerp.osv import osv
 from openerp.osv import fields
-from openerp import SUPERUSER_ID
-from openerp import pooler, tools, netsvc
+from openerp import netsvc
 from openerp.tools.translate import _
-from openerp.tools.config import configmanager
 import openerp.addons.decimal_precision as dp
-import optparse
-import time
-import base64
-import datetime
-import functools
-import ldap
+from openerp.tools.config import configmanager
+
 
 _logger = logging.getLogger(__name__)
+
+command = sys.argv
+if '-c' in command:
+    config_file = command[command.index('-c') + 1]
+    config = configmanager()
+    config.parse_config(['-c', config_file])
+    db = config.options['client_db']
+    ap_file = config.options['ap_file']
+    ap_ftp = config.options['ap_ftp']
+    ap_ftp_path = config.options['ap_ftp_path']
+    ap_ftp_username = config.options['ap_ftp_username']
+    ap_ftp_password = config.options['ap_ftp_password']
+else:
+    raise Exception("Please specify the config file")
 
 class vmi_client_page(osv.osv):
     """object to hold dynamic values inserted into client side templates"""
@@ -45,7 +60,7 @@ class vmi_client_page(osv.osv):
     }
 
 
-class vmi_product(osv.osv):
+class vmi_product_product(osv.osv):
     """Override of product.product"""
     _name = 'product.product'
     _inherit = 'product.product'
@@ -54,7 +69,43 @@ class vmi_product(osv.osv):
                                           select=True),
         'default_code': fields.char('SEPTA P/N', size=64, translate=False, required=False, readonly=False, select=True),
     }
+    _sql_constraints = [
+        ('default_code_unique', 'unique (default_code)', 'SEPTA P/N must be unique!')
+    ]
 
+vmi_product_product()
+
+
+class vmi_product_category(osv.osv):
+    """Override of product.product"""
+    _name = 'product.category'
+    _inherit = 'product.category'
+    _columns = {
+        'code': fields.char('Category Code', size=2)
+    }
+
+vmi_product_category()
+
+
+class vmi_product_pricelist_item(osv.osv):
+    _name = 'product.pricelist.item'
+    _inherit = 'product.pricelist.item'
+    _columns = {
+        'price_discount': fields.float('Price Discount', digits=(16, 6)),
+    }
+
+vmi_product_pricelist_item()
+
+
+class vmi_stock_location(osv.osv):
+    """Override of stock.location"""
+    _name = 'stock.location'
+    _inherit = 'stock.location'
+    _columns = {
+        'code': fields.char('Location Code', size=2)
+    }
+
+vmi_stock_location()
 
 class vmi_stock_move(osv.osv):
     """Override of stock.move"""
@@ -289,6 +340,9 @@ class vmi_stock_picking_in(osv.osv):
             ('fail', 'Fail Audit')], 'Contains Audit',
             help="Specify whether this package contains Audited goods, If contains, Pass or Fail"),
     }
+    _sql_constraints = [
+        ('origin_uniq', 'unique(origin, partner_id)', 'Packaging Slip Number must be unique per Company!'),
+    ]
 
 
         #add attr to vendor in database:
@@ -645,6 +699,20 @@ class vmi_stock_picking(osv.osv):
                         context['invoice_name'] = invoice_name
                         context['invoice_category'] = move_line.product_id.categ_id.id
                         context['invoice_location'] = picking.location_dest_id.id
+                        done_date = picking.date_done.split('-')
+                        internal_number = 'VMI' + \
+                                          partner.code.rjust(2, '0') + \
+                                          picking.location_dest_id.location_id.code.rjust(2, '0') + \
+                                          move_line.product_id.categ_id.code.rjust(2, '0') + \
+                                          done_date[1] + \
+                                          done_date[0][2:]
+                        seq = ''
+                        old_seq = invoice_obj.search(cr, uid, [('internal_number', 'like', internal_number)])
+                        if old_seq:
+                            old_num = invoice_obj.read(cr, uid, old_seq[-1], ['internal_number'])
+                            seq = str(int(old_num['internal_number'][13:]) + 1)
+                        internal_number += seq.rjust(3, '0')
+                        context['internal_number'] = internal_number
                         _logger.debug('<action_invoice_create> invoice_name: %s', str(context['invoice_name']))
                         invoice_vals = self._prepare_invoice(cr, uid, picking, partner, inv_type, journal_id, context=context)
                         invoice_id = invoice_obj.create(cr, uid, invoice_vals, context=context)
@@ -758,7 +826,8 @@ class vmi_stock_picking(osv.osv):
             'name': invoice.name,
             'origin': (invoice.origin or '') + ', ' + (picking.name or '') + (picking.origin and (':' + picking.origin) or ''),
             'comment': (comment and (invoice.comment and invoice.comment + "\n" + comment or comment)) or (invoice.comment and invoice.comment or ''),
-            'date_invoice': context.get('date_inv', False),
+            'date_due': context.get('date_due', False),
+            'date_inv': context.get('date_inv', False),
             'user_id': uid,
         }
 
@@ -788,11 +857,13 @@ class vmi_stock_picking(osv.osv):
             'comment': comment,
             'payment_term': payment_term,
             'fiscal_position': partner.property_account_position.id,
+            'date_due': context.get('date_due', False),
             'date_invoice': context.get('date_inv', False),
             'company_id': picking.company_id.id,
             'user_id': uid,
             'category_id': context['invoice_category'],
             'location_id': context['invoice_location'],
+            'internal_number': context['internal_number'],
         }
         cur_id = self.get_currency_id(cr, uid, picking)
         if cur_id:
@@ -806,6 +877,33 @@ vmi_stock_picking()
 class vmi_stock_invoice_onshipping(osv.osv):
     _name = 'stock.invoice.onshipping'
     _inherit = 'stock.invoice.onshipping'
+    _columns = {
+        'due_date': fields.date('Due Date'),
+    }
+    # Inherit vmi_stock_invoice_onshipping, add due_date field, let the user select due date and make invoice date today.
+
+    def create_invoice(self, cr, uid, ids, context=None):
+        if context is None:
+            context = {}
+        picking_pool = self.pool.get('stock.picking')
+        onshipdata_obj = self.read(cr, uid, ids, ['journal_id', 'group', 'due_date'])
+        if context.get('new_picking', False):
+            onshipdata_obj['id'] = onshipdata_obj.new_picking
+            onshipdata_obj[ids] = onshipdata_obj.new_picking
+        context['date_inv'] = date.today()
+        context['date_due'] = onshipdata_obj[0]['due_date']
+        active_ids = context.get('active_ids', [])
+        active_picking = picking_pool.browse(cr, uid, context.get('active_id',False), context=context)
+        inv_type = picking_pool._get_invoice_type(active_picking)
+        context['inv_type'] = inv_type
+        if isinstance(onshipdata_obj[0]['journal_id'], tuple):
+            onshipdata_obj[0]['journal_id'] = onshipdata_obj[0]['journal_id'][0]
+        res = picking_pool.action_invoice_create(cr, uid, active_ids,
+              journal_id = onshipdata_obj[0]['journal_id'],
+              group = onshipdata_obj[0]['group'],
+              type = inv_type,
+              context=context)
+        return res
 
 
 
@@ -820,18 +918,20 @@ class vmi_account_invoice(osv.osv):
             ('vendor_denied', 'Vendor Denied'),
             ('vendor_approved', 'Vendor Approved'),
             ('ready', 'Ready for AP'),
+            ('sent', 'AP File Sent'),
             ('cancel', 'Cancelled'),
             ], 'Status', select=True, readonly=True, track_visibility='onchange',
             help=' * The \'Draft\' status is used when a user is encoding a new and unconfirmed Invoice, waiting for confirmation by manager. \
             \n* The \'Septa Manager Approved\' status indicates that this invoice has been approved by manager and waiting for confirmation by vendor. \
             \n* The \'Vendor Denied\' status indicates that this invoice has been denied by vendor. Manager need to review it and re-validate. \
             \n* The \'Vendor Approved\' status indicates that this invoice has been approved by vendor. \
-            \n* The \'Paid\' status is set automatically when the invoice is paid. Its related journal entries may or may not be reconciled. \
+            \n* The \'Ready for AP\' status is set automatically when the account information is attached. \
+            \n* The \'AP File Sent\' status indicates that an ap file has been generated and uploaded to FTP server. \
             \n* The \'Cancelled\' status is used when user cancel invoice.'),
-        'invoice_line': fields.one2many('account.invoice.line', 'invoice_id', 'Invoice Lines', states={'draft':[('readonly',False)]}),
-        'account_line': fields.one2many('account.invoice.account.line', 'invoice_id', 'Account Lines'),
-        'location_id': fields.many2one('stock.location', 'Location', states={'done': [('readonly', True)]}, select=True, track_visibility='always', help="Location that stocks the finished products in current invoice."),
-        'category_id': fields.many2one('product.category','Category', states={'done': [('readonly', True)]}, select=True, track_visibility='always', help="Select category for the current product"),
+        'invoice_line': fields.one2many('account.invoice.line', 'invoice_id', 'Invoice Lines', states={'ready': [('readonly', True)], 'vendor_approved': [('readonly', True)]}),
+        'account_line': fields.one2many('account.invoice.account.line', 'invoice_id', 'Account Lines', states={'ready': [('readonly', True)], 'vendor_approved': [('readonly', True)]}),
+        'location_id': fields.many2one('stock.location', 'Location', states={'vendor_approved': [('readonly', True)], 'vendor_approved': [('readonly', True)]}, select=True, track_visibility='always', help="Location that stocks the finished products in current invoice."),
+        'category_id': fields.many2one('product.category','Category', states={'vendor_approved': [('readonly', True)], 'vendor_approved': [('readonly', True)]}, select=True, track_visibility='always', help="Select category for the current product"),
     }
 
     def action_move_create(self, cr, uid, ids, context=None):
@@ -1189,14 +1289,16 @@ class vmi_account_invoice(osv.osv):
         account_invoice_account_line_obj = self.pool.get('account.invoice.account.line')
         account_rule_line_obj = self.pool.get('account.account.rule.line')
 
+        if not isinstance(ids, int):
+            ids = ids[0]
 
-        invoice = self.browse(cr, uid, ids[0], None)
+        invoice = self.browse(cr, uid, ids, None)
 
         #Get all rule lines find if there is a rule for product
         products = {}
         product_rules_id = account_rule_line_obj.search(cr, uid, [('product_id', '!=', None)], None)
         if product_rules_id:
-            product_rules = account_rule_line_obj.browse(cr, uid, ids, None)
+            product_rules = account_rule_line_obj.browse(cr, uid, product_rules_id, None)
             for rule in product_rules:
                 products[rule.product_id.id] = rule.account_id
         #match location and category find account(s)
@@ -1225,11 +1327,189 @@ class vmi_account_invoice(osv.osv):
                     accounts[rule.account_id.id] = total * rule.ratio
         #Create account line
         if accounts:
-            for account in accounts.keys():
-                account_invoice_account_line_obj.create(cr, uid, {'invoice_id': ids[0], 'account_id': account, 'total': accounts[account]}, None)
+            for account in accounts:
+                account_invoice_account_line_obj.create(cr, uid, {'invoice_id': ids, 'account_id': account, 'total': accounts[account]}, None)
             change_state = self.write(cr, uid, ids, {'state': 'ready'}, None)
 
         return True
+
+    def generate_ap_file(self, cr, uid, ids, context=None):
+        """
+
+        :param cr:
+        :param uid:
+        :param ids:
+        :param context:
+        :return:
+        """
+        account_invoice_ap_obj = self.pool.get('account.invoice.ap')
+        invoice_ap_id = account_invoice_ap_obj.search(cr, uid, [])
+        invoice_ap = account_invoice_ap_obj.read(cr, uid, invoice_ap_id, [], context)
+        # Check if file exist, rename it before generate a new one
+        if os.path.isfile(ap_file):
+            today = date.today()
+            os.rename(ap_file, ap_file[:-4] + '-' + str(today) + '.' + str(random.randrange(0, 99, 2)) + ap_file[-4:])
+        f = open(ap_file, 'w+')
+        # positions for CG, IH, IL
+        ih_fields = {
+            'paying_entity': (1, 4),
+            'control_date': (5, 12),
+            'control_number': (13, 16),
+            'invoice_sequence_number': (25, 30),
+            'record_type': (37, 38),
+            'vendor_number': (49, 58),
+            'vendor_group': (59, 60),
+            'invoice_number': (61, 76),
+            'invoice_date': (77, 84),
+            'gross_amount': (398, 412),
+            'cm_dm': 504,
+            'payment_due_date': (507, 514),
+            'bank_payment_code': (536, 538),
+            'gl_effective_date': (624, 631),
+        }
+        il_fields = {
+            'paying_entity': (1, 4),
+            'control_date': (5, 12),
+            'control_number': (13, 16),
+            'invoice_sequence_number': (25, 30),
+            'line_number': (31, 36),
+            'record_type': (37, 38),
+            'vendor_number': (49, 58),
+            'vendor_group': (59, 60),
+            'invoice_number': (61, 76),
+            'invoice_date': (77, 84),
+            'project_company': (202, 205),
+            'project_number': (206, 217),
+            'expense_company': (247, 250),
+            'expense_account': (251, 268),
+            'expense_center': (269, 280),
+            'expense_amount': (284, 298),
+        }
+        cg_fields = {
+            'paying_entity': (1, 4),
+            'control_date': (5, 12),
+            'control_number': (13, 16),
+            'record_type': (37, 38),
+            'application_area': (51, 52),
+            'gl_effective_date': (53, 60),
+            'control_amount': (61, 75),
+            'operator_id': (335, 340),
+        }
+
+        control_date = '%02d' % date.today().month + '%02d' % date.today().day + str(date.today().year)
+        timedelta = 6 - date.today().isoweekday()
+        gl_effective_date = '%02d' % date.today().month + '%02d' % (date.today().day + timedelta) + str(date.today().year)
+        invoice_sequence_number = 1
+        control_amount = 0
+
+        header = ''
+        ap_lines = ''
+        # generate header
+        for position in range(1, 820):
+            if position % 5 == 0 and position % 10 != 0:
+                header += '+'
+            elif position % 10 == 0:
+                header += str(position / 10 % 10)
+            else:
+                header += '-'
+        ap_lines += header + '\n'
+        # generate lines based on selected invoices
+        for invoice in self.browse(cr, uid, ids, context):
+            default_values = filter(lambda ap: ap['vendor_id'][0] == invoice.partner_id.id, invoice_ap)[0]
+            i_date = invoice.date_invoice.split('-')
+            invoice_date = i_date[1] + i_date[2] + i_date[0]
+            d_date = invoice.date_due.split('-')
+            due_date = d_date[1] + d_date[2] + d_date[0]
+
+            ih_values = {
+                'paying_entity': default_values['paying_entity'],
+                'control_date': control_date,
+                'control_number': default_values['control_number'],
+                'invoice_sequence_number': '{0:06d}'.format(invoice_sequence_number),
+                'record_type': 'IH',
+                'vendor_number': default_values['vendor_number'].rjust(10, ' '),
+                'vendor_group': default_values['vendor_group_number'],
+                'invoice_number': invoice.internal_number,
+                'invoice_date': invoice_date,
+                'gross_amount': (('%.2f' % invoice.check_total).replace('.', '')).rjust(15, '0'),
+                'cm_dm': 'I',
+                'payment_due_date': due_date,
+                'bank_payment_code': default_values['bank_payment_code'],
+                'gl_effective_date': gl_effective_date,
+            }
+            ap_lines += self._prepare_ap_line(ih_fields, ih_values) + '\n'
+            line_number = 1
+            for account_line in invoice.account_line:
+                account = account_line.account_id.name.split('-')
+                project_company = account[0]
+                project_number = ''
+                if len(account) == 5:
+                    project_number = account[4]
+                il_values = {
+                    'paying_entity': default_values['paying_entity'],
+                    'control_date': control_date,
+                    'control_number': default_values['control_number'],
+                    'invoice_sequence_number': '{0:06d}'.format(invoice_sequence_number),
+                    'line_number': '{0:06d}'.format(line_number),
+                    'record_type': 'IL',
+                    'vendor_number': default_values['vendor_number'].rjust(10, ' '),
+                    'vendor_group': default_values['vendor_group_number'],
+                    'invoice_number': invoice.number.encode('utf-8').rjust(16, ' '),
+                    'invoice_date': invoice_date,
+                    'project_company': project_company,
+                    'project_number': project_number.rjust(12, ' '),
+                    'expense_company': account[0],
+                    'expense_account': account[1].rjust(18, ' '),
+                    'expense_center': (account[2] + account[3]).rjust(12, ' '),
+                    'expense_amount': (('%.2f' % account_line.total).replace('.', '')).rjust(15, '0'),
+                }
+                ap_lines += self._prepare_ap_line(il_fields, il_values) + '\n'
+                line_number += 1
+            invoice_sequence_number += 1
+            control_amount += round(invoice.check_total, 2)
+        cg_values = {
+            'paying_entity': default_values['paying_entity'],
+            'control_date': control_date,
+            'control_number': default_values['control_number'],
+            'record_type': 'CG',
+            'application_area': default_values['application_code'],
+            'gl_effective_date': gl_effective_date,
+            'control_amount': str(control_amount).replace('.', '').rjust(15, '0'),
+            'operator_id': default_values['operator_id'],
+        }
+        ap_lines += self._prepare_ap_line(cg_fields, cg_values) + '\n'
+        f.write(ap_lines)
+        f.close()
+        # Upload file to FTP server
+        try:
+            ftp = FTP(ap_ftp, ap_ftp_username, ap_ftp_password)
+            ftp.cwd(ap_ftp_path)
+            if '/' in ap_file:
+                file_name = ap_file.split('/')[-1]
+            else:
+                file_name = ap_file.split('\\')[-1]
+            ftp.storbinary('STOR %s' % file_name, open(ap_file, 'rb'))
+            ftp.quit()
+        except Exception, e:
+            raise osv.except_osv(_('Error!'), _('Upload to FTP error:', e))
+            #_logger.debug('Upload to FTP error: %s', e)
+
+        return True
+
+    def _prepare_ap_line(self, position, value):
+        line = [' ']*1000
+        for key in position:
+            if key in value.keys():
+                if isinstance(position[key], int):
+                    pos = position[key]
+                    line[pos-1] = value[key]
+                elif len(position[key]) == 2:
+                    start, end = position[key]
+                    line[start-1:end] = value[key]
+                else:
+                    raise 'Wrong AP position on %s' % key
+        return ''.join(line)
+
 
     def invoice_cancel(self, cr, uid, ids, context=None):
         if context is None:
@@ -1263,7 +1543,7 @@ class vmi_account_invoice(osv.osv):
         stock_picking_obj.write(cr, uid, stock_picking_ids, {'invoice_state': '2binvoiced'})
 
         # First, set the invoices as cancelled and detach the move ids
-        self.write(cr, uid, ids, {'state':'cancel', 'move_id':False})
+        self.write(cr, uid, ids, {'state': 'cancel', 'move_id': False, 'internal_number': None})
         if account_move_ids:
             # second, invalidate the move(s)
             account_move_obj.button_cancel(cr, uid, account_move_ids, context=context)
@@ -1275,7 +1555,7 @@ class vmi_account_invoice(osv.osv):
         return True
 
 
-    def set_to_draft(self, cr, uid, ids, context=None):
+    '''def set_to_draft(self, cr, uid, ids, context=None):
         """ Cancels the stock move and change inventory state to draft.
         @return: True
         """
@@ -1299,7 +1579,21 @@ class vmi_account_invoice(osv.osv):
                     change_picking = False
         if change_picking:
             stock_picking_obj.write(cr, uid, stock_picking_ids, {'invoice_state': 'invoiced'})
-        return True
+        return True'''
+
+    def prepare_to_generate_ap_file(self, cr, uid, ids, context=None):
+        if context is None:
+            context = {}
+        #valid_ids = []
+        data_inv = self.pool.get('account.invoice').read(cr, uid, context['active_ids'], ['state'], context=context)
+
+        for record in data_inv:
+            if record['state'] != 'ready':
+                raise osv.except_osv(_('Warning!'), _("Selected invoice(s) cannot be allocated as they are not in 'Ready for AP' state."))
+
+        self.generate_ap_file(cr, uid, context['active_ids'])
+
+        return {'type': 'ir.actions.act_window_close'}
 
 vmi_account_invoice()
 
@@ -1419,7 +1713,8 @@ class vmi_res_partner(osv.osv):
     _inherit = "res.partner"
     _columns = {
         'notification': fields.boolean('Email Notification for Invoice', help="Check this box to enable email notifications for invoices"),
-        'audit_notification': fields.boolean('Email Notification for Auditing', help="Check this box to enable email notifications for auditing")
+        'audit_notification': fields.boolean('Email Notification for Auditing', help="Check this box to enable email notifications for auditing"),
+        'code': fields.char('Partner Code', size=4)
     }
 
 vmi_res_partner()
@@ -1509,7 +1804,7 @@ class account_invoice_calculate(osv.osv_memory):
                 account_amount = {}
                 line_info = str(line.product_id.name).split('-')
                 line_category = product_category_obj.search(cr, uid, [('name', '=', line_info[0])])
-                for cate_loc in location_ratio.keys():
+                for cate_loc in location_ratio:
                     account = account_account_obj.search(cr, uid, [('category_ids', 'in', category_delivery), ('location_ids', 'in', [cate_loc[1]])])
                     if line_category[0] == cate_loc[0]:
                         amount = location_ratio[cate_loc]*line.price_subtotal
@@ -1517,7 +1812,7 @@ class account_invoice_calculate(osv.osv_memory):
                             account_amount[account[0]] += amount
                         else:
                             account_amount[account[0]] = amount
-                for key in account_amount.keys():
+                for key in account_amount:
                     values.append({'invoice_id': invoice['id'], 'account_id': key, 'total': account_amount[key]})
             if len(values)>0:
                 for value in values:
@@ -1535,6 +1830,32 @@ class account_invoice_calculate(osv.osv_memory):
 
 account_invoice_allocate()
 
+
+class account_invoice_generate(osv.osv_memory):
+    """
+    This wizard will Generate AP File
+    """
+
+    _name = "account.invoice.generate"
+    _description = "Generate AP File based on selected invoiced"
+
+    def prepare_to_generate_ap_file(self, cr, uid, ids, context=None):
+        if context is None:
+            context = {}
+        account_invoice_obj = self.pool.get('account.invoice')
+        #valid_ids = []
+        data_inv = self.pool.get('account.invoice').read(cr, uid, context['active_ids'], ['state'], context=context)
+
+        for record in data_inv:
+            if record['state'] != 'ready':
+                raise osv.except_osv(_('Warning!'), _("Selected invoice(s) cannot be allocated as they are not in 'Ready for AP' state."))
+
+        account_invoice_obj.generate_ap_file(cr, uid, context['active_ids'])
+
+        return {'type': 'ir.actions.act_window_close'}
+
+account_invoice_generate()
+
 class account_invoice_account_line(osv.osv):
     _name = 'account.invoice.account.line'
     _description = 'Account Line'
@@ -1547,10 +1868,34 @@ class account_invoice_account_line(osv.osv):
 account_invoice_account_line()
 
 
+class account_invoice_ap(osv.osv):
+    """
+    This wizard will Generate AP File
+    """
+
+    _name = "account.invoice.ap"
+    _table = 'account_invoice_ap'
+    _description = "Generate AP File based on selected invoiced"
+    _columns = {
+        'name': fields.char('Name', size=64),
+        'paying_entity': fields.char('Paying Entity', size=64),
+        'control_number': fields.char('Control Number', size=64),
+        'operator_id': fields.char('Operator ID', size=64),
+        'vendor_group_number': fields.char('Vendor Group Number', size=64),
+        'application_code': fields.char('Application Code', size=64),
+        'bank_payment_code': fields.char('Bank Payment Code', size=64),
+        'vendor_id': fields.many2one('res.partner', 'Vendor', required=True, readonly=False),
+        'vendor_number': fields.char('Vendor Number', size=64),
+    }
+
+account_invoice_ap()
+
+
 class account_account_rule_line(osv.osv):
     _name = 'account.account.rule.line'
     _description = 'Rule Line'
     _columns = {
+        'name': fields.char('Name', size=64),
         'account_id': fields.many2one('account.account', 'Account', required=True, help="This account related to the selected invoice"),
         'location_id': fields.many2one('stock.location', 'Location'),
         'category_id': fields.many2one('product.category', 'Category'),
@@ -1573,22 +1918,6 @@ class vmi_account_account(osv.osv):
 
 vmi_account_account()
 
-class vmi_product_pricelist_item(osv.osv):
-    _name = 'product.pricelist.item'
-    _inherit = 'product.pricelist.item'
-    _columns = {
-        'price_discount': fields.float('Price Discount', digits=(16, 6)),
-    }
-
-vmi_product_pricelist_item()
-
-
-class vmi_product_product(osv.osv):
-    _name = "product.product"
-    _inherit = 'product.product'
-    _sql_constraints = [
-        ('default_code_unique', 'unique (default_code)', 'SEPTA P/N must be unique!')
-    ]
 
 '''class CompanyLDAP(osv.osv):
     _name = 'res.company.ldap'
