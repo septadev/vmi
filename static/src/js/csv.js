@@ -52,7 +52,7 @@ $(document).ready(function() {
                         output += '</div>';
                         // post the results
                         $('#list').append(output);
-
+                        $('.overlay').hide();
                     }
                     else if (data.error) { // OpenERP error
                         var output = '<div id="error" title="Upload Failed" style="color: #ff0000">';
@@ -60,6 +60,7 @@ $(document).ready(function() {
                         output += '</div>';
                         // post the results
                         $('#list').append(output);
+                        $('.overlay').hide();
                     } // if
                     else { // successful transaction
                         //console.log('Success');

@@ -11,13 +11,9 @@ import base64
 import logging
 import datetime
 import sys
-from openerp import sql_db, pooler
 from datetime import date
 from types import *
 from simpletal import simpleTAL, simpleTALES
-import werkzeug.utils
-import werkzeug.wrappers
-import openerp
 from openerp.tools.translate import _
 from openerp.tools.config import configmanager
 import openerp.addons.web.http as vmiweb
@@ -511,7 +507,7 @@ def get_stock_pickings(req, pid):
     try:
         pickings = do_search_read(req, 'stock.picking.in', fields, 0, False, filters, None)
         for picking in pickings['records']:
-            picking['location_dest_id'] = str(picking['location_dest_id']).split('/')[2]
+            picking['location_dest_id'] = str(picking['location_dest_id'][1]).split('/')[1]
     except Exception:
         _logger.debug('<get_stock_pickings> No stock.picking.in instances found for partner ID: %s', pid)
 
@@ -535,6 +531,8 @@ def get_stock_picking_by_number(req, pid):
               'location_dest_id']
     try:
         pickings = do_search_read(req, 'stock.picking.in', fields, 0, False, [('origin', '=', picking_no)], None)
+        for picking in pickings['records']:
+            picking['location_dest_id'] = str(picking['location_dest_id'][1]).split('/')[1]
     except Exception:
         _logger.debug('<get_stock_pickings> No stock.picking.in instances found for No.: %s', picking_no)
 

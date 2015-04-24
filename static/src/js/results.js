@@ -97,8 +97,8 @@ $(document).ready(function(){
 
     //functions when submit the filter. An ajax call to pass parameters to the server. Year and month are mandatory.
     $('#filter').click(function(){
-        if ($('#picking_no').val() != null){
-            console.log("search picking no")
+        if ($('#picking_no').val() != ""){
+            console.log("search picking no");
             $.ajax({
                 type: "POST",
                 url: "/vmi/get_picking_no",
