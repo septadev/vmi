@@ -1765,6 +1765,7 @@ class account_invoice_calculate(osv.osv_memory):
         product_category_obj = self.pool.get('product.category')
         stock_location_obj = self.pool.get('stock.location')
         account_account_obj = self.pool.get('account.account')
+        account_account_rule_line_obj = self.pool.get('account.account.rule.line')
         account_invoice_account_line_obj = self.pool.get('account.invoice.account.line')
         #account = account_account_obj.search(cr, uid, [('category_ids', 'in', [22]), ('location_ids', 'in', [58])])
         #Get id of category "Delivery Fee"
@@ -1809,13 +1810,17 @@ class account_invoice_calculate(osv.osv_memory):
                 line_info = str(line.product_id.name).split('-')
                 line_category = product_category_obj.search(cr, uid, [('name', '=', line_info[0])])
                 for cate_loc in location_ratio:
-                    account = account_account_obj.search(cr, uid, [('category_ids', 'in', category_delivery), ('location_ids', 'in', [cate_loc[1]])])
+                    account_rule_line_id = account_account_rule_line_obj.search(cr, uid, [('location_id', '=', cate_loc[1]), ('category_id', '=', category_delivery[0])])
+                    if account_rule_line_id:
+                        account_rule_line = account_account_rule_line_obj.browse(cr, uid, account_rule_line_id, None)
+                        account = account_rule_line[0].account_id.id
+                        #account = account_account_obj.search(cr, uid, [('category_ids', 'in', category_delivery), ('location_ids', 'in', [cate_loc[1]])])
                     if line_category[0] == cate_loc[0]:
                         amount = location_ratio[cate_loc]*line.price_subtotal
-                        if account[0] in account_amount.keys():
-                            account_amount[account[0]] += amount
+                        if account in account_amount.keys():
+                            account_amount[account] += amount
                         else:
-                            account_amount[account[0]] = amount
+                            account_amount[account] = amount
                 for key in account_amount:
                     values.append({'invoice_id': invoice['id'], 'account_id': key, 'total': account_amount[key]})
             if len(values)>0:
