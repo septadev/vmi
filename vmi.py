@@ -562,7 +562,7 @@ class stock_move_audit(osv.osv_memory):
         l = self.pool.get('stock.location').browse(cr, uid, location_ids, context=context)
         parent_location = l[0].location_id.id
         _logger.debug('<stock_move_audit> parent_location: %s', str(parent_location))
-        audit_location = location_obj.search(cr, uid, [('location_id', '=', parent_location), ('name', '=', 'Audit')])
+        audit_location = location_obj.search(cr, uid, [('location_id', '=', parent_location), ('name', 'like', 'Audit')])
         _logger.debug('<stock_move_audit> audit_location: %s', str(audit_location))
 
         if 'product_id' in fields:
@@ -1098,7 +1098,11 @@ class vmi_account_invoice(osv.osv):
         return True
 
     def finalize_invoice_move_lines(self, cr, uid, invoice_browse, move_lines):
-
+        '''res = []
+        for line in move_lines:
+            if line[2]['product_id']:
+                res.append(line)
+        return res'''
         return move_lines
 
     def invoice_validate(self, cr, uid, ids, context=None):
@@ -1817,14 +1821,25 @@ class account_invoice_calculate(osv.osv_memory):
             if len(values)>0:
                 for value in values:
                     account_line = account_invoice_account_line_obj.create(cr, uid, value, None)
-                change_state = self.write(cr, uid, invoice['id'], {'state': 'ready'}, None)
-
-                    #account_amount.append({'invoice_id': invoice['id'], 'account_id': account[0], 'total': amount})
-            '''for account in accounts:
-                for category in account.category_ids:
-                    if category.id == category_delivery[0]:
-                        for location in account.location_ids:
-                            if location in location_ratio:'''
+                done_date = invoice.date_invoice.split('-')
+                internal_number = 'VMI' + \
+                                    invoice.partner_id.code.rjust(2, '0') + \
+                                    '00' + \
+                                    invoice.category_id.code.rjust(2, '0') + \
+                                    done_date[1] + \
+                                    done_date[0][2:]
+                seq = ''
+                old_seq = account_invoice_obj.search(cr, uid, [('internal_number', 'like', internal_number)])
+                if old_seq:
+                    old_num = account_invoice_obj.read(cr, uid, old_seq[-1], ['internal_number'])
+                    seq = str(int(old_num['internal_number'][13:]) + 1)
+                internal_number += seq.rjust(3, '0')
+                changed_fields = {
+                    'internal_number': internal_number,
+                    'number': internal_number,
+                    'state': 'ready'
+                }
+                change_state = account_invoice_obj.write(cr, uid, invoice['id'], changed_fields, None)
 
         return {'type': 'ir.actions.act_window_close'}
 
