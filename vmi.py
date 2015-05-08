@@ -3,6 +3,7 @@ import time
 import sys
 import os
 import random
+import ldap
 from datetime import date
 from ftplib import FTP
 
@@ -1367,9 +1368,10 @@ class vmi_account_invoice(osv.osv):
             'invoice_date': (77, 84),
             'gross_amount': (398, 412),
             'cm_dm': 504,
-            'payment_due_date': (507, 514),
+            'one_invoice': 506,
+            #'payment_due_date': (507, 514),
             'bank_payment_code': (536, 538),
-            'gl_effective_date': (624, 631),
+            #'gl_effective_date': (624, 631),
         }
         il_fields = {
             'paying_entity': (1, 4),
@@ -1395,7 +1397,7 @@ class vmi_account_invoice(osv.osv):
             'control_number': (13, 16),
             'record_type': (37, 38),
             'application_area': (51, 52),
-            'gl_effective_date': (53, 60),
+            #'gl_effective_date': (53, 60),
             'control_amount': (61, 75),
             'operator_id': (335, 340),
         }
@@ -1435,11 +1437,12 @@ class vmi_account_invoice(osv.osv):
                 'vendor_group': default_values['vendor_group_number'],
                 'invoice_number': invoice.internal_number,
                 'invoice_date': invoice_date,
-                'gross_amount': (('%.2f' % invoice.check_total).replace('.', '')).rjust(15, '0'),
+                'gross_amount': (('%.2f' % invoice.amount_total).replace('.', '')).rjust(15, '0'),
                 'cm_dm': 'I',
-                'payment_due_date': due_date,
+                'one_invoice': '1',
+                #'payment_due_date': due_date,
                 'bank_payment_code': default_values['bank_payment_code'],
-                'gl_effective_date': gl_effective_date,
+                #'gl_effective_date': gl_effective_date,
             }
             ap_lines += self._prepare_ap_line(ih_fields, ih_values) + '\n'
             line_number = 1
@@ -1477,7 +1480,7 @@ class vmi_account_invoice(osv.osv):
             'control_number': default_values['control_number'],
             'record_type': 'CG',
             'application_area': default_values['application_code'],
-            'gl_effective_date': gl_effective_date,
+            #'gl_effective_date': gl_effective_date,
             'control_amount': str(control_amount).replace('.', '').rjust(15, '0'),
             'operator_id': default_values['operator_id'],
         }
@@ -1485,7 +1488,7 @@ class vmi_account_invoice(osv.osv):
         f.write(ap_lines)
         f.close()
         # Upload file to FTP server
-        try:
+        '''try:
             ftp = FTP(ap_ftp, ap_ftp_username, ap_ftp_password)
             ftp.cwd(ap_ftp_path)
             if '/' in ap_file:
@@ -1495,7 +1498,7 @@ class vmi_account_invoice(osv.osv):
             ftp.storbinary('STOR %s' % file_name, open(ap_file, 'rb'))
             ftp.quit()
         except Exception, e:
-            raise osv.except_osv(_('Error!'), _('Upload to FTP error:', e))
+            raise osv.except_osv(_('Error!'), _('Upload to FTP error:', e))'''
             #_logger.debug('Upload to FTP error: %s', e)
 
         return True
@@ -1539,9 +1542,10 @@ class vmi_account_invoice(osv.osv):
             # Get related stock_move's
             lines = account_invoice_line_obj.browse(cr, uid, i['invoice_line'])
             for line in lines:
-                stock_move_ids.append(line.stock_move_id.id)
-                if line.stock_move_id.picking_id.id not in stock_picking_ids:
-                    stock_picking_ids.append(line.stock_move_id.picking_id.id)
+                if line.stock_move_id:
+                    stock_move_ids.append(line.stock_move_id.id)
+                    if line.stock_move_id.picking_id.id not in stock_picking_ids:
+                        stock_picking_ids.append(line.stock_move_id.picking_id.id)
         # Change the statues in related stock move and stock picking
         stock_move_obj.write(cr, uid, stock_move_ids, {'invoice_status': '2binvoiced'})
         stock_picking_obj.write(cr, uid, stock_picking_ids, {'invoice_state': '2binvoiced'})
