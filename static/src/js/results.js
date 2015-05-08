@@ -17,7 +17,6 @@ $(document).ready(function(){
     var fiveYearBefore = yyyy-5;
     // Initialize table
     var oTable = $('#contents').dataTable({
-        "aaData": latest_history,
         "aoColumns": [
             {
                 "mDataProp": null,
@@ -98,7 +97,6 @@ $(document).ready(function(){
     //functions when submit the filter. An ajax call to pass parameters to the server. Year and month are mandatory.
     $('#filter').click(function(){
         if ($('#picking_no').val() != ""){
-            console.log("search picking no");
             $.ajax({
                 type: "POST",
                 url: "/vmi/get_picking_no",
@@ -119,7 +117,6 @@ $(document).ready(function(){
 
                     } // if
                     else { // successful transaction
-                        console.log('Success');
                         //destroy old table and generate a new one with respond data
                         oTable.fnClearTable(0);
                         oTable.fnAddData(data.result['records']);
@@ -165,7 +162,6 @@ $(document).ready(function(){
 
                     } // if
                     else { // successful transaction
-                        console.log('Success');
                         //destroy old table and generate a new one with respond data
                         oTable.fnClearTable(0);
                         oTable.fnAddData(data.result['records']);
@@ -289,7 +285,6 @@ $(document).ready(function(){
         sOut += '<td>Vendor P/N</td>';
         sOut += '<td>Description</td></tr>\n';
         for (var i in rowDetails) {
-            console.log(i);
             if (rowDetails[i].audit_fail == true) {
                 classRow = 'badAudit'
             } else {
@@ -326,7 +321,6 @@ function fnFormatDetails (oTable, nTr )
     sOut += '<td>Vendor P/N</td>';
     sOut += '<td>Description</td></tr>\n';
     for(var i in aData.line_items){
-        console.log(i);
         if(aData.line_items[i].audit_fail == true){
             classRow = 'badAudit'
         }else{

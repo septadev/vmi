@@ -8,6 +8,7 @@
 			@import "/vmi/static/src/js/datatables/extras/TableTools/media/css/TableTools.css";
 			div.dataTables_wrapper { font-size: 13px; }
 			table.display thead th, table.display td { font-size: 13px; }
+            .search{width: 300px; border: 1px solid #999999; padding: 5px; }
 		</style>
 <link rel="stylesheet" type="text/css" media="screen, projection" href="/vmi/static/src/css/screen_rev2.css" />
 <link rel="stylesheet" type="text/css" media="screen, projection" href="/vmi/static/src/js/datatables/media/css/jquery.dataTables.css" />
@@ -55,25 +56,35 @@
             <p id="subtitle" tal:content="title">
               Title
             </p>
-            <p id="subheader" tal:content="header">
-              Header
-            </p>
+            <fieldset>
+                <p id="subheader">
+                    Please Enter the Part Number(s), use ";" to separate items.
+                </p>
+                <label for="septa_pn">Septa P/N(s):</label>
+                <input name="septa_pn" id="septa_pn" class="search" type="text">
+                OR
+                <label for="vendor_pn">Vendor P/N(s):</label>
+                <input name="vendor_pn" id="vendor_pn" class="search" type="text"><br>
+                <button id="submit_pn">Submit</button>
+            </fieldset>
+            <div id="missing_parts" style="display: none"/>
         </div>
         <div id="search" class="info" tal:condition="form_flag">
             <form class="form_search_form" action="#" tal:attributes="action form_action" method="post" enctype="multipart/form-data">
-                <fieldset>
+                <!--<fieldset>
                     <legend tal:content="form_legend">Search Products</legend>
                     <input name="callback" value="debug" type="hidden">
                     <input value="17" name="uid" type="hidden" tal:attributes="value uid">
                     <input value="9" name="pid" type="hidden" tal:attributes="value pid">
                     <input value="9" name="session_id" type="hidden" tal:attributes="value sid">
-                    Enter P/N: <input name="search" value="" type="search" tal:attributes="value search_string"><br>
-                    <input type="submit">
+                    Enter Septa P/N(s): <input name="septa_pn" value="" class="search" type="search" tal:attributes="value septa_pn">
+                    OR
+                    Enter Vendor P/N(s): <input name="vendor_pn" value="" class="search" type="search" tal:attributes="value vendor_pn"><br>
+                    <button id="submit">Submit</button>
                 </fieldset>
-
-                <hr><!-- Result of search or browse -->
-                <h3 tal:condition="search_result">P/N Search Result</h3>
-                <table id="contents" style="width: 100%;" cellpadding="0" cellspacing="0" border="0" class="display" tal:condition="search_result">
+                <div id="missing_parts" style="display: none"/>-->
+                <!-- Result of search or browse -->
+                <table id="contents" style="width: 100%;" cellpadding="0" cellspacing="0" border="0" class="display">
                     <thead>
                         <tr>
                             <th>SEPTA P/N</th>

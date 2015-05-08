@@ -322,7 +322,7 @@ def get_product_by_id(req, ids, all=False):
     return products
 
 
-def search_products_by_pn(req, pn, all=False):
+def search_products_by_septa_pn(req, pn, all=False):
     """
     Search for products with specific part numbers.
     @param req: object
@@ -330,23 +330,65 @@ def search_products_by_pn(req, pn, all=False):
     @param all: selects all fields in result
     @return: search result of specified product.product record(s).
     """
+    part_numbers = [x.strip() for x in pn.split(';')]
     products = None
     fields = ['name', 'id', 'default_code', 'vendor_part_number', 'description', 'categ_id', 'seller_ids',
               'standard_price', 'uom_id']
     if all:
         fields = fields_get(req, 'product.product')
 
-    try:  # Try finding records with SEPTA P/N.
-        products = do_search_read(req, 'product.product', fields, 0, False, [('default_code', 'ilike', pn)], None)
-    except Exception:
-        _logger.debug('<search_products_by_pn> products not found for SEPTA part number: %s', pn)
-
-    if products is not None and products['length'] < 1:
-        try:  # Try finding records with vendor P/N.
-            products = do_search_read(req, 'product.product', fields, 0, False, [('vendor_part_number', 'ilike', pn)],
-                                      None)
+    if len(part_numbers) == 1:
+        try:  # Try finding records with SEPTA P/N.
+            products = do_search_read(req, 'product.product', fields, 0, False, [('default_code', 'ilike', part_numbers[0])], None)
         except Exception:
-            _logger.debug('<search_products_by_pn> products not found for vendor part number: %s', pn)
+            _logger.debug('<search_products_by_pn> products not found for SEPTA part number: %s', pn)
+        found_parts = [products['records'][0]['default_code'] if len(products['records']) == 1 else None]
+    else:
+        try:  # Try finding records with SEPTA P/Ns.
+            products = do_search_read(req, 'product.product', fields, 0, False, [('default_code', 'in', part_numbers)], None)
+        except Exception:
+            _logger.debug('<search_products_by_pn> products not found for SEPTA part number: %s', pn)
+        found_parts = [x['default_code'] for x in products['records']]
+
+    # Find missing data
+    missing_parts = list(set(part_numbers) - set(found_parts))
+    if len(missing_parts) > 0:
+        products['missing_septa_pn'] = missing_parts
+
+    return products
+
+
+def search_products_by_vendor_pn(req, pn, all=False):
+    """
+    Search for products with specific part numbers.
+    @param req: object
+    @param pn: part number string
+    @param all: selects all fields in result
+    @return: search result of specified product.product record(s).
+    """
+    part_numbers = [x.strip() for x in pn.split(';')]
+    products = None
+    fields = ['name', 'id', 'default_code', 'vendor_part_number', 'description', 'categ_id', 'seller_ids',
+              'standard_price', 'uom_id']
+    if all:
+        fields = fields_get(req, 'product.product')
+
+    if len(part_numbers) == 1:
+        try:  # Try finding records with VENDOR P/N.
+            products = do_search_read(req, 'product.product', fields, 0, False, [('vendor_part_number', 'ilike', part_numbers[0])], None)
+        except Exception:
+            _logger.debug('<search_products_by_vendor_pn> products not found for SEPTA part number: %s', pn)
+        found_parts = [products['records'][0]['default_code'] if len(products['records']) == 1 else None]
+    else:
+        try:  # Try finding records with VENDOR P/Ns.
+            products = do_search_read(req, 'product.product', fields, 0, False, [('vendor_part_number', 'in', part_numbers)], None)
+        except Exception:
+            _logger.debug('<search_products_by_septa_pn> products not found for SEPTA part number: %s', pn)
+        found_parts = [x['vendor_part_number'] for x in products['records']]
+    #find missing data
+    missing_parts = list(set(part_numbers) - set(found_parts))
+    if len(missing_parts) > 0:
+        products['missing_vendor_pn'] = missing_parts
 
     return products
 
@@ -1151,7 +1193,7 @@ class VmiController(vmiweb.Controller):
                     return error_msg
 
                 try:
-                    product = search_products_by_pn(req, product_number)
+                    product = search_products_by_septa_pn(req, product_number)
                     product_id = product['records'][0]['id']
                     product_uom = product['records'][0]['uom_id'][0]
                 except Exception, e:
@@ -1460,16 +1502,12 @@ class VmiController(vmiweb.Controller):
 
         template = simpleTAL.compileHTMLTemplate(input)
         input.close()
-        #history = simplejson.dumps(self._get_upload_history(req, pid))get_warehouses
-        #history = ''
+        #Get all warehouses
         stocks = simplejson.dumps(self._get_stocks(req))
-        history = simplejson.dumps(None)
         #_logger.debug('history: %s', history)
-        js = 'var latest_history = %s;\n' % history
-        js += 'var stocks = %s;\n' % stocks
+        js = 'var stocks = %s;\n' % stocks
         js += 'var mode = "%s";\n' % mod
         sid = req.session_id
-        _logger.debug('result sid: %s', sid)
         context = simpleTALES.Context()
         if 'audit_result' in local_vals:  # Append the result of audit flagging.
             js += 'var audit = "%s";\n' % simplejson.dumps(local_vals['audit_result'])
@@ -1576,96 +1614,6 @@ class VmiController(vmiweb.Controller):
         template.expand(context, output)
         return output.getvalue()
 
-    @vmiweb.httprequest
-    def upload_vmi_document(self, req, pid, uid, contents_length, callback, ufile):
-        # session_data = Session.session_info(req.session)
-        #vmi_client_page = self._get_vmi_client_page(req, 'upload')
-        args = {}
-        picking_id = None
-        form_flag = True
-        title = '...page title goes here...'
-        header = '...brief instructions go here...'
-        req.session.ensure_valid()
-        #uid = newSession(req)
-        uid = req.session._uid
-        model = None
-        input = None
-        if contents_length:
-            #import pdb; pdb.set_trace()
-            try:
-                self._parse_packing_slip(req, ufile, pid)
-            except Exception, e:
-                args = {'error': str(e)}
-
-            try:
-                input = open(
-                    'C:\Program Files\OpenERP 7.0-20140622-231040\Server\server\openerp\addons\vmi_dev\vmi_web\template\upload.html',
-                    'r')
-            except IOError, e:
-                _logger.debug('opening the template file %s returned an error: %s, with message %s', e.filename,
-                              e.strerror, e.message)
-            finally:
-                pass
-
-        template = simpleTAL.compileHTMLTemplate(input)
-        input.close()
-        context = simpleTALES.Context()
-
-        #try:
-        #attachment_id = Model.create(parsedata, req.context)
-        #except xmlrpclib.Fault, e:
-        #args = {'error':e.faultCode }
-        if args:
-            form_flag = False
-
-        req.session._suicide = True
-        script = """var callback = %s; \n var return_args = %s;""" % (
-            simplejson.dumps(callback), simplejson.dumps(args))
-        context.addGlobal("title", title)
-        context.addGlobal("script", script)
-        context.addGlobal("header", header)
-        context.addGlobal("picking_id", picking_id)
-        context.addGlobal("form_flag", form_flag)
-
-        output = cStringIO.StringIO()
-        template.expand(context, output)
-        return output.getvalue()
-
-    @vmiweb.httprequest
-    def saveas(self, req, model, field, id=None, filename_field=None, **kw):
-        """ Download link for files stored as binary fields.
-
-        If the ``id`` parameter is omitted, fetches the default value for the
-        binary field (via ``default_get``), otherwise fetches the field for
-        that precise record.
-
-        :param req: OpenERP request
-        :type req: :class:`web.common.http.HttpRequest`
-        :param str model: name of the model to fetch the binary from
-        :param str field: binary field
-        :param str id: id of the record from which to fetch the binary
-        :param str filename_field: field holding the file's name, if any
-        :returns: :class:`werkzeug.wrappers.Response`
-        """
-        Model = req.session.model(model)
-        fields = [field]
-        if filename_field:
-            fields.append(filename_field)
-        if id:
-            res = Model.read([int(id)], fields, req.context)[0]
-        else:
-            res = Model.default_get(fields, req.context)
-        filecontent = base64.b64decode(res.get(field, ''))
-        '''if not filecontent:
-            return req.not_found()
-        else:
-            filename = '%s_%s' % (model.replace('.', '_'), id)
-            if filename_field:
-                filename = res.get(filename_field, '') or filename
-            return req.make_response(filecontent,
-                [('Content-Type', 'application/octet-stream'),
-                 ('Content-Disposition', content_disposition(filename, req))])'''
-
 
     '''@vmiweb.httprequest
     def upload_document(self, req, pid, uid, contents_length, callback, ufile):
@@ -1770,44 +1718,44 @@ class VmiController(vmiweb.Controller):
         kwargs = args.copy()
         return self.result(req, mod, **kwargs)'''
 
+
     @vmiweb.httprequest
-    def products(self, req, mod=None, search=None, **kwargs):
+    def products(self, req, mod=None, **kwargs):
         """
-        Controller for VMI Packing Slip Upload Page
-        @param req: request object
-        @param mod: mode selector (N, D, T)
-        @param kwargs:
-        @return: TAL Template
+
+        :param req: request object
+        :param mod: mode selector (N, D, T)
+        :param kwargs:
+        :return: product page
         """
-        page_name = 'products'
-        redirect_url = self._error_page
-        req.session.ensure_valid()
+        if mod is not None:
+            if mod not in self._modes:
+                raise KeyError
+
         uid = req.session._uid
-        _logger.debug('This is uid %s!', str(uid))
-        vendor_record = get_partner_id(req, uid)['records'][0]
+        local_vals = {}
+        if kwargs is not None:
+            local_vals.update(kwargs)
+            pid = local_vals.get('pid')
+            _logger.debug('Partner found ID: %s', pid)
+        else:
+            try:  # Get Partner ID for session
+                vendor_record = get_partner_id(req, uid)['records'][0]
+                pid = vendor_record['company_id']
+            except IndexError:
+                _logger.debug('Partner not found for user ID: %s', uid)
+                return {'error': _('No Partner found for this User ID!'), 'title': _('Partner Not Found')}
+
+        page_name = 'products'
         temp_globals = dict.fromkeys(self._template_keys, None)
         vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
         if vmi_client_page:  # Set the mode for the controller and template.
             for key in temp_globals:
                 temp_globals[key] = vmi_client_page[0][key]
-
-            if mod is None:
-                mod = vmi_client_page[0]['mode']
         else:
             _logger.debug('No vmi.client.page record found for page name %s!', page_name)
             return req.not_found()
 
-        if mod is not None:
-            if mod not in self._modes:
-                raise KeyError
-
-        search_result = None
-        if search is not None:  # If a value is submitted for search perform the part number search.
-            search_result = search_products_by_pn(req, search)['records']
-
-        js = 'var mode = "%s";\n' % mod
-        if search_result:  # Add result of part number search to javascript scope.
-            js += 'var search_result = %s;\n' % simplejson.dumps(search_result)
         temp_location = os.path.join(vmi_client_page[0]['template_path'], vmi_client_page[0]['template_name'])
         input = ''
         try:
@@ -1820,16 +1768,17 @@ class VmiController(vmiweb.Controller):
 
         # If the template file not found or readable then redirect to error page.
         if not input:
+            _logger.debug('No template found for page name %s!', page_name)
             return req.not_found()
 
         template = simpleTAL.compileHTMLTemplate(input)
         input.close()
+
+        js = 'var mode = "%s";\n' % mod
+        search_result = simplejson.dumps(None)
+        js += 'var search_result = "%s";\n' % search_result
         sid = req.session_id
-        # uid = 17 #req.context['uid']
-        #pid = 9
-        pid = vendor_record['company_id']
         context = simpleTALES.Context()
-        # Add a string to the context under the variable title
         context.addGlobal("title", temp_globals['title'])
         context.addGlobal("script", js)
         context.addGlobal("header", temp_globals['header'])
@@ -1840,11 +1789,10 @@ class VmiController(vmiweb.Controller):
         context.addGlobal("pid", pid)
         context.addGlobal("uid", uid)
         context.addGlobal("mode", mod)
-        context.addGlobal("search_string", search)
-        context.addGlobal("search_result", search_result)
         output = cStringIO.StringIO()
         template.expand(context, output)
         return output.getvalue()
+
 
     @vmiweb.httprequest
     def invoice_processing(self, req, uid, company_id, callback, invoice_id, comment, result):
@@ -2011,3 +1959,39 @@ class VmiController(vmiweb.Controller):
         :return:
         """
         return get_stock_picking_by_number(req, company_id)
+
+    @vmiweb.jsonrequest
+    def get_product(self, req, company_id):
+        """
+
+        :param req:
+        :param company_id:
+        :return:
+        """
+        septa = {}
+        vendor = {}
+        result = {}
+
+        # read user input to decide which part numbers should be used
+        if req.context['septa_pn'] != '':
+            septa = search_products_by_septa_pn(req, req.context['septa_pn'])
+        if req.context['vendor_pn'] != '':
+            vendor = search_products_by_vendor_pn(req, req.context['vendor_pn'])
+
+        # get all missing parts if exists
+        if 'missing_septa_pn' in septa:
+            result['missing_septa_pn'] = septa['missing_septa_pn']
+        if 'missing_vendor_pn' in vendor:
+            result['missing_vendor_pn'] = vendor['missing_vendor_pn']
+
+        # merge all found parts and remove duplicates
+        result['records'] = septa.get('records', []) + vendor.get('records', [])
+        part_numbers = []
+        id_to_remove = []
+        for i in xrange(len(result['records'])):
+            if result['records'][i]['default_code'] in part_numbers:
+                id_to_remove.append(i)
+        for j in id_to_remove:
+            del result['records'][j]
+
+        return result
