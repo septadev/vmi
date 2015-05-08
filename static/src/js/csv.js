@@ -63,7 +63,6 @@ $(document).ready(function() {
                         $('.overlay').hide();
                     } // if
                     else { // successful transaction
-                        //console.log('Success');
                         if ("code" in data.result){
                             alert(data.result["error"]);
                         }
