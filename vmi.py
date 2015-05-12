@@ -1410,7 +1410,8 @@ class vmi_account_invoice(osv.osv):
 
         header = ''
         ap_lines = ''
-        # generate header
+        '''
+        # generate ruler
         for position in range(1, 820):
             if position % 5 == 0 and position % 10 != 0:
                 header += '+'
@@ -1419,33 +1420,16 @@ class vmi_account_invoice(osv.osv):
             else:
                 header += '-'
         ap_lines += header + '\n'
+        '''
         # generate lines based on selected invoices
         for invoice in self.browse(cr, uid, ids, context):
             default_values = filter(lambda ap: ap['vendor_id'][0] == invoice.partner_id.id, invoice_ap)[0]
             i_date = invoice.date_invoice.split('-')
             invoice_date = i_date[1] + i_date[2] + i_date[0]
-            d_date = invoice.date_due.split('-')
-            due_date = d_date[1] + d_date[2] + d_date[0]
-
-            ih_values = {
-                'paying_entity': default_values['paying_entity'],
-                'control_date': control_date,
-                'control_number': default_values['control_number'],
-                'invoice_sequence_number': '{0:06d}'.format(invoice_sequence_number),
-                'record_type': 'IH',
-                'vendor_number': default_values['vendor_number'].rjust(10, ' '),
-                'vendor_group': default_values['vendor_group_number'],
-                'invoice_number': invoice.internal_number,
-                'invoice_date': invoice_date,
-                'gross_amount': (('%.2f' % invoice.amount_total).replace('.', '')).rjust(15, '0'),
-                'cm_dm': 'I',
-                'one_invoice': '1',
-                #'payment_due_date': due_date,
-                'bank_payment_code': default_values['bank_payment_code'],
-                #'gl_effective_date': gl_effective_date,
-            }
-            ap_lines += self._prepare_ap_line(ih_fields, ih_values) + '\n'
+            line_total = 0
             line_number = 1
+            il_lines = ''
+
             for account_line in invoice.account_line:
                 account = account_line.account_id.name.split('-')
                 project_company = account[0]
@@ -1470,10 +1454,34 @@ class vmi_account_invoice(osv.osv):
                     'expense_center': (account[2] + account[3]).rjust(12, ' '),
                     'expense_amount': (('%.2f' % account_line.total).replace('.', '')).rjust(15, '0'),
                 }
-                ap_lines += self._prepare_ap_line(il_fields, il_values) + '\n'
+                il_lines += self._prepare_ap_line(il_fields, il_values) + '\n'
                 line_number += 1
+                line_total += round(account_line.total, 2)
+
+            ih_values = {
+                'paying_entity': default_values['paying_entity'],
+                'control_date': control_date,
+                'control_number': default_values['control_number'],
+                'invoice_sequence_number': '{0:06d}'.format(invoice_sequence_number),
+                'record_type': 'IH',
+                'vendor_number': default_values['vendor_number'].rjust(10, ' '),
+                'vendor_group': default_values['vendor_group_number'],
+                'invoice_number': invoice.internal_number,
+                'invoice_date': invoice_date,
+                'gross_amount': format(line_total, '.2f').replace('.', '').rjust(15, '0'),
+                'cm_dm': 'I',
+                'one_invoice': '1',
+                #'payment_due_date': due_date,
+                'bank_payment_code': default_values['bank_payment_code'],
+                #'gl_effective_date': gl_effective_date,
+            }
+
+            ap_lines += self._prepare_ap_line(ih_fields, ih_values) + '\n'
             invoice_sequence_number += 1
-            control_amount += round(invoice.check_total, 2)
+
+            ap_lines += il_lines
+
+            control_amount += round(line_total, 2)
         cg_values = {
             'paying_entity': default_values['paying_entity'],
             'control_date': control_date,
@@ -1481,7 +1489,7 @@ class vmi_account_invoice(osv.osv):
             'record_type': 'CG',
             'application_area': default_values['application_code'],
             #'gl_effective_date': gl_effective_date,
-            'control_amount': str(control_amount).replace('.', '').rjust(15, '0'),
+            'control_amount': format(control_amount, '.2f').replace('.', '').rjust(15, '0'),
             'operator_id': default_values['operator_id'],
         }
         ap_lines += self._prepare_ap_line(cg_fields, cg_values) + '\n'
