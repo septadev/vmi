@@ -9,9 +9,10 @@ import xmlrpclib
 import simplejson
 import base64
 import logging
-import datetime
 import sys
-from datetime import date
+
+from datetime import datetime, date
+from pytz import timezone
 from types import *
 from simpletal import simpleTAL, simpleTALES
 from openerp.tools.translate import _
@@ -1151,8 +1152,11 @@ class VmiController(vmiweb.Controller):
         picking_model = req.session.model('stock.picking.in')
         result = {'stock_picking': [], 'move_lines': {'moves': []}}
         if res:
+            # a dict stores created packing slips: stock.picking id
             created_slips = {}
             lines = []
+            fmt = "%Y-%m-%d %H:%M:%S"
+            # Validate and prepare each field in each line
             for record in res:
                 packaging_slip = str(record['packing_list_number']).strip()
                 product_number = str(record['septa_part_number']).strip()
@@ -1181,15 +1185,15 @@ class VmiController(vmiweb.Controller):
                 except Exception, e:
                     error_msg['error'] += 'Location {0} does not exist!'.format(location_name)
                     return error_msg
-                #if partner['id'] != pid: # Check if supplier is the same as current user's parent partner.
-                #    _logger.debug('<_create_stock_picking> Supplier ID does not match PID: %s | %s', partner, pid)
-                #    continue
                 # Construct date from individual M D Y fields in CSV data.
+                # All data field are stored in UTC and displayed in system's timezone.
+                # To avoid the timezone bug, convert time to UTC before write to database
                 try:
-                    datetime.datetime(int(str(record['year']).strip()), int(str(record['month']).strip()),
-                                      int(str(record['day']).strip()))
-                    delivery_date = str(record['year']).strip() + '/' + str(record['month']).strip() + '/' + str(
-                        record['day']).strip()
+                    naive_time = datetime(int(str(record['year']).strip()), int(str(record['month']).strip()), int(str(record['day']).strip()))
+                    partner_tz = timezone(partner['tz'])
+                    utc = timezone('UTC')
+                    #localize naive time before converting to utc, this will avoid daylight saving issue
+                    delivery_date_utc = partner_tz.localize(naive_time).astimezone(utc)
                 except Exception, e:
                     error_msg['error'] += 'Invalid date!'
                     return error_msg
@@ -1207,9 +1211,9 @@ class VmiController(vmiweb.Controller):
                     error_msg['error'] += 'Quantity Shipped is at least 1!'
                     return error_msg
 
-                lines.append({'name': record['packing_list_number'].strip() + '.' + delivery_date + '.' + rnd,
-                              'date_done': delivery_date,
-                              'min_date': delivery_date,
+                lines.append({'name': record['packing_list_number'].strip() + '.' + naive_time.strftime(fmt) + '.' + rnd,
+                              'date_done': delivery_date_utc.strftime(fmt),
+                              'min_date': delivery_date_utc.strftime(fmt),
                               'partner_id': partner['id'],
                               'origin': record['packing_list_number'].strip(),
                               'location_id': location_id,
@@ -1219,12 +1223,13 @@ class VmiController(vmiweb.Controller):
                               'product_qty': product_qty,
                               'picking_id': None,
                               'vendor_id': pid,
-                              'date_expected': delivery_date,
+                              'date_expected': delivery_date_utc.strftime(fmt),
                               'scrapped': False,
                               'note': '',
                 })
 
             for line in lines:
+                # Create stock.picking based on packaging slip number
                 if line['origin'] not in created_slips.keys():
                     picking_id = picking_model.create({'name': line['name'],
                                                        'date_done': line['date_done'],
@@ -1253,21 +1258,7 @@ class VmiController(vmiweb.Controller):
                         _logger.debug('move created failed: %s!', str(e))
                 result['move_lines']['moves'].append(move_id)
 
-            '''picked = self._create_stock_picking(req, pickings, pid)
-            if 'error' in picked[0].keys():
-                return {
-                    'code': 400,
-                    'message': "OpenERP WebClient Error",
-                    'data': {
-                        'type': 'Invalid Data',
-                        'text': 'Invalid data on {0}'.format(picked['error'])
-                    }
-                }'''
-
-        # _logger.debug('<_parse_packing_slip> returned values: %s', str(result))
-        return result  #{'stock_pickings': [{'picking_id': picking_id, 'packing_list': packing_list_number}],
-        # 'move_lines': {'moves': [id], 'locations', [id]
-        # 'pid': id}
+        return result
 
 
     def _call_methods(self, req, model, method, args, **kwargs):
