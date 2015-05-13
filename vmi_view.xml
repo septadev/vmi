@@ -228,9 +228,11 @@
                     <!--<button name="%(stock.action_stock_invoice_onshipping)d" string="Create Invoice"  attrs="{'invisible': ['|','|',('state','&lt;&gt;','done'),('invoice_state','=','invoiced'),('invoice_state','=','none')]}"  type="action" class="oe_highlight"/>-->
                 </button>
                 <xpath expr="//button[@name='%(stock.act_stock_return_picking)d']" position="replace"/>
+                <field name="date_done" position="replace"/>
                 <field name="min_date" position="replace">
-                    <field name="date_done"/>
+                    <field name="date_done" string="Delivery Date" readonly="1"/>
                 </field>
+                <field name="purchase_id" position="replace"/>
                 <field name="invoice_state" position="replace">
                     <field name="invoice_state"/>
                 </field>
@@ -268,7 +270,7 @@
                     <field name="location_dest_id"/>
                 </field>
                 <field name="min_date" position="replace">
-                    <field name="date_done"/>
+                    <field name="date_done" string="Delivery Date"/>
                     <field name="contains_audit"/>
                 </field>
                 <field name="invoice_state" position="replace">
@@ -285,7 +287,7 @@
             <field name="arch" type="xml">
                 <filter string="Order Date" position="replace"/>
                 <filter string="Expected Date" position="replace">
-                    <filter string="Date of Transfer" icon="terp-go-month" domain="[]" context="{'group_by':'date_done'}"/>
+                    <filter string="Delivery Date" icon="terp-go-month" domain="[]" context="{'group_by':'date_done'}"/>
                     <filter string="Supplier" domain="[]" context="{'group_by':'partner_id'}"/>
                     <filter name="group_location_cate_id" string="Destination" domain="[]" context="{'group_by':'location_dest_id'}"/>
                 </filter>

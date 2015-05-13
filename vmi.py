@@ -340,6 +340,7 @@ class vmi_stock_picking_in(osv.osv):
             ('pass', 'Pass Audit'),
             ('fail', 'Fail Audit')], 'Contains Audit',
             help="Specify whether this package contains Audited goods, If contains, Pass or Fail"),
+        'date_done': fields.date('Delivery Date', help="Date of Completion", states={'done':[('readonly', True)], 'cancel':[('readonly',True)]})
     }
     _sql_constraints = [
         ('origin_uniq', 'unique(origin, partner_id)', 'Packaging Slip Number must be unique per Company!'),
