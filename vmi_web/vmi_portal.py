@@ -21,7 +21,7 @@ import openerp.addons.web.http as vmiweb
 
 _logger = logging.getLogger(__name__)
 
-# session_created = False
+#
 command = sys.argv
 if '-c' in command:
     config_file = command[command.index('-c') + 1]
@@ -299,11 +299,11 @@ def get_uom_by_id(req, ids):
     return units
 
 
-def get_product_by_id(req, ids, all=False):
+def get_product_by_pn(req, pn, all=False):
     """
     Search for products with specific ids.
     @param req: object
-    @param ids: location_ids
+    @param pn: location_ids
     @param all: selects all fields in result
     @return: search result of specified product.product record(s).
     """
@@ -313,13 +313,12 @@ def get_product_by_id(req, ids, all=False):
         fields = fields_get(req, 'product.product')
 
     try:
-        products = do_search_read(req, 'product.product', fields, 0, False, [('id', 'in', ids)], None)
+        products = do_search_read(req, 'product.product', fields, 0, False, [('default_code', '=', pn)], None)
     except Exception:
-        _logger.debug('<get_product_by_id> products not found for ids: %s', ids)
+        _logger.debug('<get_product_by_id> products not found for ids: %s', pn)
 
     if not products:
         raise Exception("AccessDenied")
-    # _logger.debug('products: %s', str(products['records']))
     return products
 
 
@@ -436,7 +435,6 @@ def get_stock_moves_by_id(req, ids):
 
     for line in moves:
         if line['product_id']:
-            # product = get_product_by_id(req, [line['product_id'][0]])['records']
             product = product_obj.read(line['product_id'][0],
                                        ['default_code', 'vendor_part_number', 'categ_id', 'description'], None)
             line['septa_part_number'] = product['default_code']
@@ -472,12 +470,6 @@ def get_invoice_line(req, ids, uid):
 
     for line in lines:
         if line['stock_move_id']:
-            '''#move = get_stock_moves_by_id(req, [line['stock_move_id'][0]], False)
-            move1 = do_search_read(req, 'stock.move', ['date', 'origin', 'product_uom', 'product_qty'], 0, False,
-                                  [('id', '=', line['stock_move_id'][0])], None)
-            #product = get_product_by_id(req, [line['product_id'][0]], False)
-            product1 = do_search_read(req, 'product.product', ['default_code', 'vendor_part_number'], 0, False,
-                                     [('id', '=', line['product_id'][0])], None)'''
             move = move_obj.read(line['stock_move_id'][0], ['date', 'origin', 'product_uom', 'product_qty'], None)
             product = product_obj.read(line['product_id'][0], ['default_code', 'vendor_part_number'], None)
             line['date_received'] = move['date']
@@ -865,19 +857,7 @@ class VmiController(vmiweb.Controller):
         @param pid: partner_id
         @return: search result object
         """
-        # import pdb; pdb.set_trace()
         res = get_stock_pickings(req, pid)['records']
-        #_logger.debug('_get_upload_history initial result count: %s', str(len(res)))
-        '''if res: # Find the associated stock.move records for the current picking.
-            for pick in res:
-                move_ids = pick['move_lines']
-                moves = get_stock_moves_by_id(req, move_ids)['records']
-                pick['line_items'] = moves         # Append moves/line items to current picking.
-                for line in pick['line_items']:    # Find + append the actual product record for each line item.
-                    prod_id = line['product_id'][0]
-                    line['product_details'] = get_product_by_id(req, [prod_id])['records'] # Get product records.
-                    if line['audit_fail']:
-                        pick['audit_fail'] = True # If any line item failed audit then the pick gets flagged as failed.'''
 
 
 
@@ -1199,7 +1179,7 @@ class VmiController(vmiweb.Controller):
                     return error_msg
 
                 try:
-                    product = search_products_by_septa_pn(req, product_number)
+                    product = get_product_by_pn(req, product_number)
                     product_id = product['records'][0]['id']
                     product_uom = product['records'][0]['uom_id'][0]
                 except Exception, e:
