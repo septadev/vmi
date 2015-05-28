@@ -12,6 +12,7 @@ $(document).ready(function() {
     var oTable = $('#contents').dataTable({
         "aaData": invoice_data,
         "aoColumns": [
+            // Add pic to a datatable
             {
                 "mDataProp": null,
                 "sClass": "control center",
@@ -42,35 +43,15 @@ $(document).ready(function() {
                 return result
             }
             },
+            // Using a function, add pics to dataTable
             {
                 "mData": null,
                 "mRender": function (data, type, full) {
                     var html = '';
                     if (full["state"] == "manager_approved") {
                         var html =
-                            '<form class="respond" id="respond" action="/vmi/invoice_processing" method="post" enctype="multipart/form-data">' +
-                            '<input name="callback" value="debug" type="hidden">' +
-                            '<input name="uid" value="' + uid + '" type="hidden">' +
-                            '<input name="company_id" value="' + company_id + '" type="hidden">' +
-                            '<input name="session_id" value="' + sessionid + '" type="hidden">' +
-                            '<input name="invoice_id" value="' + full["id"] + '" type="hidden">' +
-                            //'<input id="comment" name="comment" type="hidden">' +
-                            //'<input type="image" name="approved" title="Approve" src="/vmi/static/src/img/gtk-yes.png" alt="Submit">' +
-                            //'<input type="image" name="denied" title="Deny" src="/vmi/static/src/img/gtk-no.png" alt="Submit" style="margin-left: 30px">'
-                            '<button type="submit" id="approved" name="result" value="approved" title="Approve"><img title="Approve" src="/vmi/static/src/img/gtk-yes.png"></button>' +
-                            '<button type="submit" id="denied" name="result" value="denied" title="Deny"><img title="Deny" src="/vmi/static/src/img/gtk-no.png"></button>' +
-                            '</form>';
-                        /* +
-                         '<div id="leave_comment" title="Comment" type="hidden">' +
-                         '<p>Please enter the comment regarding this invoice:</p>' +
-                         '<textarea rows="4" cols="50"/textarea>' +
-                         '</div>';*/
-                        /*function invoiceMessage(){
-                         var message = prompt("Please enter the comment regarding this invoice:");
-                         if (message != null){
-                         $("#comment").val(message);
-                         }
-                         }*/
+                            '<img id="approved" title="Approve" src="/vmi/static/src/img/gtk-yes.png"></button>' +
+                            '<img id="denied" title="Deny" title="Deny" src="/vmi/static/src/img/gtk-no.png" style="margin-left: 25px"></button>'
                     }
                     return html;
                 }
@@ -78,6 +59,8 @@ $(document).ready(function() {
         ],
         "sPaginationType": "full_numbers"
     });
+
+    //Function to get invoice detail
     $('#contents').on('click', '#expand', function () {
         var nTr = this.parentNode.parentNode;
         var i = $.inArray(nTr, anOpen);
@@ -85,7 +68,6 @@ $(document).ready(function() {
             $(this).attr('src', "/vmi/static/src/img/details_close.png");
             var aData = oTable.fnGetData(nTr);
             var line_ids = aData.invoice_line;
-            var uid = sessionStorage.getItem(('user_id'));
             $.ajax({
                 type: "POST",
                 url: "/vmi/get_invoice_lines",
@@ -108,7 +90,6 @@ $(document).ready(function() {
                         var nDetailsRow = oTable.fnOpen(nTr, generate_detail_table(data.result), 'details');
                         $('div.innerDetails', nDetailsRow).slideDown();
                         anOpen.push(nTr);
-                        //rowDetails = data.result;
                     }
 
                 }
@@ -123,13 +104,14 @@ $(document).ready(function() {
         }
     });
 
+    // Save the invoice detail
     $('#contents tbody').on('click', '#save', function() {
         var nTr = this.parentNode.parentNode;
         var i = $.inArray(nTr, anOpen);
         var aData = oTable.fnGetData(nTr);
         var line_ids = aData.invoice_line;
         var uid = sessionStorage.getItem(('user_id'));
-        var rowDetails
+        var rowDetails;
         $.ajax({
             type: "POST",
             url: "/vmi/get_invoice_lines",
@@ -158,37 +140,65 @@ $(document).ready(function() {
 
     });
 
-    $('#contents tbody').on('click', '#denied', function () {
-        $("form").submit(function (e) {
-            //dialog.dialog("open");
-
-            /*var myWindow = window.open("","","width=600,height=450");
-             myWindow.document.write('<p>Please enter the comment regarding this invoice:</p>' +
-             '<textarea rows="4" cols="50"></textarea>' +
-             '<button id="submit_comment" onclick="get_comment()">Submit</button>' +
-             '<button id="cancel_comment" onclick="window.close()">Cancel</button>');
-             function get_comment(){
-             var message = $("#textarea").val();
-             window.close();
-             }*/
-            var message = prompt("Please enter the comment regarding this invoice:");
-            if (message != null) {
-                var app = '<input name="comment" value="' + message + '" type="hidden">';
-                $("form").append(app);
-            }
-            else {
-                e.preventDefault();
-            }
-        });
-        //$(this).attr("type", "submit");
-    });
+    //approve button clicked
     $('#contents tbody').on('click', '#approved', function () {
-        $("form").submit(function () {
-            var app = '<input name="comment" value="" type="hidden">';
-            $("form").append(app);
-        });
+        var nTr = this.parentNode.parentNode;
+        var i = $.inArray(nTr, anOpen);
+        var aData = oTable.fnGetData(nTr);
+        var invoice_id = aData.id;
+        var decision = {
+            invoice_id: invoice_id,
+            approved: true,
+            comment: ''
+        };
+        process_invoice(decision)
     });
 
+    // denied button clicked
+    $('#contents tbody').on('click', '#denied', function () {
+        var nTr = this.parentNode.parentNode;
+        var i = $.inArray(nTr, anOpen);
+        var aData = oTable.fnGetData(nTr);
+        var invoice_id = aData.id;
+        // prompt a message to store the reason denied
+        var message = prompt("Please enter the comment regarding this invoice:");
+        if (message != null) {
+            var decision = {
+                invoice_id: invoice_id,
+                approved: false,
+                comment: message
+            };
+            process_invoice(decision);
+        }
+        else {
+            e.preventDefault();
+        }
+    });
+
+    // ajax to process the invoice, approve or deny
+    function process_invoice(decision){
+        $.ajax({
+            type: "POST",
+            url: "/vmi/process_invoice",
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+            data: '{"jsonrpc": "2.0", "method": "call", "params": {"session_id": "' + sessionid + '", "context": {}, "ids": "' + decision.invoice_id + '", "company_id": "' + company_id + '", "decision": "' + decision.approved + '", "comment": "' + decision.comment + '"}, "id":"VMI"}',
+            error: function (XMLHttpRequest, textStatus, errorThrown) {
+                console.log(XMLHttpRequest, textStatus, errorThrown);
+            },
+            success: function (data) {
+                if (data.result && data.result.code) { // script returned error
+                }
+                else if (data.error) { // OpenERP error
+                } // if
+                else { // successful transaction
+                    location.reload();
+                }
+            }
+        });
+    }
+
+    // show the invoice detail
     function generate_detail_table(rowDetails) {
         var classRow = 'detailRow';
         var sOut = '<div class="innerDetails"><table cellpadding="5" cellspacing="0" border="0" style="padding-left:50px;">';
@@ -218,41 +228,18 @@ $(document).ready(function() {
         return sOut;
     }
 
+    // convert json data to csv file
     function json2csv(objArray, title) {
         var array = typeof objArray != 'object' ? JSON.parse(objArray) : objArray;
         var res = '';
         var line = '';
         var fields = {"date_received": "Invoice Date", "picking_number": "Packing Number", "septa_part_number": "Septa P/N", "vendor_part_number": "Vendor P/N", "unit_of_measure": "Unit of Measure", "quantity": "Quantity", "price_unit": "Price Unit", "price_subtotal": "Price Subtotal"}
-        /*for (var index in array[0]) {
-            if ($.inArray(index, Object.keys(fields)) > -1){
-                var value = fields[index] + "";
-                line += '"' + value.replace(/"/g, '""') + '",';
-            }
-            //var value = index + "";
-            //line += '"' + value.replace(/"/g, '""') + '",';
-        }*/
         for (var index in fields){
             var value = fields[index] + "";
             line += '"' + value.replace(/"/g, '""') + '",';
         }
         line = line.slice(0, -1);
         res += line + '\r\n';
-        /*for (var i = 0; i < array.length; i++) {
-            var line = '';
-            for (var index in array[i]) {
-                if ($.inArray(index, Object.keys(fields)) > -1){
-                    if (array[i][index].constructor == Array){
-                        var value = array[i][index][1] + "";
-                    }
-                    else{
-                        var value = array[i][index] + "";
-                    }
-                    line += '"' + value.replace(/"/g, '""') + '",';
-                }
-            }
-            line = line.slice(0, -1);
-            res += line + '\r\n';
-        }*/
         for (var i = 0; i < array.length; i++) {
             var line = '';
             for (var index in fields) {
@@ -267,9 +254,8 @@ $(document).ready(function() {
             line = line.slice(0, -1);
             res += line + '\r\n';
         }
-        //window.open("data:text/csv;charset=utf-8," + escape(res));
-        //var encodedUri = encodeURI(res);
-        //window.open(encodedUri);
+
+        // Download the csv file
         var uri = 'data:text/csv;charset=utf-8,' + encodeURI(res);
         var downloadLink = document.createElement("a");
         downloadLink.href = uri;
