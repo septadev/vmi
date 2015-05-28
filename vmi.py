@@ -152,29 +152,30 @@ class vmi_stock_move(osv.osv):
 
         return res
 
-    def action_flag_audit(self, cr, uid, vals, context=None):
+    def action_flag_audit_old(self, cr, uid, vals, context=None):
 
         """
-        move this function from stock_picking. Rewrite function using openerp ORM method instead of SQL query.
+        flag 10% of total quantity of shipped products.
         @param self:
         @param cr:
         @param user:
-        @param vals:
+        @param vals: parse result
         @param context:
         """
         result = []
         pickings = []
         stock_picking_obj = self.pool.get('stock.picking')
+        # get audit history
         if 'pid' in vals:
             res_partner_obj = self.pool.get('res.partner')
             partner = res_partner_obj.browse(cr, uid, int(vals['pid']), None)
-            remained_audit = partner.mobile
-            last_record = partner.birthdate
-        '''for picking in vals['parse_result']['stock_pickings']:
-            picking_id = picking['picking_id']'''
+            remained_audit = partner.mobile # how many products left over from last uploading
+            last_record = partner.birthdate # last uploaded product
+
         if 'parse_result' in vals:
             p = vals.get('parse_result')
             if 'move_lines' in p:
+                # Get all new moves from this vendor
                 new_moves_id = self.search(cr, uid,
                                            [('vendor_id', '=', int(vals['pid'])), ('id', '>', int(last_record)),
                                             ('audit_fail', '=', False)], None)
@@ -182,6 +183,7 @@ class vmi_stock_move(osv.osv):
                 total_qty = sum(move.product_qty for move in new_moves)
                 last_record = max(move.id for move in new_moves)
                 number_to_flag = int(round(total_qty * 0.1) + float(remained_audit))
+                # sort the moves by quantity in desc order, select the closest one respectively
                 new_moves = sorted(new_moves, key=lambda k: k.product_qty, reverse=True)
                 for move in new_moves:
                     if number_to_flag > 0 and move.product_qty <= number_to_flag:
@@ -189,7 +191,7 @@ class vmi_stock_move(osv.osv):
                         number_to_flag -= move.product_qty
                         if move.picking_id.id not in pickings:
                             pickings.append(move.picking_id.id)
-
+                # change the audit state
                 if result:
                     self.write(cr, uid, result, {'audit': True}, None)
                 stock_picking_obj.write(cr, uid, pickings, {'contains_audit': 'yes'}, None)
@@ -198,32 +200,61 @@ class vmi_stock_move(osv.osv):
 
         return result
 
-    def flag_for_audit(self, cr, uid, ids, vals=[], context=None):
-        return self.write(cr, uid, ids, {'audit': True}, context=context)
+    def action_flag_audit(self, cr, uid, vals, context=None):
 
-    def unflag_for_audit(self, cr, uid, ids, vals=[], context=None):
+        """
+        flag 10% of total lines in one packaging slip.
+        @param self:
+        @param cr:
+        @param user:
+        @param vals: parsed result
+        @param context:
+        """
+        result = []
+        pickings = []
+        stock_picking_obj = self.pool.get('stock.picking')
+        if 'parse_result' in vals:
+            picking_ids = [picking_id['picking_id'] for picking_id in vals['parse_result']['stock_picking']]
+            for picking in stock_picking_obj.browse(cr, uid, picking_ids):
+                move_ids = [line.id for line in picking.move_lines]
+                # make sure numbers to flag is at least 10% of total
+                num_to_flag = int(len(move_ids) * 0.1) if int(len(move_ids) * 0.1) == len(move_ids) * 0.1 else int(len(move_ids) * 0.1) + 1
+                result += random.sample(move_ids, num_to_flag)
+            # mark the line and the pickings to be audited
+            if result:
+                self.write(cr, uid, result, {'audit': True}, None)
+                stock_picking_obj.write(cr, uid, picking_ids, {'contains_audit': 'yes'}, None)
+
+        return result
+
+    def unflag_for_audit(self, cr, uid, ids, context=None):
+        """
+
+        :param cr:
+        :param uid:
+        :param ids: Stock.move ids
+        :param context:
+        :return:
+        """
         user_obj = self.pool.get('res.users')
         storekeeper = user_obj.browse(cr, uid, uid).login
         note = "Audit conducted at %s by %s." % (str(time.strftime('%Y-%m-%d %H:%M:%S')), storekeeper.capitalize())
         return self.write(cr, uid, ids, {'audit': False, 'note': note}, context=context)
-
-    def flag_fail_audit(self, cr, uid, ids, vals, context=None):
-        return self.write(cr, uid, ids, {'audit_fail': True}, context=context)
 
     def action_audit(self, cr, uid, ids, quantity, location, context=None):
         """
         Audit processing
         :param cr:
         :param uid:
-        :param ids:
-        :param quantity:
+        :param ids: Stock.move id
+        :param quantity: quantity recieved
         :param location:
         :param context:
         :return:
         """
         if context is None:
             context = {}
-        # audit quantity should be less than or equal to shipped quant.
+        # audit quantity should be less than or equal to shipped quantity.
         if quantity < 0:
             raise osv.except_osv(_('Warning!'), _('Please provide a non-negative quantity.'))
         stock_picking_obj = self.pool.get('stock.picking')
@@ -249,6 +280,7 @@ class vmi_stock_move(osv.osv):
             # for move in self.browse(cr, uid, ids, context=context):
             move_qty = move.product_qty
             uos_qty = quantity / move_qty * move.product_uos_qty
+            #audit fail
             if move_qty != quantity:
                 difference_quant = move_qty - quantity
                 difference_uos = difference_quant * move.product_uos_qty
@@ -289,39 +321,24 @@ class vmi_stock_move(osv.osv):
                     else:
                         raise osv.except_osv(_('Error!'), _(
                             'No Email Template Found, Please configure a email template under Email tab and named "Notification for Audit Fail"'))
-
+            #pass the audit
             else:
                 move.unflag_for_audit()
                 move.action_done()
                 stock_picking_obj.change_picking_audit_result(cr, uid, move.picking_id.id, True, None)
-                '''
-                if len(recipient_ids) > 0:
-                    context['recipient_ids'] = recipient_ids
-                    template_id = template_obj.search(cr, uid, [('name', '=', 'Notification for Audit Pass')])
-                    if template_id:
-                        mail = template_obj.send_mail(cr, uid, template_id[0], move.id, True, context=context)
-                    else:
-                        raise osv.except_osv(_('Error!'), _('No Email Template Found, Please configure a email template under Email tab and named "Notification for Audit Pass"'))
-                '''
-        # self.unflag_for_audit(cr, uid, ids, [], context)
-        # self.action_done(cr, uid, res, context)
+
         return res
 
     def action_done(self, cr, uid, unflagged, context=None):
 
         """
-        args.parse_result:
-        {'stock_pickings': [{'picking_id': picking_id, 'packing_list': packing_list_number}],
-         'move_lines': {'moves': [id], 'locations', [id]
-         'pid': id}
         @param self:
         @param cr:
         @param user:
-        @param unflagged:
+        @param unflagged: id to be unflagged
         @param context:
         """
 
-        # _logger.debug('<action_done> unflagged: %s', unflagged)
         ids = ', '.join(str(x) for x in unflagged)
         if len(unflagged) > 0:
             update_sql = """
@@ -363,7 +380,7 @@ class vmi_stock_picking_in(osv.osv):
     # mobile: number of product need to be audited
     # birthdate: last record before upload
 
-    def action_flag_audit(self, cr, uid, vals, context=None):
+    def action_flag_audit_original_by_mike(self, cr, uid, vals, context=None):
 
         """
         args.parse_result:
@@ -485,7 +502,7 @@ class vmi_stock_picking_in(osv.osv):
 
 vmi_stock_picking_in()
 
-
+# don't use now
 class vmi_move_consume(osv.osv_memory):
     _name = "vmi.move.consume"
     _description = "Consume Products"
@@ -555,6 +572,7 @@ class stock_move_audit(osv.osv_memory):
         'location_id': lambda *x: False
     }
 
+    # Can be removed???
     def default_get(self, cr, uid, fields, context=None):
         """ Get default values
         @param self: The object pointer.
@@ -642,9 +660,9 @@ class vmi_stock_picking(osv.osv):
         When an audit performed, call this function to change the audit state in the picking slip
         :param cr:
         :param uid:
-        :param ids:
+        :param ids: picking_id to change
         :param context:
-        :return:
+        :return: changed ids
         """
         picking = self.browse(cr, uid, ids, None)
         if picking.contains_audit == u'yes':
@@ -657,17 +675,16 @@ class vmi_stock_picking(osv.osv):
                 self.write(cr, uid, ids, {'contains_audit': 'pass'})
         return picking.contains_audit
 
-
     def action_invoice_create(self, cr, uid, ids, journal_id=False,
                               group=True, type='in_invoice', context=None):
         """
 
         :param cr:
         :param uid:
-        :param ids:
-        :param journal_id:
-        :param group:
-        :param type:
+        :param ids: packaging slips to generate invoices
+        :param journal_id: if specify journal, use this
+        :param group: if dont want to group products, use this
+        :param type: in_invoice
         :param context:
         :return:
         """
@@ -710,13 +727,22 @@ class vmi_stock_picking(osv.osv):
                                              str(move_line.product_id.categ_id.name)])
                     #create new invoice
                     if invoice_name not in invoices_group.keys():
+                        # generate invoice number:
+                        """ VMI +
+                            two digit represent year of the invoice+
+                            two digit represent month of the invoice+
+                            three digit of sequence numbers +
+                            two digit represent vendor id +
+                            two digit represent location id +
+                            two digit represent product category id"""
+
                         context['invoice_name'] = invoice_name
                         context['invoice_category'] = move_line.product_id.categ_id.id
                         context['invoice_location'] = picking.location_dest_id.id
                         done_date = picking.date_done.split('-')
                         internal_number = 'VMI' + \
-                                          done_date[1] + \
-                                          done_date[0][2:]
+                                          done_date[0][2:] + \
+                                          done_date[1]
 
                         seq = ''
                         old_seq = invoice_obj.search(cr, uid, [('internal_number', 'like', internal_number)],
@@ -731,39 +757,39 @@ class vmi_stock_picking(osv.osv):
                                            move_line.product_id.categ_id.code.rjust(2, '0')
 
                         context['internal_number'] = internal_number
-                        _logger.debug('<action_invoice_create> invoice_name: %s', str(context['invoice_name']))
+                        # _logger.debug('<action_invoice_create> invoice_name: %s', str(context['invoice_name']))
                         invoice_vals = self._prepare_invoice(cr, uid, picking, partner, inv_type, journal_id,
                                                              context=context)
                         invoice_id = invoice_obj.create(cr, uid, invoice_vals, context=context)
                         invoices_group[invoice_name] = invoice_id
                     #invoice already existed
                     elif group:
-                        _logger.debug('<action_invoice_create> Same group')
+                        # _logger.debug('<action_invoice_create> Same group')
                         invoice_id = invoices_group[invoice_name]
                         invoice = invoice_obj.browse(cr, uid, invoice_id)
                         invoice_vals_group = self._prepare_invoice_group(cr, uid, picking, partner, invoice,
                                                                          context=context)
-                        _logger.debug('<action_invoice_create> invoice_vals_group: %s', str(invoice_vals_group))
+                        # _logger.debug('<action_invoice_create> invoice_vals_group: %s', str(invoice_vals_group))
                         invoice_obj.write(cr, uid, [invoice_id], invoice_vals_group, context=context)
 
                     res[picking.id] = invoice_id
                     invoice_vals['pricelist_id'] = pricelist_id
+
+                    # skip lines that has special status, rarely happen
                     if move_line.state == 'cancel':
-                        _logger.debug('<action_invoice_create> canceled')
                         continue
                     if move_line.scrapped:
-                        _logger.debug('<action_invoice_create> scrapped')
-                        # do no invoice scrapped products
                         continue
+
+                    # create invoices
                     vals = self._prepare_invoice_line(cr, uid, group, picking, move_line,
                                                       invoice_id, invoice_vals, context=context)
-                    _logger.debug('<action_invoice_create> vals: %s', str(vals))
                     if vals:
-                        _logger.debug('<action_invoice_create> vals existed: %s', str(vals))
                         invoice_line_id = invoice_line_obj.create(cr, uid, vals, context=context)
                         self._invoice_line_hook(cr, uid, move_line, invoice_line_id)
                         #Set move_line's invoiced states to True
                         stock_move_obj.write(cr, uid, move_line.id, {'invoice_status': 'invoiced'})
+
             invoice_obj.button_compute(cr, uid, [invoice_id], context=context,
                                        set_total=(inv_type in ('in_invoice', 'in_refund')))
             self.write(cr, uid, [picking.id], {
@@ -778,7 +804,9 @@ class vmi_stock_picking(osv.osv):
 
     def _prepare_invoice_line(self, cr, uid, group, picking, move_line, invoice_id,
                               invoice_vals, context=None):
-        """ Builds the dict containing the values for the invoice line
+        """ Rewrite this function to adjust the pricelist
+
+            Builds the dict containing the values for the invoice line
             @param group: True or False
             @param picking: picking object
             @param: move_line: move_line object
@@ -786,8 +814,6 @@ class vmi_stock_picking(osv.osv):
             @param: invoice_vals: dict used to created the invoice
             @return: dict that will be used to create the invoice line
         """
-        # _logger.debug('<_prepare_invoice_line> into _prepare_invoice_line')
-
         product_pricelist = self.pool.get('product.pricelist')
         pricelist_id = invoice_vals['pricelist_id']
 
@@ -969,6 +995,7 @@ class vmi_account_invoice(osv.osv):
     }
 
     def action_move_create(self, cr, uid, ids, context=None):
+        # rewrite this function to disabled the check_total feature
         """Creates invoice related analytics and financial move lines"""
         ait_obj = self.pool.get('account.invoice.tax')
         cur_obj = self.pool.get('res.currency')
@@ -1167,6 +1194,7 @@ class vmi_account_invoice(osv.osv):
                 recipient_ids.append(int(child.id))
 
         res = self.write(cr, uid, ids, {'state': 'manager_approved'}, context=context)
+        #Send email if found recipient
         if res and len(recipient_ids) > 0:
             context['recipient_ids'] = recipient_ids
 
@@ -1204,6 +1232,7 @@ class vmi_account_invoice(osv.osv):
                 recipient_ids.append(int(child.id))
 
         res = self.write(cr, uid, [int(ids)], {'state': 'vendor_approved'}, context=context)
+        #Send email if found recipient
         if res and len(recipient_ids) > 0:
             context['recipient_ids'] = recipient_ids
             template_obj = self.pool.get('email.template')
@@ -1246,6 +1275,7 @@ class vmi_account_invoice(osv.osv):
             for inv_id in ids:
                 wf_service.trg_delete(uid, 'account.invoice', inv_id, cr)
                 wf_service.trg_create(uid, 'account.invoice', inv_id, cr)
+
             if res and len(recipient_ids) > 0:
                 context['recipient_ids'] = recipient_ids
                 template_obj = self.pool.get('email.template')
@@ -1257,20 +1287,6 @@ class vmi_account_invoice(osv.osv):
                         'No Email Template Found, Please configure a email template under Email tab and named "Notification for Vendor Denied"'))
         return True
 
-    def calculate_service_fee(self, cr, uid, ids, context=None):
-        wf_service = netsvc.LocalService('workflow')
-        if context is None:
-            context = {}
-        account_invoice_obj = self.pool.get('account.invoice')
-        # valid_ids = []
-        data_inv = self.pool.get('account.invoice').read(cr, uid, context['active_ids'], ['state'], context=context)
-        for record in data_inv:
-            if record['state'] != 'vendor_approved':
-                raise osv.except_osv(_('Warning!'), _(
-                    "Selected invoice(s) cannot be allocated as they are not in 'Vendor Approved' state."))
-            account_invoice_obj.prepare_to_pay(cr, uid, record['id'])
-
-        return {'type': 'ir.actions.act_window_close'}
 
     '''def prepare_to_pay(self, cr, uid, ids, context=None):
 
@@ -1469,8 +1485,13 @@ class vmi_account_invoice(osv.osv):
                 header += '-'
         ap_lines += header + '\n'
         '''
+        # sort invoice ids by invoice number in ascending order
+        invoices = self.read(cr, uid, ids, ['internal_number'])
+        sorted_invoices = sorted(invoices, key=lambda k: k['internal_number'])
+        sorted_ids = [line['id'] for line in sorted_invoices]
+
         # generate lines based on selected invoices
-        for invoice in self.browse(cr, uid, ids, context):
+        for invoice in self.browse(cr, uid, sorted_ids, context):
             default_values = filter(lambda ap: ap['vendor_id'][0] == invoice.partner_id.id, invoice_ap)[0]
             i_date = invoice.date_invoice.split('-')
             invoice_date = i_date[1] + i_date[2] + i_date[0]
@@ -1560,7 +1581,6 @@ class vmi_account_invoice(osv.osv):
                     raise 'Wrong AP position on %s' % key
         return ''.join(line)
 
-
     def invoice_cancel(self, cr, uid, ids, context=None):
         if context is None:
             context = {}
@@ -1606,35 +1626,7 @@ class vmi_account_invoice(osv.osv):
         self._log_event(cr, uid, ids, -1.0, 'Cancel Invoice')
         return True
 
-
-    '''def set_to_draft(self, cr, uid, ids, context=None):
-        """ Cancels the stock move and change inventory state to draft.
-        @return: True
-        """
-
-        stock_move_obj = self.pool.get('stock.move')
-        stock_picking_obj = self.pool.get('stock.picking')
-        stock_move_ids = []
-        stock_picking_ids = []
-        change_picking = True
-        for inv in self.browse(cr, uid, ids, context=context):
-            #self.pool.get('stock.move').action_cancel(cr, uid, [x.id for x in inv.move_ids], context=context)
-            for line in inv.invoice_line:
-                stock_move_ids.append(line.stock_move_id.id)
-                if line.stock_move_id.picking_id.id not in stock_picking_ids:
-                    stock_picking_ids.append(line.stock_move_id.picking_id.id)
-            self.write(cr, uid, [inv.id], {'state': 'draft'}, context=context)
-        stock_move_obj.write(cr, uid, stock_move_ids, {'invoice_status': 'invoiced'})
-        for picking in stock_picking_obj.browse(cr, uid, stock_picking_ids):
-            for line in picking.move_lines:
-                if line.invoice_status != 'invoiced':
-                    change_picking = False
-        if change_picking:
-            stock_picking_obj.write(cr, uid, stock_picking_ids, {'invoice_state': 'invoiced'})
-        return True'''
-
 vmi_account_invoice()
-
 
 class vmi_account_invoice_line(osv.osv):
     _name = "account.invoice.line"
@@ -1646,7 +1638,6 @@ class vmi_account_invoice_line(osv.osv):
                                       domain=[('type', '<>', 'view'), ('type', '<>', 'closed')],
                                       help="The income or expense account related to the selected product."),
     }
-
 
 vmi_account_invoice_line()
 
@@ -1879,8 +1870,8 @@ class account_invoice_calculate(osv.osv_memory):
                     account_line = account_invoice_account_line_obj.create(cr, uid, value, None)
                 done_date = invoice.date_invoice.split('-')
                 internal_number = 'VMI' + \
-                                  done_date[1] + \
-                                  done_date[0][2:]
+                                  done_date[0][2:] + \
+                                  done_date[1]
                 seq = ''
                 old_seq = account_invoice_obj.search(cr, uid, [('internal_number', 'like', internal_number)],
                                                      order='internal_number')
