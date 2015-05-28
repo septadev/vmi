@@ -1,11 +1,13 @@
 /**
  * Created by M. A. Ruberto on 1/30/14.
+ * Rewrite by Xiang Li
  */
 
 $(document).ready(function() {
     sessionid = sessionStorage.getItem('session_id');
     company_id = sessionStorage.getItem(('company_id'));
     uid = sessionStorage.getItem(('user_id'));
+    // Validate API and file
     file_selected = false;
     if(isAPIAvailable()) {
         $('#files').bind('change', handleFileSelect);
@@ -28,11 +30,9 @@ $(document).ready(function() {
         //Your validation
     });
 
-    //$('form#upload_form').submit(function(){
+    //Upload data
     $('#list').on('click', '#OBEY', function(){
-        //$('#upload_form').serialize();
-        //var formData = new FormData($(this)[0]);
-        if (str){
+            if (str){
             $('.overlay').show();
             $.ajax({
                 type: "POST",
@@ -100,6 +100,7 @@ function isAPIAvailable() {
         return false;
     }
 }
+// Check the file format
 function handleFileSelect(evt) {
     var files = evt.target.files; // FileList object
     var file = files[0];
@@ -130,10 +131,8 @@ function handleFileSelect(evt) {
     else{
         alert("Please upload a csv file");
     }
-
-
-
 }
+//Print a datatable of data in csv file
 function printTable(file) {
     var reader = new FileReader();
     reader.readAsText(file);

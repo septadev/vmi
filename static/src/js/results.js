@@ -1,10 +1,7 @@
 /**
  * Created by M. A. Ruberto on 2/28/14.
+ * Rewrite by Xiang Li
  */
-
-/* Formating function for row details */
-
-//var sessionid = null;
 
 $(document).ready(function(){
     sessionid = sessionStorage.getItem('session_id');
@@ -220,59 +217,6 @@ $(document).ready(function(){
             });
         }
     });
-    /*
-    var anOpen = [];
-    var oTable = $('#contents').dataTable({
-        "aaData": history_data,
-        "sDom": 'T<"clear">lfrtip',
-        "oTableTools": {
-            "sSwfPath": "/vmi/static/src/js/datatables/extras/TableTools/media/swf/copy_csv_xls_pdf.swf"
-        },
-        "aoColumns": [
-            {
-                "mDataProp": null,
-                "sClass": "control center",
-                "sDefaultContent": '<img src="/vmi/static/src/img/details_open.png">'
-            },
-            {"mData": "date"},
-            {"mData": "origin"},
-            {"mData": "state"},
-            {"mData": function (source, type, val) {
-                var invoice_state = source.invoice_state;
-                var result;
-                switch (invoice_state) {
-                    case "invoiced":
-                        result = "Invoiced";
-                        break;
-                    case "2binvoiced":
-                        result = "To Be Invoiced";
-                        break;
-                }
-                return result
-            }
-            }
-        ],
-        "sPaginationType": "full_numbers"
-    });*/
-  /*$('#contents td.control').live( 'click', function () {
-      var nTr = this.parentNode;
-      var i = $.inArray(nTr, anOpen);
-
-      if (i === -1) {
-          $('img', this).attr('src', "/vmi/static/src/img/details_close.png");
-          var nDetailsRow = oTable.fnOpen(nTr, fnFormatDetails(oTable, nTr), 'details');
-          $('div.innerDetails', nDetailsRow).slideDown();
-          anOpen.push(nTr);
-      }
-      else {
-          $('img', this).attr('src', "/vmi/static/src/img/details_open.png");
-          $('div.innerDetails', $(nTr).next()[0]).slideUp(function () {
-              oTable.fnClose(nTr);
-              anOpen.splice(i, 1);
-          });
-      }
-  });*/
-
 
     function generate_detail_table(rowDetails) {
         var classRow = 'detailRow';

@@ -2,7 +2,9 @@
  * Created by axll on 2/12/2015.
  */
 $(document).ready(function(){
+
     getSessionInfo();
+
     $("form#loginForm").submit(function() { // loginForm is submitted
         var username = $('#username').attr('value'); // get username
         var password = $('#password').attr('value'); // get password
@@ -76,6 +78,7 @@ $(document).ready(function(){
         return false;
     });
     });
+
 function getSessionInfo(){
     $.ajax({
         type: "POST",

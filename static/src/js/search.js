@@ -1,14 +1,7 @@
 /**
- * Created by think on 4/4/14.
- */
-/**
  * Created by M. A. Ruberto on 2/28/14.
+ * Rewrite by Xiang Li
  */
-
-/* Formatting function for row details */
-
-
-
 
 $(document).ready(function(){
     sessionid = sessionStorage.getItem('session_id');
@@ -26,7 +19,7 @@ $(document).ready(function(){
         ],
         "sPaginationType":"full_numbers"
     });
-
+    // Function when submit button clicked
     $('#submit_pn').click(function(){
         $.ajax({
             type: "POST",
