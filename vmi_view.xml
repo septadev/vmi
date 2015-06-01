@@ -320,7 +320,7 @@
             <field name="inherit_id" ref="stock.view_stock_invoice_onshipping"/>
             <field name="arch" type="xml">
                 <field name="invoice_date" position="replace">
-                    <field name="due_date"/>
+                    <field name="invoice_date"/>
                 </field>
                 <field name="journal_id" position="replace"/>
                 <field name="group" position="replace"/>

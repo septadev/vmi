@@ -217,7 +217,7 @@ class vmi_stock_move(osv.osv):
             picking_ids = [picking_id['picking_id'] for picking_id in vals['parse_result']['stock_picking']]
             for picking in stock_picking_obj.browse(cr, uid, picking_ids):
                 move_ids = [line.id for line in picking.move_lines]
-                # make sure numbers to flag is at least 10% of total
+                # make sure numbers to flag is at least 10% of total lines
                 num_to_flag = int(len(move_ids) * 0.1) if int(len(move_ids) * 0.1) == len(move_ids) * 0.1 else int(len(move_ids) * 0.1) + 1
                 result += random.sample(move_ids, num_to_flag)
             # mark the line and the pickings to be audited
@@ -739,11 +739,14 @@ class vmi_stock_picking(osv.osv):
                         context['invoice_name'] = invoice_name
                         context['invoice_category'] = move_line.product_id.categ_id.id
                         context['invoice_location'] = picking.location_dest_id.id
-                        done_date = picking.date_done.split('-')
+                        '''done_date = picking.date_done.split('-')
                         internal_number = 'VMI' + \
                                           done_date[0][2:] + \
-                                          done_date[1]
-
+                                          done_date[1]'''
+                        invoice_date = context['date_inv'].split('-')
+                        internal_number = 'VMI' + \
+                                          invoice_date[0][2:] + \
+                                          invoice_date[1]
                         seq = ''
                         old_seq = invoice_obj.search(cr, uid, [('internal_number', 'like', internal_number)],
                                                      order='internal_number')
@@ -931,18 +934,18 @@ class vmi_stock_invoice_onshipping(osv.osv):
     _columns = {
         'due_date': fields.date('Due Date'),
     }
-    # Inherit vmi_stock_invoice_onshipping, add due_date field, let the user select due date and make invoice date today.
+    # Inherit vmi_stock_invoice_onshipping, let the user select invoice date.
 
     def create_invoice(self, cr, uid, ids, context=None):
         if context is None:
             context = {}
         picking_pool = self.pool.get('stock.picking')
-        onshipdata_obj = self.read(cr, uid, ids, ['journal_id', 'group', 'due_date'])
+        onshipdata_obj = self.read(cr, uid, ids, ['journal_id', 'group', 'invoice_date'])
         if context.get('new_picking', False):
             onshipdata_obj['id'] = onshipdata_obj.new_picking
             onshipdata_obj[ids] = onshipdata_obj.new_picking
-        context['date_inv'] = date.today()
-        context['date_due'] = onshipdata_obj[0]['due_date']
+        context['date_inv'] = onshipdata_obj[0]['invoice_date']
+        context['date_due'] = context['date_inv']
         active_ids = context.get('active_ids', [])
         active_picking = picking_pool.browse(cr, uid, context.get('active_id', False), context=context)
         inv_type = picking_pool._get_invoice_type(active_picking)
@@ -1868,10 +1871,10 @@ class account_invoice_calculate(osv.osv_memory):
                 #Create invoice line for delivery fee invoice
                 for value in values:
                     account_line = account_invoice_account_line_obj.create(cr, uid, value, None)
-                done_date = invoice.date_invoice.split('-')
+                invoice_date = invoice.date_invoice.split('-')
                 internal_number = 'VMI' + \
-                                  done_date[0][2:] + \
-                                  done_date[1]
+                                  invoice_date[0][2:] + \
+                                  invoice_date[1]
                 seq = ''
                 old_seq = account_invoice_obj.search(cr, uid, [('internal_number', 'like', internal_number)],
                                                      order='internal_number')
