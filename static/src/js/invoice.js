@@ -6,8 +6,7 @@ $(document).ready(function() {
     sessionid = sessionStorage.getItem('session_id');
     company_id = sessionStorage.getItem(('company_id'));
     uid = sessionStorage.getItem(('user_id'));
-    console.log('before re-authentication: ' + sessionid);
-
+    //invoice_data = updateData();
     var anOpen = [];
     var oTable = $('#contents').dataTable({
         "aaData": invoice_data,
@@ -19,7 +18,26 @@ $(document).ready(function() {
                 "sDefaultContent": '<img id="expand" src="/vmi/static/src/img/details_open.png"><img id="save" src="/vmi/static/src/img/save.png">'
             },
             {"mData": "date_invoice"},
-            {"mData": "name"},
+            {"mData": function (source, type, val){
+                var fullLocation = source.location_id[1];
+                var loc = fullLocation.split(" / ");
+                if (loc.length > 2){
+                    return loc[2]
+                }
+                else{
+                    return loc[0]
+                }
+            }},
+            {"mData": function (source, type, val){
+                var fullCategory = source.category_id[1];
+                var loc = fullCategory.split(" / ");
+                if (loc.length > 1){
+                    return loc[1]
+                }
+                else{
+                    return loc[0]
+                }
+            }},
             {"mData": "amount_untaxed"},
             {"mData": "amount_tax"},
             {"mData": "amount_total"},
@@ -132,7 +150,7 @@ $(document).ready(function() {
                 } // if
                 else { // successful transaction
                     rowDetails = data.result;
-                    var title = aData.name + "-" + aData.date_invoice;
+                    var title = aData.location_id + "=" + aData.category_id + "-" + aData.date_invoice;
                     json2csv(rowDetails, title);
                 }
             }
@@ -151,7 +169,8 @@ $(document).ready(function() {
             approved: true,
             comment: ''
         };
-        process_invoice(decision)
+        process_invoice(decision, nTr);
+
     });
 
     // denied button clicked
@@ -168,20 +187,52 @@ $(document).ready(function() {
                 approved: false,
                 comment: message
             };
-            process_invoice(decision);
+            process_invoice(decision, nTr);
         }
         else {
             e.preventDefault();
         }
     });
 
+    // Ajax to get all invoices from server
+    // Not been used yet
+    function updateData(){
+        var result = [];
+        $.ajax({
+            type: "POST",
+            url: "/vmi/get_invoices",
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+            async: false,
+            data: '{"jsonrpc": "2.0","method":"call","params":{"session_id": "' + sessionid + '",' +
+                    '"context": {}, ' +
+                    '"company_id": "' + company_id + '"' +
+                    '},"id":"VMI"}',
+            error: function (XMLHttpRequest, textStatus, errorThrown) {
+                console.log(XMLHttpRequest, textStatus, errorThrown);
+            },
+            success: function (data) {
+                if (data.result && data.result.code) { // script returned error
+                }
+                else if (data.error) { // OpenERP error
+                } // if
+                else { // successful transaction
+                    result = data.result
+                }
+            }
+        });
+        return result
+    }
+
     // ajax to process the invoice, approve or deny
-    function process_invoice(decision){
+    function process_invoice(decision, nTr){
+        //var oTable = $('#contents').dataTable();
         $.ajax({
             type: "POST",
             url: "/vmi/process_invoice",
             contentType: "application/json; charset=utf-8",
             dataType: "json",
+            async: false,
             data: '{"jsonrpc": "2.0", "method": "call", "params": {"session_id": "' + sessionid + '", "context": {}, "ids": "' + decision.invoice_id + '", "company_id": "' + company_id + '", "decision": "' + decision.approved + '", "comment": "' + decision.comment + '"}, "id":"VMI"}',
             error: function (XMLHttpRequest, textStatus, errorThrown) {
                 console.log(XMLHttpRequest, textStatus, errorThrown);
@@ -192,7 +243,14 @@ $(document).ready(function() {
                 else if (data.error) { // OpenERP error
                 } // if
                 else { // successful transaction
-                    location.reload();
+                    // Change displayed status and hide the processing button
+                    if (decision.approved == true){
+                        $(nTr).find(":nth-child(8)").html('Vendor Approved');
+                    }
+                    else {
+                        $(nTr).find(":nth-child(8)").html('Vendor Denied');
+                    }
+                    $(nTr).find('#approved, #denied').hide();
                 }
             }
         });

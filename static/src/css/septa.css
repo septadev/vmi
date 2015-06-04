@@ -1,4 +1,6 @@
-
+.openerp p.oe_red {
+  color: #aa000d;
+}
 body {
         color: #333;
         font-family: verdana,helvetica,arial,helvetica,sans-serif;

@@ -613,7 +613,7 @@ def get_account_invoice(req, pid):
     two_years_before = today.replace(year=today.year - 2)
     invoices = None
     fields = ['name', 'number', 'date_invoice', 'state', 'partner_id', 'invoice_line', 'move_id', 'amount_untaxed',
-              'amount_tax', 'amount_total']
+              'amount_tax', 'amount_total', 'location_id', 'category_id']
     try:
         invoices = do_search_read(req, 'account.invoice', fields, 0, False, [('partner_id.id', '=', pid),
                                                                              ('state', 'in',
@@ -1877,6 +1877,16 @@ class VmiController(vmiweb.Controller):
                     args.update({'error': str(e)})
                     _logger.debug('<upload_file>_call_methods failed: %s!', str(e))
         return args
+
+    @vmiweb.jsonrequest
+    def get_invoices(self, req, company_id):
+        """
+        Return the Invoice that manager approved, Not being used
+        :param req: object
+        :param pid: partner_id
+        :return: search result object
+        """
+        return get_account_invoice(req, int(company_id))['records']
 
     @vmiweb.jsonrequest
     def process_invoice(self, req, ids, company_id, decision, comment):
