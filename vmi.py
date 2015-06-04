@@ -1592,27 +1592,26 @@ class vmi_account_invoice(osv.osv):
         stock_move_obj = self.pool.get('stock.move')
         stock_picking_obj = self.pool.get('stock.picking')
 
-        invoices = self.read(cr, uid, ids, ['move_id', 'payment_ids', 'invoice_line'])
+        invoice = self.read(cr, uid, ids, ['move_id', 'payment_ids', 'invoice_line'])
         account_move_ids = []  # ones that we will need to remove
         stock_move_ids = []
         stock_picking_ids = []
-        for i in invoices:
-            if i['move_id']:
-                account_move_ids.append(i['move_id'][0])
-            if i['payment_ids']:
-                account_move_line_obj = self.pool.get('account.move.line')
-                pay_ids = account_move_line_obj.browse(cr, uid, i['payment_ids'])
-                for move_line in pay_ids:
-                    if move_line.reconcile_partial_id and move_line.reconcile_partial_id.line_partial_ids:
-                        raise osv.except_osv(_('Error!'), _(
+        if invoice['move_id']:
+            account_move_ids.append(invoice['move_id'][0])
+        if invoice['payment_ids']:
+            account_move_line_obj = self.pool.get('account.move.line')
+            pay_ids = account_move_line_obj.browse(cr, uid, invoice['payment_ids'])
+            for move_line in pay_ids:
+                if move_line.reconcile_partial_id and move_line.reconcile_partial_id.line_partial_ids:
+                    raise osv.except_osv(_('Error!'), _(
                             'You cannot cancel an invoice which is partially paid. You need to unreconcile related payment entries first.'))
-            # Get related stock_move's
-            lines = account_invoice_line_obj.browse(cr, uid, i['invoice_line'])
-            for line in lines:
-                if line.stock_move_id:
-                    stock_move_ids.append(line.stock_move_id.id)
-                    if line.stock_move_id.picking_id.id not in stock_picking_ids:
-                        stock_picking_ids.append(line.stock_move_id.picking_id.id)
+        # Get related stock_move's
+        lines = account_invoice_line_obj.browse(cr, uid, invoice['invoice_line'])
+        for line in lines:
+            if line.stock_move_id:
+                stock_move_ids.append(line.stock_move_id.id)
+                if line.stock_move_id.picking_id.id not in stock_picking_ids:
+                    stock_picking_ids.append(line.stock_move_id.picking_id.id)
         # Change the statues in related stock move and stock picking
         stock_move_obj.write(cr, uid, stock_move_ids, {'invoice_status': '2binvoiced'})
         stock_picking_obj.write(cr, uid, stock_picking_ids, {'invoice_state': '2binvoiced'})
@@ -1628,6 +1627,55 @@ class vmi_account_invoice(osv.osv):
             account_move_obj.unlink(cr, uid, account_move_ids, context=context)
         self._log_event(cr, uid, ids, -1.0, 'Cancel Invoice')
         return True
+
+    def invoice_undo(self, cr, uid, ids, context=None):
+        """
+
+        :param cr:
+        :param uid:
+        :param ids:
+        :param context:
+        :return:
+        """
+        account_invoice_account_line_obj = self.pool.get('account.invoice.account.line')
+
+        account_line_ids = []
+        ids_to_vendor_approved = []
+        ids_to_draft = []
+
+        for invoice in self.browse(cr, uid, ids, context):
+            state = invoice.state
+            if state in ['ready', 'sent']:
+                account_line_id = [line.id for line in invoice.account_line]
+                if len(account_line_id) > 0:
+                    account_line_ids += account_line_id
+                ids_to_vendor_approved.append(invoice.id)
+            elif state in ['manager_approved', 'vendor_approved', 'vendor_denied']:
+                ids_to_draft.append(invoice.id)
+            elif state == 'draft':
+                self.invoice_cancel(cr, uid, invoice.id, context)
+            else:
+                raise ('Error: You can not cancel a cancelled invoice')
+
+        if len(account_line_ids) > 0:
+            # Delete all account line attached to this invoice
+            account_invoice_account_line_obj.unlink(cr, uid, account_line_ids, context)
+        if len(ids_to_vendor_approved) > 0:
+            # Change state to Vendor Approved
+            self.write(cr, uid, ids_to_vendor_approved, {'state': 'vendor_approved'}, None)
+
+        if len(ids_to_draft) > 0:
+            # delete related moves
+            self.action_cancel(cr, uid, ids_to_draft, None)
+            # set invoice from canceled to draft
+            self.write(cr, uid, ids_to_draft, {'state': 'draft'}, None)
+            wf_service = netsvc.LocalService("workflow")
+            for inv_id in ids_to_draft:
+                wf_service.trg_delete(uid, 'account.invoice', inv_id, cr)
+                wf_service.trg_create(uid, 'account.invoice', inv_id, cr)
+
+        return True
+
 
 vmi_account_invoice()
 
@@ -1944,6 +1992,26 @@ class account_invoice_generate(osv.osv_memory):
 
 account_invoice_generate()
 
+
+class account_invoice_undo(osv.osv_memory):
+    """
+    This wizard will undo the invoices based on the status
+    """
+
+    _name = "account.invoice.undo"
+    _description = "Undo the invoices based on status"
+
+    def undo_invoices(self, cr, uid, ids, context=None):
+        if context is None:
+            context = {}
+        account_invoice_obj = self.pool.get('account.invoice')
+        try:
+            account_invoice_obj.invoice_undo(cr, uid, context['active_ids'], context)
+        except Exception, e:
+            raise osv.except_osv(_('Error!'), _('Fail to Undo the invoices:', e))
+        return {'type': 'ir.actions.act_window_close'}
+
+account_invoice_undo()
 
 class account_invoice_account_line(osv.osv):
     _name = 'account.invoice.account.line'
