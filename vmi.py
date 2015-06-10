@@ -4,6 +4,7 @@ import sys
 import os
 import random
 import ldap
+import base64
 from datetime import date
 from ftplib import FTP
 
@@ -971,7 +972,7 @@ class vmi_account_invoice(osv.osv):
                                       ('vendor_denied', 'Vendor Denied'),
                                       ('vendor_approved', 'Vendor Approved'),
                                       ('ready', 'Ready for AP'),
-                                      ('sent', 'AP File Sent'),
+                                      ('sent', 'AP File Generated'),
                                       ('cancel', 'Cancelled'),
                                   ], 'Status', select=True, readonly=True, track_visibility='onchange',
                                   help=' * The \'Draft\' status is used when a user is encoding a new and unconfirmed Invoice, waiting for confirmation by manager. \
@@ -1974,18 +1975,33 @@ class account_invoice_generate(osv.osv_memory):
         except Exception, e:
             raise osv.except_osv(_('Error!'), _('Fail to generate AP file:', e))
         # Upload file to FTP server
+        if '/' in ap_file:
+            file_name = ap_file.split('/')[-1]
+        else:
+            file_name = ap_file.split('\\')[-1]
+
         if generate and flag[0]['upload']:
             try:
                 ftp = FTP(ap_ftp, ap_ftp_username, ap_ftp_password)
                 ftp.cwd(ap_ftp_path)
-                if '/' in ap_file:
-                    file_name = ap_file.split('/')[-1]
-                else:
-                    file_name = ap_file.split('\\')[-1]
                 ftp.storbinary('STOR %s' % file_name, open(ap_file, 'rb'))
                 ftp.quit()
             except Exception, e:
                 raise osv.except_osv(_('Error!'), _('Upload to FTP error:', e))
+
+        # Create a attachment in ir.attachment for future use
+        today = date.today()
+        attachment_name = file_name.split('.')[0] + '-' + str(today) + '.' + file_name.split('.')[1]
+        file_obj = open(ap_file, 'rb')
+        file_string = file_obj.read()
+        file_val = base64.encodestring(file_string)
+        attachment_obj = self.pool.get('ir.attachment')
+        attach_id = attachment_obj.create(cr, uid, {'name': attachment_name, 'datas': file_val, 'datas_fname': attachment_name}, None)
+        file_obj.close()
+
+        # Change status to 'sent'
+        if generate:
+            account_invoice_obj.write(cr, uid, context['active_ids'], {'state': 'sent'})
 
         return {'type': 'ir.actions.act_window_close'}
 
