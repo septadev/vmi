@@ -81,10 +81,28 @@
             <p id="subheader" tal:content="header">
               Header
             </p>
+            <fieldset>
+                <label for="year">Year</label>
+                <select name="year" id="year">
+                    <!--<option selected="selected" value="0"></option>-->
+                </select>
+                <label for="month">Month</label>
+                <select name="month" id="month">
+                    <!--<option selected="selected" value="0"></option>-->
+                </select>
+                <label for="state">State</label>
+                <select name="state" id="state">
+                    <option selected="selected" value="0"></option>
+                    <option value="manager_approved">Septa Manager Approved</option>
+                    <option value="vendor_approved">Vendor Approved</option>
+                    <option value="vendor_denied">Vendor Denied</option>
+                </select>
+                <button id="filter">Submit</button>
+            </fieldset>
         </div>
         <div id="invoice" class="info" tal:condition="form_flag">
             <form class="form_binary_form" method="post" enctype="multipart/form-data">
-                <hr><!-- Invoice history table -->
+                <!-- Invoice history table -->
                 <table id="contents" style="width: 100%;" cellpadding="0" cellspacing="0" border="0" class="display">
                     <thead>
                         <tr>

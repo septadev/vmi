@@ -6,10 +6,29 @@ $(document).ready(function() {
     sessionid = sessionStorage.getItem('session_id');
     company_id = sessionStorage.getItem(('company_id'));
     uid = sessionStorage.getItem(('user_id'));
-    //invoice_data = updateData();
+    var today = new Date();
+    var yyyy = today.getFullYear();
+    var mm = today.getMonth()+1;
+    var fiveYearBefore = yyyy-5;
+
+    //Add options to filter
+    $('#year').each(function(){
+        for (var i=fiveYearBefore;i<=yyyy;i++){
+            $('#year').append($("<option></option>").text(i))
+                .attr("value", i);
+        }
+        $(this).val(yyyy);
+    });
+    $('#month').each(function(){
+        for (var i=1;i<=12;i++){
+            $('#month').append($("<option></option>").text(i))
+                .attr("value", i);
+        }
+        $(this).val(mm);
+    });
+    // Initialize the table
     var anOpen = [];
     var oTable = $('#contents').dataTable({
-        "aaData": invoice_data,
         "aoColumns": [
             // Add pic to a datatable
             {
@@ -76,6 +95,14 @@ $(document).ready(function() {
             }
         ],
         "sPaginationType": "full_numbers"
+    });
+
+    //call function to get data
+    updateData();
+
+    //functions when submit the filter. An ajax call to pass parameters to the server. Year and month are mandatory.
+    $('#filter').click(function() {
+        updateData()
     });
 
     //Function to get invoice detail
@@ -194,10 +221,8 @@ $(document).ready(function() {
         }
     });
 
-    // Ajax to get all invoices from server
-    // Not been used yet
+    // Ajax to get invoices from server
     function updateData(){
-        var result = [];
         $.ajax({
             type: "POST",
             url: "/vmi/get_invoices",
@@ -205,23 +230,29 @@ $(document).ready(function() {
             dataType: "json",
             async: false,
             data: '{"jsonrpc": "2.0","method":"call","params":{"session_id": "' + sessionid + '",' +
-                    '"context": {}, ' +
-                    '"company_id": "' + company_id + '"' +
-                    '},"id":"VMI"}',
+                '"context": {"year": "' + $('#year').val() + '",' +
+                '"month": "' + $('#month').val() + '",' +
+                '"state": "' + $('#state').val() + '"},' +
+                '"company_id": "' + company_id + '"' +
+                '}, "id":"VMI"}',
             error: function (XMLHttpRequest, textStatus, errorThrown) {
-                console.log(XMLHttpRequest, textStatus, errorThrown);
+
             },
             success: function (data) {
-                if (data.result && data.result.code) { // script returned error
+                if (data.result && data.result.error) { // script returned error
+
                 }
                 else if (data.error) { // OpenERP error
+
                 } // if
                 else { // successful transaction
-                    result = data.result
+                    //destroy old table and generate a new one with respond data
+                    oTable.fnClearTable(0);
+                    oTable.fnAddData(data.result);
+                    oTable.fnDraw();
                 }
             }
         });
-        return result
     }
 
     // ajax to process the invoice, approve or deny

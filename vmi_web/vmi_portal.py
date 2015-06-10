@@ -609,18 +609,21 @@ def get_account_invoice(req, pid):
     :param pid: partner_id
     :return: search result of matched invoices
     """
-    today = date.today()
-    two_years_before = today.replace(year=today.year - 2)
+
+    # get all paras and build filter
+    year = req.context['year']
+    month = req.context['month']
+    state = req.context['state']
+    filters = [('date_invoice', 'like', '%(year)s-%(month)s-' % {'year': year, 'month': '%02d' % int(month)} + '%'), ('state', 'in', ['manager_approved', 'vendor_approved', 'vendor_denied'])]
+    if state != '0':
+        filters.pop()
+        filters.append(('state', '=', state))
+
     invoices = None
     fields = ['name', 'number', 'date_invoice', 'state', 'partner_id', 'invoice_line', 'move_id', 'amount_untaxed',
               'amount_tax', 'amount_total', 'location_id', 'category_id']
     try:
-        invoices = do_search_read(req, 'account.invoice', fields, 0, False, [('partner_id.id', '=', pid),
-                                                                             ('state', 'in',
-                                                                              ['manager_approved', 'vendor_approved',
-                                                                               'ready']),
-                                                                             ('date_invoice', '>', two_years_before)],
-                                  None)
+        invoices = do_search_read(req, 'account.invoice', fields, 0, False, filters, None)
     except Exception:
         _logger.debug('<get_account_invoice> No account.invoice instances found for partner ID: %s', pid)
 
@@ -1549,9 +1552,9 @@ class VmiController(vmiweb.Controller):
         input.close()
 
         # Get the invoices and converted to javascript
-        invoice = simplejson.dumps(self._get_invoice(req, pid))
-        js = 'var invoice_data = %s;\n' % invoice
-        js += 'var mode = "%s";\n' % mod
+        # invoice = simplejson.dumps(self._get_invoice(req, pid))
+        # js = 'var invoice_data = %s;\n' % invoice
+        js = 'var mode = "%s";\n' % mod
         sid = req.session_id
         context = simpleTALES.Context()
 
