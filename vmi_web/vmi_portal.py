@@ -614,7 +614,7 @@ def get_account_invoice(req, pid):
     year = req.context['year']
     month = req.context['month']
     state = req.context['state']
-    filters = [('date_invoice', 'like', '%(year)s-%(month)s-' % {'year': year, 'month': '%02d' % int(month)} + '%'), ('state', 'in', ['manager_approved', 'vendor_approved', 'vendor_denied'])]
+    filters = [('partner_id', '=', pid), ('date_invoice', 'like', '%(year)s-%(month)s-' % {'year': year, 'month': '%02d' % int(month)} + '%'), ('state', 'in', ['manager_approved', 'vendor_approved', 'vendor_denied'])]
     if state != '0':
         filters.pop()
         filters.append(('state', '=', state))

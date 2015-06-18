@@ -1527,7 +1527,7 @@ class vmi_account_invoice(osv.osv):
                     'expense_center': (account[2] + account[3]).rjust(12, ' '),
                     'expense_amount': (('%.2f' % account_line.total).replace('.', '')).rjust(15, '0'),
                 }
-                il_lines += self._prepare_ap_line(il_fields, il_values) + '\n'
+                il_lines += self._prepare_ap_line(il_fields, il_values) + '\r\n'
                 line_number += 1
                 line_total += round(account_line.total, 2)
 
@@ -1549,7 +1549,7 @@ class vmi_account_invoice(osv.osv):
                 # 'gl_effective_date': gl_effective_date,
             }
 
-            ap_lines += self._prepare_ap_line(ih_fields, ih_values) + '\n'
+            ap_lines += self._prepare_ap_line(ih_fields, ih_values) + '\r\n'
             invoice_sequence_number += 1
 
             ap_lines += il_lines
@@ -1565,7 +1565,7 @@ class vmi_account_invoice(osv.osv):
             'control_amount': format(control_amount, '.2f').replace('.', '').rjust(15, '0'),
             'operator_id': default_values['operator_id'],
         }
-        ap_lines += self._prepare_ap_line(cg_fields, cg_values) + '\n'
+        ap_lines += self._prepare_ap_line(cg_fields, cg_values) + '\r\n'
         f.write(ap_lines)
         f.close()
 
