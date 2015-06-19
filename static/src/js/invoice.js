@@ -26,6 +26,7 @@ $(document).ready(function() {
         }
         $(this).val(mm);
     });
+
     // Initialize the table
     var anOpen = [];
     var oTable = $('#contents').dataTable({
@@ -69,6 +70,9 @@ $(document).ready(function() {
                         break;
                     case "vendor_approved":
                         result = "Vendor Approved";
+                        break;
+                    case "vendor_denied":
+                        result = "Vendor Denied";
                         break;
                     case "ready":
                         result = "Ready to Pay";
@@ -206,19 +210,28 @@ $(document).ready(function() {
         var i = $.inArray(nTr, anOpen);
         var aData = oTable.fnGetData(nTr);
         var invoice_id = aData.id;
-        // prompt a message to store the reason denied
-        var message = prompt("Please enter the comment regarding this invoice:");
-        if (message != null) {
-            var decision = {
-                invoice_id: invoice_id,
-                approved: false,
-                comment: message
-            };
-            process_invoice(decision, nTr);
-        }
-        else {
-            e.preventDefault();
-        }
+
+        // Open a dialog to input the message
+        $("#dialog").dialog({
+            resizeable: false,
+            width: 500,
+            modal: true,
+            buttons: {
+                "OK": function () {
+                    $(this).dialog("close");
+                    var message = $('#message').val();
+                    var decision = {
+                        invoice_id: invoice_id,
+                        approved: false,
+                        comment: message
+                    };
+                    process_invoice(decision, nTr);
+                },
+                Cancel: function () {
+                    $(this).dialog("close");
+                }
+            }
+        });
     });
 
     // Ajax to get invoices from server

@@ -22,8 +22,10 @@
 <link rel="stylesheet" type="text/css" media="screen, projection" href="/vmi/static/src/css/screen_rev2.css" />
 <link rel="stylesheet" type="text/css" media="screen, projection" href="/vmi/static/src/js/datatables/media/css/jquery.dataTables.css" />
 <link rel="stylesheet" type="text/css" media="screen, projection" href="/vmi/static/src/css/septa.css" />
+<link rel="stylesheet" type="text/css" media="screen, projection" href="/vmi/static/src/css/jquery-ui.css" />
 <script type="text/javascript" tal:content="structure script"></script>
 <script src="/vmi/static/src/js/jquery.min.js"></script>
+<script src="/vmi/static/src/js/jquery-ui.js"></script>
 <script src="/vmi/static/src/js/jquery.csv-0.71.js"></script>
 <script src="/vmi/static/src/js/csv.js"></script>
 <script type="text/javascript" src="/vmi/static/src/js/datatables/media/js/jquery.dataTables.js"></script>
@@ -99,6 +101,9 @@
                 </select>
                 <button id="filter">Submit</button>
             </fieldset>
+        </div>
+        <div id="dialog" title="Message" style="display: none">
+            <textarea id="message" rows="4" cols="50" placeholder="Please enter the comment regarding this invoice"/>
         </div>
         <div id="invoice" class="info" tal:condition="form_flag">
             <form class="form_binary_form" method="post" enctype="multipart/form-data">
