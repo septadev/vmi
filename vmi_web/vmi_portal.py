@@ -480,6 +480,7 @@ def get_invoice_line(req, ids, uid):
     account_invoice_line_obj = req.session.model('account.invoice.line')
     move_obj = req.session.model('stock.move')
     product_obj = req.session.model('product.product')
+    picking_obj = req.session.model('stock.picking')
     fields = ['invoice_id', 'price_unit', 'price_subtotal', 'discount', 'quantity', 'product_id', 'stock_move_id']
     try:
         lines = account_invoice_line_obj.read(ids, fields, None)
@@ -491,9 +492,12 @@ def get_invoice_line(req, ids, uid):
 
     for line in lines:
         if line['stock_move_id']:
-            move = move_obj.read(line['stock_move_id'][0], ['date', 'origin', 'product_uom', 'product_qty'], None)
+
+            move = move_obj.read(line['stock_move_id'][0], ['date', 'origin', 'product_uom', 'product_qty', 'picking_id'], None)
             product = product_obj.read(line['product_id'][0], ['default_code', 'vendor_part_number'], None)
-            line['date_received'] = move['date']
+            picking = picking_obj.read(move['picking_id'][0], ['date_done'], None)
+
+            line['date_received'] = picking['date_done'].split(' ')[0]
             line['picking_number'] = move['origin']
             line['septa_part_number'] = product['default_code']
             line['vendor_part_number'] = product['vendor_part_number']
