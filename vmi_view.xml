@@ -1,88 +1,121 @@
 <?xml version="1.0"?>
 <openerp>
-	<data> 
-<!-- Product Normal Form (inherit)-->
-		<record id="product_normal_form_inherit" model="ir.ui.view">
-			<field name="name">vmi.product.form.inherit</field>
-			<field name="model">product.product</field>
-			<field name="inherit_id" ref="product.product_normal_form_view" />
-			<field eval="5" name="priority"/>
-			<field name="arch" type="xml">
-				<field name="name" invisible="1" />
-				<field name="default_code" position="after">
-				    <field name="vendor_part_number" />
-				</field>
-		  </field>
-		</record>
-
-        <record id="product_category_form_view_inherit" model="ir.ui.view">
-            <field name="name">product.category.form.inherit</field>
-            <field name="model">product.category</field>
-            <field name="inherit_id" ref="product.product_category_form_view" />
+	<data>
+    <!--Modification under Warehouse-->
+        <!--stock.picking-->
+        <!--Modify incoming shipment tree-->
+        <record id="view_picking_in_tree_inherit" model="ir.ui.view">
+            <field name="name">stock.picking.in.tree</field>
+            <field name="model">stock.picking.in</field>
+            <field name="inherit_id" ref="stock.view_picking_in_tree"/>
             <field name="arch" type="xml">
-                <field name="type" position="after">
-                    <field name="code"/>
+                <tree position="attributes">
+					<attribute name="colors">blue:contains_audit=='yes';green:contains_audit=='no';green:contains_audit=='pass';green:contains_audit=='overwritten';red:contains_audit=='fail'</attribute>
+				</tree>
+                <field name="name" position="replace"/>
+                <field name="backorder_id" position="replace"/>
+                <field name="origin" position="after">
+                    <field name="location_dest_id"/>
+                </field>
+                <field name="min_date" position="replace">
+                    <field name="date_done" string="Delivery Date"/>
+                    <field name="contains_audit"/>
+                </field>
+                <field name="invoice_state" position="replace">
+                    <field name="invoice_state"/>
+                </field>
+                <field name="stock_journal_id" position="replace"/>
+            </field>
+        </record>
+
+        <!--Modify incoming shipment form-->
+        <record id="view_picking_in_form_inherit" model="ir.ui.view">
+            <field name="name">stock.picking.in.form.inherit</field>
+            <field name="model">stock.picking.in</field>
+            <field name="inherit_id" ref="stock.view_picking_in_form"/>
+            <field name="arch" type="xml">
+                <form position="attributes">
+                    <attribute name="create">false</attribute>
+                    <attribute name="edit">false</attribute>
+                </form>
+                <button string="Create Invoice/Refund" position="replace">
+                    <!--<button name="%(stock.action_stock_invoice_onshipping)d" string="Create Invoice"  attrs="{'invisible': ['|','|',('state','&lt;&gt;','done'),('invoice_state','=','invoiced'),('invoice_state','=','none')]}"  type="action" class="oe_highlight"/>-->
+                </button>
+                <xpath expr="//button[@name='%(stock.act_stock_return_picking)d']" position="replace"/>
+                <field name="date_done" position="replace"/>
+                <field name="min_date" position="replace">
+                    <field name="date_done" string="Delivery Date" readonly="1"/>
+                </field>
+                <field name="purchase_id" position="replace"/>
+                <field name="stock_journal_id" position="replace"/>
+                <field name="move_lines" position="replace">
+                    <field name="move_lines">
+                        <tree editable="bottom" string="Stock Move">
+                            <field name="product_id"/>
+                            <field name="product_qty"/>
+                            <field name="product_uom"/>
+                            <field name="location_dest_id"/>
+                            <field name="audit" invisible="1" />
+						    <field name="audit_fail" invisible="1" />
+						    <button name="%(vmi.move_audit)d" icon="gtk-find" type="action" colspan="1" help="Audit" attrs="{'invisible': ['|',('state','=','done'),('audit','&lt;&gt;', True)]}" />
+						    <button name="fail_audit" icon="gtk-dialog-warning" type="object" colspan="1" help="Failed Audit" attrs="{'invisible': [('audit_fail','&lt;&gt;', True)]}" />
+                            <field name="invoice_status" string="Invoice Status"/>
+                            <field name="state"/>
+                        </tree>
+                    </field>
                 </field>
             </field>
         </record>
 
-        <record id="view_location_form_inherit" model="ir.ui.view">
-            <field name="name">stock.location.form.inherit</field>
-            <field name="model">stock.location</field>
-            <field name="inherit_id" ref="stock.view_location_form" />
+        <!--Modify incoming shipment filter-->
+        <record id="view_picking_in_search_inherit" model="ir.ui.view">
+            <field name="name">stock.picking.in.search</field>
+            <field name="model">stock.picking.in</field>
+            <field name="inherit_id" ref="stock.view_picking_in_search"/>
             <field name="arch" type="xml">
-                <field name="partner_id" position="after">
-                    <field name="code"/>
-                </field>
+                <filter string="Order Date" position="replace"/>
+                <filter string="Expected Date" position="replace">
+                    <filter string="Delivery Date" icon="terp-go-month" domain="[]" context="{'group_by':'date_done'}"/>
+                    <filter string="Supplier" domain="[]" context="{'group_by':'partner_id'}"/>
+                    <filter name="group_location_cate_id" string="Destination" domain="[]" context="{'group_by':'location_dest_id'}"/>
+                </filter>
+                <filter string="Journal" position="replace"/>
             </field>
         </record>
-	       <!-- Product Suppliers (inherit)
-		<record id="view_product_supplier_inherit" model="ir.ui.view">
-				<field name="name">product.normal.supplier.form.inherit</field>
-				<field name="model">product.product</field>
-				<field name="inherit_id" ref="product.product_normal_form_view"/>
-				<field name="arch" type="xml">
-						<group name="procurement" position="after">
-								 <separator string="Suppliers"/>
-								 <field name="seller_ids" context="{'uom_id': uom_id}"/>
-						</group>
-				</field>
-		</record> -->
-    <!-- Audit Wizard -->
-		<record id="view_stock_move_audit_wizard" model="ir.ui.view">
-				<field name="name">Audit Move</field>
-				<field name="model">stock.move.audit</field>
-				<field name="arch" type="xml">
-						<form string="Audit Move" version="7.0">
-								<separator string="Audit Products"/>
-								<group>
-										<field name="product_id"  readonly="1"/>
-										<label for="product_qty"/>
-										<div>
-												<field name="product_qty" class="oe_inline"/>
-												<field name="product_uom" class="oe_inline" readonly="1" groups="product.group_uom"/>
-										</div>
-										<field name="location_id" string="Location" readonly="1"
-												domain="[('usage','!=','view')]" groups="stock.group_locations"/> 
-								</group>
-								<footer>
-										<button name="move_audited" string="Ok" type="object" class="oe_highlight"  />
-										or
-										<button string="Cancel" class="oe_link" special="cancel" />
-								</footer>
-						</form>
-				</field>
-		</record>
-		<!-- Audit Wizard Action -->        
+
+        <!--Set view-->
+        <record id="action_picking_tree4_inherit" model="ir.actions.act_window">
+            <field name="name">Packaging Slip By Location</field>
+            <field name="res_model">stock.picking.in</field>
+            <field name="type">ir.actions.act_window</field>
+            <field name="view_type">form</field>
+            <field name="view_mode">tree,form,calendar</field>
+            <field name="domain">[('type','=','in')]</field>
+            <field name="context">{'contact_display': 'partner_address', 'default_type': 'in', 'search_default_group_location_cate_id': True}</field>
+            <field name="view_id" ref="view_picking_in_tree_inherit"/>
+            <field name="help" type="html">
+              <p>
+                The Incoming Shipments is the list of all orders you will
+                receive from your suppliers. An incoming shipment contains a
+                list of products to be received according to the original
+                purchase order.
+              </p>
+            </field>
+        </record>
+
+        <!--stock.move-->
+        <!-- Add Audit Wizard Action -->
 		<record id="move_audit" model="ir.actions.act_window">
-				<field name="name">Audit Move</field>
-				<field name="type">ir.actions.act_window</field>
-				<field name="res_model">stock.move.audit</field>
-				<field name="view_type">form</field>
-				<field name="view_mode">form</field>
-				<field name="target">new</field>
+			<field name="name">Audit Move</field>
+		    <field name="type">ir.actions.act_window</field>
+			<field name="res_model">stock.move.audit</field>
+			<field name="view_type">form</field>
+			<field name="view_mode">form</field>
+            <field name="view_id" ref="view_stock_move_audit_wizard"/>
+			<field name="target">new</field>
 		</record>
-<!-- Stock Move Tree (inherit)-->
+
+        <!--Modify Stock Move tree-->
 		<record id="stock_move_tree2_inherit" model="ir.ui.view">
 			<field name="name">stock.move.tree2.inherit</field>
 			<field name="model">stock.move</field>
@@ -114,7 +147,7 @@
 			</field>
 		</record>
 
-<!-- Stock Move Form (inherit)-->
+        <!--Modify Stock Move form-->
 		<record id="stock_move_form_inherit" model="ir.ui.view">
 			<field name="name">stock.move.form.inherit</field>
 			<field name="model">stock.move</field>
@@ -131,23 +164,23 @@
                 <button string="Set Available" position="replace"/>
                 <button string="Scrap" position="replace"/>
                 <field name="name" position="after">
-                  <field name="vendor_id" />
-                  <field name="invoice_status" string="Invoice Status"/>
+                    <field name="vendor_id" />
+                    <field name="invoice_status" string="Invoice Status"/>
                 </field>
 				<field name="date" position="after">
-				  <field name="audit" invisible="1" />
-				  <field name="audit_fail" invisible="1" />
-				  <field name="note" />
+                    <field name="audit" invisible="1" />
+                    <field name="audit_fail" invisible="1" />
+                    <field name="note" />
 				</field>
 				<field name="product_uom" position="after">
-				  <button name="%(vmi.move_audit)d" icon="gtk-find" type="action" class="oe_highlight" string="Audit" help="Audit" attrs="{'invisible': ['|',('state','=','done'),('audit','&lt;&gt;', True)]}" />
-				  <button name="fail_audit" icon="gtk-dialog-warning" type="object" class="oe_highlight" string="Failed Audit" help="Failed Audit" attrs="{'invisible': [('audit_fail','&lt;&gt;', True)]}" />
+                    <button name="%(vmi.move_audit)d" icon="gtk-find" type="action" class="oe_highlight" string="Audit" help="Audit" attrs="{'invisible': ['|',('state','=','done'),('audit','&lt;&gt;', True)]}" />
+                    <button name="fail_audit" icon="gtk-dialog-warning" type="object" class="oe_highlight" string="Failed Audit" help="Failed Audit" attrs="{'invisible': [('audit_fail','&lt;&gt;', True)]}" />
 				</field>
                 <group string="Traceability" position="replace"/>
 		  </field>
 		</record>
-		<!-- Stock Picking Move Tree -->
-    <record id="view_move_picking_tree_inherit" model="ir.ui.view">
+
+         <record id="view_move_picking_tree_inherit" model="ir.ui.view">
 				<field name="name">stock.move.tree.inherit</field>
 				<field name="model">stock.move</field>
 				<field name="inherit_id" ref="stock.view_move_picking_tree" />
@@ -169,20 +202,8 @@
                     <button string="Put in a new pack" position="replace"/>
 
 				</field>
-		</record>
-
-        <!--<record id="view_move_picking_form_inherit" model="ir.ui.view">
-            <field name="name">stock.move.form</field>
-            <field name="model">stock.move</field>
-            <field name="inherit_id" ref="stock.view_move_picking_form" />
-            <field name="arch" type="xml">
-                <field name="product_uom" position="after">
-                    <field name="invoice_status" string="Invoice Status"/>
-                </field>
-            </field>
-        </record>-->
-
-
+		 </record>
+        <!--Modify Stock Move search-->
         <record id="view_move_search_inherit" model="ir.ui.view">
             <field name="name">stock.move.search</field>
             <field name="model">stock.move</field>
@@ -194,6 +215,7 @@
             </field>
         </record>
 
+        <!--Set View-->
         <record id="action_reception_picking_move_inherit" model="ir.actions.act_window">
             <field name="name">Parts To Be Audited By Location</field>
             <field name="res_model">stock.move</field>
@@ -215,95 +237,133 @@
             </field>
         </record>
 
-        <record id="view_picking_in_form_inherit" model="ir.ui.view">
-            <field name="name">stock.picking.in.form.inherit</field>
-            <field name="model">stock.picking.in</field>
-            <field name="inherit_id" ref="stock.view_picking_in_form"/>
-            <field name="arch" type="xml">
-                <form position="attributes">
-                    <attribute name="create">false</attribute>
-                    <attribute name="edit">false</attribute>
-                </form>
-                <button string="Create Invoice/Refund" position="replace">
-                    <!--<button name="%(stock.action_stock_invoice_onshipping)d" string="Create Invoice"  attrs="{'invisible': ['|','|',('state','&lt;&gt;','done'),('invoice_state','=','invoiced'),('invoice_state','=','none')]}"  type="action" class="oe_highlight"/>-->
-                </button>
-                <xpath expr="//button[@name='%(stock.act_stock_return_picking)d']" position="replace"/>
-                <field name="date_done" position="replace"/>
-                <field name="min_date" position="replace">
-                    <field name="date_done" string="Delivery Date" readonly="1"/>
-                </field>
-                <field name="purchase_id" position="replace"/>
-                <field name="invoice_state" position="replace">
-                    <field name="invoice_state"/>
-                </field>
-                <field name="stock_journal_id" position="replace"/>
-                <field name="move_lines" position="replace">
-                    <field name="move_lines">
-                        <tree editable="bottom" string="Stock Move">
-                            <field name="product_id"/>
-                            <field name="product_qty"/>
-                            <field name="product_uom"/>
-                            <field name="location_dest_id"/>
-                            <field name="audit" invisible="1" />
-						    <field name="audit_fail" invisible="1" />
-						    <button name="%(vmi.move_audit)d" icon="gtk-find" type="action" colspan="1" help="Audit" attrs="{'invisible': ['|',('state','=','done'),('audit','&lt;&gt;', True)]}" />
-						    <button name="fail_audit" icon="gtk-dialog-warning" type="object" colspan="1" help="Failed Audit" attrs="{'invisible': [('audit_fail','&lt;&gt;', True)]}" />
-                            <field name="invoice_status" string="Invoice Status"/>
-                            <field name="state"/>
-                        </tree>
-                    </field>
-                </field>
-            </field>
-        </record>
-        <!--Modify incoming shipment tree, form and filter-->
-        <record id="view_picking_in_tree_inherit" model="ir.ui.view">
+        <!--Add Audit Wizard -->
+		<record id="view_stock_move_audit_wizard" model="ir.ui.view">
+			<field name="name">Audit Move</field>
+			<field name="model">stock.move.audit</field>
+			<field name="arch" type="xml">
+				<form string="Audit Move" version="7.0">
+					<separator string="Audit Products"/>
+					<group>
+						<field name="product_id"  readonly="1"/>
+						<label for="product_qty"/>
+						<div>
+							<field name="product_qty" class="oe_inline"/>
+							<field name="product_uom" class="oe_inline" readonly="1" groups="product.group_uom"/>
+						</div>
+						<field name="location_id" string="Location" readonly="1"
+							domain="[('usage','!=','view')]" groups="stock.group_locations"/>
+					</group>
+					<footer>
+						<button name="move_audited" string="Ok" type="object" class="oe_highlight"  />
+							or
+						<button string="Cancel" class="oe_link" special="cancel" />
+					</footer>
+				</form>
+			</field>
+		</record>
+
+        <!--Audit Overwrite-->
+        <!--Add Overwrite Picking View, Use same tree as stock.picking, just modify the form-->
+
+        <!-- Add Audit Overwrite Wizard Action -->
+		<record id="audit_overwrite" model="ir.actions.act_window">
+			<field name="name">Audit Overwrite</field>
+			<field name="type">ir.actions.act_window</field>
+			<field name="res_model">stock.move.audit</field>
+			<field name="view_type">form</field>
+			<field name="view_mode">form</field>
+            <field name="view_id" ref="view_stock_move_audit_overwrite_wizard"/>
+			<field name="target">new</field>
+		</record>
+
+        <!--Tree-->
+        <record id="view_picking_in_tree_overwrite" model="ir.ui.view">
             <field name="name">stock.picking.in.tree</field>
             <field name="model">stock.picking.in</field>
-            <field name="inherit_id" ref="stock.view_picking_in_tree"/>
             <field name="arch" type="xml">
-                <tree position="attributes">
-					<attribute name="colors">blue:contains_audit=='yes';green:contains_audit=='no';green:contains_audit=='pass';red:contains_audit=='fail'</attribute>
-				</tree>
-                <field name="name" position="replace"/>
-                <field name="backorder_id" position="replace"/>
-                <field name="origin" position="after">
+                <tree colors="blue:contains_audit=='yes';green:contains_audit=='no';green:contains_audit=='pass';green:contains_audit=='overwritten';red:contains_audit=='fail'" string="Picking list">
+                    <field name="partner_id" string="Supplier"/>
+                    <field name="origin"/>
                     <field name="location_dest_id"/>
-                </field>
-                <field name="min_date" position="replace">
+                    <field name="date"/>
                     <field name="date_done" string="Delivery Date"/>
                     <field name="contains_audit"/>
-                </field>
-                <field name="invoice_state" position="replace">
                     <field name="invoice_state"/>
-                </field>
-                <field name="stock_journal_id" position="replace"/>
+                    <field name="state"/>
+                </tree>
             </field>
         </record>
 
-        <record id="view_picking_in_search_inherit" model="ir.ui.view">
-            <field name="name">stock.picking.in.search</field>
-            <field name="model">stock.picking.in</field>
-            <field name="inherit_id" ref="stock.view_picking_in_search"/>
+        <!--Form-->
+        <!--can not use stock.picking.tree model because-->
+        <record id="view_picking_in_form_overwrite" model="ir.ui.view">
+            <field name="name">stock.picking.in.form.overwrite</field>
+            <field name="model">stock.picking</field>
             <field name="arch" type="xml">
-                <filter string="Order Date" position="replace"/>
-                <filter string="Expected Date" position="replace">
-                    <filter string="Delivery Date" icon="terp-go-month" domain="[]" context="{'group_by':'date_done'}"/>
-                    <filter string="Supplier" domain="[]" context="{'group_by':'partner_id'}"/>
-                    <filter name="group_location_cate_id" string="Destination" domain="[]" context="{'group_by':'location_dest_id'}"/>
-                </filter>
-                <filter string="Journal" position="replace"/>
+                <form string="Audit Overwrite" version="7.0" attrs="{'create': False, 'edit': False}">
+                    <header>
+                        <field name="state" widget="statusbar" statusbar_visible="draft,assigned,done" statusbar_colors='{"shipping_except":"red","invoice_except":"red","waiting_date":"blue"}'/>
+                    </header>
+                    <sheet>
+                        <group>
+                            <group>
+                                <field name="partner_id" on_change="onchange_partner_in(partner_id)"/>
+                                <field name="invoice_state" string="Invoice Control" groups="account.group_account_invoice" attrs="{'invisible':[('invoice_state', '=', 'none')]}"/>
+                            </group>
+                            <group>
+                                <field name="date"/>
+                                <field name="date_done" string="Delivery Date" readonly="1"/>
+                                <field name="origin" placeholder="e.g. PO0032" class="oe_inline"/>
+                            </group>
+                        </group>
+                            <notebook>
+                            <page string="Products">
+                                <field name="move_lines">
+                                    <tree editable="bottom" string="Stock Move">
+                                        <field name="product_id"/>
+                                        <field name="product_qty"/>
+                                        <field name="product_uom"/>
+                                        <field name="location_dest_id"/>
+                                        <field name="audit" invisible="1" />
+                                        <field name="audit_fail" invisible="1" />
+                                        <button name="%(vmi.audit_overwrite)d" icon="gtk-find-and-replace" type="action" class="oe_highlight" string="Audit Overwrite" help="Audit" attrs="{'invisible': ['|',('state','=','done'),('audit','&lt;&gt;', True)]}" />
+                                        <button name="fail_audit" icon="gtk-dialog-warning" type="object" colspan="1" help="Failed Audit" attrs="{'invisible': [('audit_fail','&lt;&gt;', True)]}" />
+                                        <field name="invoice_status" string="Invoice Status"/>
+                                        <field name="state"/>
+                                    </tree>
+                                </field>
+                                <!--<field name="move_lines" string="Stock Move" context="{'address_in_id': partner_id, 'form_view_ref':'stock.view_move_picking_form', 'tree_view_ref':'stock.view_move_picking_tree', 'picking_type': 'internal'}" options='{"reload_on_button": true}'/>-->
+                                <field name="note" placeholder="Add an internal note..." class="oe_inline"/>
+                            </page>
+                            <page string="Additional Info">
+                                <group>
+                                    <group>
+                                        <field name="move_type"/>
+                                        <field name="type" invisible="1"/>
+                                        <field name="auto_picking" groups="base.group_user"/>
+                                    </group>
+                                    <group>
+                                        <field name="company_id" groups="base.group_multi_company" widget="selection"/>
+                                    </group>
+                                </group>
+                            </page>
+                        </notebook>
+                    </sheet>
+                </form>
             </field>
         </record>
 
-        <record id="action_picking_tree4_inherit" model="ir.actions.act_window">
-            <field name="name">Packaging Slip By Location</field>
-            <field name="res_model">stock.picking.in</field>
+        <!--Set View-->
+        <record id="action_overwrite_picking_view" model="ir.actions.act_window">
+            <field name="name">Overwrite Picking</field>
+            <field name="res_model">stock.picking</field>
             <field name="type">ir.actions.act_window</field>
             <field name="view_type">form</field>
-            <field name="view_mode">tree,form,calendar</field>
-            <field name="domain">[('type','=','in')]</field>
-            <field name="context">{'contact_display': 'partner_address', 'default_type': 'in', 'search_default_group_location_cate_id': True}</field>
-            <field name="view_id" ref="view_picking_in_tree_inherit"/>
+            <field name="view_id" ref="view_picking_in_tree_overwrite"/>
+            <field name="search_view_id" ref="view_picking_in_search_inherit"/>
+            <field name="context">{}</field>
+            <field name="domain">[('contains_audit', 'in', ['yes', 'overwritten'])]</field>
             <field name="help" type="html">
               <p>
                 The Incoming Shipments is the list of all orders you will
@@ -314,69 +374,193 @@
             </field>
         </record>
 
-        <record id="vmi_view_stock_invoice_shipping" model="ir.ui.view">
-            <field name="name">Stock Invoice Onshipping Inherit</field>
-            <field name="model">stock.invoice.onshipping</field>
-            <field name="inherit_id" ref="stock.view_stock_invoice_onshipping"/>
+        <!--Set Tree-->
+        <record id="action_audit_overwrite_picking_tree" model="ir.actions.act_window.view">
+            <field name="sequence" eval="1"/>
+            <field name="view_mode">tree</field>
+            <field name="view_id" ref="view_picking_in_tree_overwrite" />
+            <field name="act_window_id" ref="action_overwrite_picking_view"/>
+        </record>
+
+        <!--Set Form-->
+        <record id="action_audit_overwrite_picking_form" model="ir.actions.act_window.view">
+            <field name="sequence" eval="1"/>
+            <field name="view_mode">form</field>
+            <field name="view_id" ref="view_picking_in_form_overwrite" />
+            <field name="act_window_id" ref="action_overwrite_picking_view"/>
+        </record>
+
+        <!--Add Overwrite Product View, Create both tree and form view-->
+
+        <!--Tree-->
+        <record id="view_stock_move_tree_overwrite" model="ir.ui.view">
+            <field name="name">audit.overwrite.tree</field>
+			<field name="model">stock.move</field>
             <field name="arch" type="xml">
-                <field name="invoice_date" position="replace">
-                    <field name="invoice_date"/>
+                <tree string="Audit Overwrite">
+                    <field name="date" widget="date"/>
+                    <field name="picking_id" string="Reference" invisible="1"/>
+                    <field name="origin"/>
+                    <field name="partner_id" string="Supplier"/>
+                    <field name="location_dest_id"/>
+                    <field name="product_id"/>
+                    <field name="product_qty"/>
+                    <field name="audit" invisible="1" />
+					<field name="audit_fail" invisible="1" />
+                    <button name="%(vmi.audit_overwrite)d" icon="gtk-find-and-replace" type="action" class="oe_highlight" string="Audit Overwrite" help="Audit" attrs="{'invisible': ['|',('state','=','done'),('audit','&lt;&gt;', True)]}" />
+                    <field name="product_uom" string="Unit of Measure" groups="product.group_uom"/>
+                    <field name="invoice_status" string="Invoice Status"/>
+                    <field name="state"/>
+                </tree>
+            </field>
+        </record>
+
+        <!--From-->
+        <record id="view_stock_move_form_overwrite" model="ir.ui.view">
+            <field name="name">audit.overwrite.form</field>
+			<field name="model">stock.move</field>
+            <field name="arch" type="xml">
+                <form string="Audit Overwrite" version="7.0">
+                    <header>
+                        <button name="%(vmi.audit_overwrite)d" icon="gtk-find-and-replace" type="action" class="oe_highlight" string="Audit Overwrite" help="Audit Overwrite" attrs="{'invisible': ['|',('state','=','done'),('audit','&lt;&gt;', True)]}" />
+                        <field name="state" widget="statusbar" statusbar_visible="draft, done"/>
+                    </header>
+                    <group>
+                        <group>
+                            <field name="date" widget="date"/>
+                            <field name="picking_id" string="Reference" invisible="1"/>
+                            <field name="origin"/>
+                            <field name="partner_id" string="Supplier"/>
+                            <field name="location_dest_id"/>
+                            <field name="product_id"/>
+                            <label for="product_qty"/>
+                            <div>
+                                <field name="product_qty" on_change="onchange_quantity(product_id, product_qty, product_uom, product_uos)" class="oe_inline"/>
+                                <field name="product_uom" string="Unit Of Measure" groups="product.group_uom" class="oe_inline"/>
+                            </div>
+                            <field name="audit" invisible="1" />
+                            <field name="audit_fail" invisible="1" />
+                            <field name="product_uom" string="Unit of Measure" groups="product.group_uom"/>
+                            <field name="invoice_status" string="Invoice Status"/>
+                        </group>
+                    </group>
+                </form>
+            </field>
+        </record>
+
+        <!--Set View-->
+        <record id="action_overwrite_product_view" model="ir.actions.act_window">
+            <field name="name">Audit Overwrite</field>
+            <field name="res_model">stock.move</field>
+            <field name="type">ir.actions.act_window</field>
+            <field name="view_type">form</field>
+            <field name="view_id" ref="view_stock_move_tree_overwrite"/>
+            <field name="search_view_id" ref="view_move_search_inherit"/>
+            <field name="context">{}</field>
+            <field name="domain">[('audit', '=', True)]</field>
+            <field name="help" type="html">
+              <p>
+                This menu gives you the full traceability of inventory
+                operations on a specific product. You can filter on the product
+                to see all the past or future movements for the product.
+              </p>
+            </field>
+        </record>
+
+        <!--Set Tree-->
+        <record id="action_audit_overwrite_tree" model="ir.actions.act_window.view">
+            <field name="sequence" eval="1"/>
+            <field name="view_mode">tree</field>
+            <field name="view_id" ref="view_stock_move_tree_overwrite" />
+            <field name="act_window_id" ref="action_overwrite_product_view"/>
+        </record>
+
+        <!--Set Form-->
+        <record id="action_audit_overwrite_form" model="ir.actions.act_window.view">
+            <field name="sequence" eval="3"/>
+            <field name="view_mode">form</field>
+            <field name="view_id" ref="view_stock_move_form_overwrite" />
+            <field name="act_window_id" ref="action_overwrite_product_view"/>
+        </record>
+
+        <!--Add views to warehouse tab-->
+        <menuitem id="menu_audit_overwrite" name="Audit Overwrite" parent="stock.menu_stock_root" sequence="2"/>
+        <menuitem name="Overwrite Pickings" action="action_overwrite_picking_view" id="menu_action_overwrite_picking_view" parent="menu_audit_overwrite" sequence="1"/>
+        <menuitem name="Overwrite Products" action="action_overwrite_product_view" id="menu_action_overwrite_product_view" parent="menu_audit_overwrite" sequence="2"/>
+
+        <!--Add Audit Overwrite Wizard -->
+		<record id="view_stock_move_audit_overwrite_wizard" model="ir.ui.view">
+			<field name="name">Audit Overwrite</field>
+			<field name="model">stock.move.audit</field>
+			<field name="arch" type="xml">
+				<form string="Audit Overwrite" version="7.0">
+					<separator string="Audit Overwrite Products"/>
+					<group>
+						<field name="product_id"  readonly="1"/>
+						<label for="product_qty"/>
+						<div>
+							<field name="product_qty" class="oe_inline" readonly="1"/>
+							<field name="product_uom" class="oe_inline" readonly="1" groups="product.group_uom"/>
+						</div>
+						<field name="location_id" string="Location" readonly="1"
+							domain="[('usage','!=','view')]" groups="stock.group_locations"/>
+					</group>
+					<footer>
+						<button name="audit_overwrite" string="Ok" type="object" class="oe_highlight"  />
+							or
+						<button string="Cancel" class="oe_link" special="cancel" />
+					</footer>
+				</form>
+			</field>
+		</record>
+
+        <!--Product-->
+
+        <!--Modify product form-->
+		<record id="product_normal_form_inherit" model="ir.ui.view">
+			<field name="name">vmi.product.form.inherit</field>
+			<field name="model">product.product</field>
+			<field name="inherit_id" ref="product.product_normal_form_view" />
+			<field eval="5" name="priority"/>
+			<field name="arch" type="xml">
+				<field name="name" invisible="1" />
+				<field name="default_code" position="after">
+				    <field name="vendor_part_number" />
+				</field>
+		  </field>
+		</record>
+
+        <!--Product Category-->
+
+        <!--Modify product category form-->
+        <record id="product_category_form_view_inherit" model="ir.ui.view">
+            <field name="name">product.category.form.inherit</field>
+            <field name="model">product.category</field>
+            <field name="inherit_id" ref="product.product_category_form_view" />
+            <field name="arch" type="xml">
+                <field name="type" position="after">
+                    <field name="code"/>
                 </field>
-                <field name="journal_id" position="replace"/>
-                <field name="group" position="replace"/>
+            </field>
+        </record>
+
+        <!--Stock.location-->
+
+        <!--Modify location form-->>
+        <record id="view_location_form_inherit" model="ir.ui.view">
+            <field name="name">stock.location.form.inherit</field>
+            <field name="model">stock.location</field>
+            <field name="inherit_id" ref="stock.view_location_form" />
+            <field name="arch" type="xml">
+                <field name="partner_id" position="after">
+                    <field name="code"/>
+                </field>
             </field>
         </record>
 
         <!-- VMI Client Page -->
-        <record id="vmi_client_page_form" model="ir.ui.view">
-            <field name="name">vmi.client.page.form</field>
-            <field name="model">vmi.client.page</field>
-            <field name="arch" type="xml">
-                <form string="Client Page" version="7.0">
-                  <sheet>
-                    <div class="oe_title">
-                        <h1>
-                            <label string="VMI Client Page: " />
-                            <field name="name" class="oe_inline" select="1"/>
-                        </h1>
-                    </div>
-                    <notebook colspan="4">
-                        <page string="Form">
-                            <label for="form_action" />
-                            <field name="form_action"/>
-                            <label for="form_legend" />
-                            <field name="form_legend"/>
-                        </page>
-                        <page string="Page">
-                            <label for="title" />
-                            <field name="title"/>
-                            <div class="oe_clear" />
-                            <label for="header" />
-                            <field name="header" class="oe_inline"/>
-                        </page>
-                        <page string="Template">
-                            <label for="template_path" />
-                            <field name="template_path"/>
-                            <label for="template_name" />
-                            <field name="template_name"/>
-                        </page>
-                        <page string="Control">
-                            <label for="mode" />
-							<field name="mode" />
-                            <label for="form_flag" />
-                            <field name="form_flag"/>
-                            <label for="active" />
-							<field name="active"/>
-                        </page>
-                    </notebook>
-                    <group string="Record">
-						    <field name="write_date" />
-						    <field name="write_uid" />
-	         		</group>
-                  </sheet>
-                </form>
-            </field>
-        </record>
+
+        <!--Add client tree-->
         <record id="view_client_tree" model="ir.ui.view">
             <field name="name">stock.client.tree</field>
             <field name="model">vmi.client.page</field>
@@ -391,6 +575,59 @@
                 </tree>
             </field>
         </record>
+
+        <!--Add client form-->
+        <record id="vmi_client_page_form" model="ir.ui.view">
+            <field name="name">vmi.client.page.form</field>
+            <field name="model">vmi.client.page</field>
+            <field name="arch" type="xml">
+                <form string="Client Page" version="7.0">
+                    <sheet>
+                        <div class="oe_title">
+                            <h1>
+                                <label string="VMI Client Page: " />
+                                <field name="name" class="oe_inline" select="1"/>
+                            </h1>
+                        </div>
+                        <notebook colspan="4">
+                            <page string="Form">
+                                <label for="form_action" />
+                                <field name="form_action"/>
+                                <label for="form_legend" />
+                                <field name="form_legend"/>
+                            </page>
+                            <page string="Page">
+                                <label for="title" />
+                                <field name="title"/>
+                                <div class="oe_clear" />
+                                <label for="header" />
+                                <field name="header" class="oe_inline"/>
+                            </page>
+                            <page string="Template">
+                                <label for="template_path" />
+                                <field name="template_path"/>
+                                <label for="template_name" />
+                                <field name="template_name"/>
+                            </page>
+                            <page string="Control">
+                                <label for="mode" />
+                                <field name="mode" />
+                                <label for="form_flag" />
+                                <field name="form_flag"/>
+                                <label for="active" />
+                                <field name="active"/>
+                            </page>
+                        </notebook>
+                        <group string="Record">
+                                <field name="write_date" />
+                                <field name="write_uid" />
+                        </group>
+                  </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!--Set view-->
         <record id="action_client_form" model="ir.actions.act_window">
             <field name="name">Client Pages</field>
             <field name="res_model">vmi.client.page</field>
@@ -402,7 +639,32 @@
               </p>
             </field>
         </record>
+
+        <!--Add view under warehouse configuration tab-->
         <menuitem action="action_client_form" id="menu_action_client_form" parent="stock.menu_stock_configuration" sequence="1"/>
+
+        <!-- end of VMI Client Page -->
+
+        <!--Modify create draft invoice form-->
+        <record id="vmi_view_stock_invoice_shipping" model="ir.ui.view">
+            <field name="name">Stock Invoice Onshipping Inherit</field>
+            <field name="model">stock.invoice.onshipping</field>
+            <field name="inherit_id" ref="stock.view_stock_invoice_onshipping"/>
+            <field name="arch" type="xml">
+                <field name="invoice_date" position="replace">
+                    <field name="invoice_date"/>
+                </field>
+                <field name="journal_id" position="replace"/>
+                <field name="group" position="replace"/>
+            </field>
+        </record>
+
+    <!-- End of Modification under Warehouse-->
+
+    <!--Modification under Accounting-->
+
+        <!--Invoice-->
+
         <!--Add Location and Category to invoice tree-->
         <record id="invoice_tree_inherit" model="ir.ui.view">
 				<field name="name">account.invoice.tree.inherit</field>
@@ -413,13 +675,151 @@
 					    <attribute name="colors">blue:state=='draft';black:state=='manager_approved';green:state=='vendor_approved';red:state=='vendor_denied'</attribute>
 					</tree>
                     <field name="user_id" position="after">
-                        <field name="location_id" groups="stock.group_locations"/>
+                        <field name="location_id" />
                         <field name="category_id" />
+                    </field>
+                    <field name="user_id" position="replace">
+                        <field name="user_id" string="Processed by"/>
                     </field>
                     <field name="date_due" position="replace"/>
                     <field name="origin" position="replace"/>
+                    <field name="residual" position="replace"/>
 				</field>
 		</record>
+
+        <!--form action for prepare to pay-->
+        <record id="account_invoice_confirm_view" model="ir.ui.view">
+            <field name="name">account.invoice.allocate.form</field>
+            <field name="model">account.invoice.allocate</field>
+            <field name="arch" type="xml">
+                <form string="Prepare to Pay" version="7.0">
+                    <p class="oe_grey">
+                        Allocate the accounts information to each invoice.
+                    </p>
+                    <footer>
+                        <button string="Prepare Invoices" name="invoice_allocate" type="object" default_focus="1" class="oe_highlight"/>
+                        or
+                        <button string="Cancel" class="oe_link" special="cancel"/>
+                    </footer>
+                </form>
+            </field>
+        </record>
+
+        <!--Add button under 'more'-->
+        <act_window id="action_account_invoice_allocate"
+            multi="True"
+            key2="client_action_multi"
+            name="Prepare to Pay"
+            res_model="account.invoice.allocate"
+            src_model="account.invoice"
+            view_mode="form"
+            target="new"
+            view_type="form" />
+
+        <!--form action for calculate service fee-->
+        <record id="account_invoice_calculate_form" model="ir.ui.view">
+            <field name="name">account.invoice.calculate.form</field>
+            <field name="model">account.invoice.calculate</field>
+            <field name="arch" type="xml">
+                <form string="Calculate Service Fee" version="7.0">
+                    <p class="oe_grey">
+                        Calculate service fee based on selected invoices.
+                    </p>
+                    <footer>
+                        <button string="Calculate" name="invoice_calculate" type="object" default_focus="1" class="oe_highlight"/>
+                        or
+                        <button string="Cancel" class="oe_link" special="cancel"/>
+                    </footer>
+                </form>
+            </field>
+        </record>
+
+        <!--Add button under 'more'-->
+        <act_window id="action_calculate_service_fee"
+            multi="True"
+            key2="client_action_multi"
+            name="Calculate Service Fee"
+            res_model="account.invoice.calculate"
+            src_model="account.invoice"
+            view_mode="form"
+            target="new"
+            view_type="form" />
+
+        <!--form action for generate ap file-->
+        <record id="view_generate_ap_file" model="ir.ui.view">
+            <field name="name">view.generate.ap.file</field>
+            <field name="model">account.invoice.generate</field>
+            <field name="arch" type="xml">
+                <form string="Generate AP File" version="7.0">
+                    <p class="oe_grey">
+                        Generate AP File based on selected invoices.
+                    </p>
+                    <group string="Upload To FTP Server">
+                        <field name="upload"/>
+                    </group>
+                    <footer>
+                        <button string="Generate" name="prepare_to_generate_ap_file" type="object" default_focus="1" class="oe_highlight"/>
+                        or
+                        <button string="Cancel" class="oe_link" special="cancel"/>
+                    </footer>
+                </form>
+            </field>
+        </record>
+
+        <!--Add button under 'more'-->
+        <act_window id="action_generate_ap_file"
+            multi="True"
+            key2="client_action_multi"
+            name="Generate AP File"
+            res_model="account.invoice.generate"
+            src_model="account.invoice"
+            view_mode="form"
+            target="new"
+            view_id="view_generate_ap_file"
+            view_type="form"/>
+
+        <!--form action for undo invoices-->
+        <record id="view_undo_invoices" model="ir.ui.view">
+            <field name="name">view.undo.invoices</field>
+            <field name="model">account.invoice.undo</field>
+            <field name="arch" type="xml">
+                <form string="Undo Invoices" version="7.0">
+                    <separator string="Undo the invoices to a previous status."/>
+                    <p >
+                        For invoices in 'Sent to AP' or 'Ready for AP' status will go back to 'Vendor Approved';
+                        <p class="oe_grey">
+                            Important: all accounts information attached to the invoices will be removed
+                        </p>
+                        For invoices in 'Vendor Approved' or 'Septa Manager Approved' status will go back to 'Draft';
+                        <p class="oe_grey">
+                            Important: Data in invoices won't be changed. If you need the original data from packaging slips, undo them again when they are in 'draft' status and generate new invoices.
+                        </p>
+                        For invoices in 'Draft' status will be 'cancelled'
+                        <p class="oe_grey">
+                            Important: All related packaging Slips will be marked as 'To Be Invoiced'
+                        </p>
+                    </p>
+                    <footer>
+                        <button string="Undo" name="undo_invoices" type="object" default_focus="1" class="oe_highlight"/>
+                        or
+                        <button string="Cancel" class="oe_link" special="cancel"/>
+                    </footer>
+                </form>
+            </field>
+        </record>
+
+        <!--Add button under 'more'-->
+        <act_window id="action_undo_invoices"
+            multi="True"
+            key2="client_action_multi"
+            name="Undo invoices"
+            res_model="account.invoice.undo"
+            src_model="account.invoice"
+            view_mode="form"
+            target="new"
+            view_id="view_undo_invoices"
+            view_type="form"/>
+
         <!--Add Location and Category to supplier invoice form; Modify status bar-->
         <record id="invoice_supplier_form_inherit" model="ir.ui.view">
             <field name="name">account.invoice.supplier.form.inherit</field>
@@ -455,29 +855,6 @@
                 <field name="reference_type" position="attributes">
                     <attribute name="invisible">True</attribute>
                 </field>
-                <!--<field name="invoice_line" position="replace">
-                    <field name="invoice_line" nolabel="1" widget="one2many_list" context="{'type': type}">
-                        <tree string="Invoice Lines" attrs="{'readonly': [('state','in',('vendor_approved','ready'))]}">
-                            <field name="sequence" widget="handle"/>
-                            <field name="product_id" on_change="product_id_change(product_id, uos_id, quantity, name, parent.type, parent.partner_id, parent.fiscal_position, price_unit, parent.currency_id, context, parent.company_id)"/>
-                            <field name="name"/>
-                            <field name="company_id" invisible="1"/>
-                            <field name="account_id" groups="account.group_account_user"
-                                 domain="[('company_id', '=', parent.company_id), ('journal_id', '=', parent.journal_id), ('type', '=', 'other')]"
-                                 on_change="onchange_account_id(product_id, parent.partner_id, parent.type, parent.fiscal_position,account_id)"/>
-                            <field name="account_analytic_id" groups="analytic.group_analytic_accounting"
-                                            domain="[('type','!=','view'), ('company_id', '=', parent.company_id)]"/>
-                            <field name="quantity"/>
-                            <field name="uos_id" groups="product.group_uom"
-                                            on_change="uos_id_change(product_id, uos_id, quantity, name, parent.type, parent.partner_id, parent.fiscal_position, price_unit, parent.currency_id, context, parent.company_id)"/>
-                            <field name="price_unit"/>
-                            <field name="discount" groups="sale.group_discount_per_so_line"/>
-                            <field name="invoice_line_tax_id" widget="many2many_tags" context="{'type':parent.type}"
-                                            domain="[('parent_id','=',False),('company_id', '=', parent.company_id)]"/>
-                            <field name="price_subtotal"/>
-                        </tree>
-                    </field>
-                </field>-->
                 <field name="check_total" position="replace"/>
                 <field name="tax_line" position="replace">
                     <field name="account_line">
@@ -490,21 +867,7 @@
             </field>
         </record>
 
-
-        <!--<record id="view_delivery_fee_tree" model="ir.ui.view">
-            <field name="name">view.delivery.fee.tree</field>
-            <field name="model">account.invoice</field>
-            <field name="arch" type="xml">
-                <tree string="Invoice">
-                    <field name="date_invoice"/>
-                    <field name="partner_id"/>
-                    <field name="name"/>
-                    <field name="amount_total"/>
-                </tree>
-            </field>
-        </record>-->
-
-        <!--Add Category and Location to group by-->
+        <!--Add Category and Location to group by filter-->
         <record id="view_account_invoice_filter_inherit" model="ir.ui.view">
             <field name="name">view.account.invoice.filter.inherit</field>
             <field name="model">account.invoice</field>
@@ -517,6 +880,48 @@
             </field>
         </record>
 
+        <!--account.account-->
+        <!--Modify account form-->
+        <record id="vmi_account_account_form" model="ir.ui.view">
+            <field name="name">vmi.account.account.form</field>
+            <field name="model">account.account</field>
+            <field name="inherit_id" ref="account.view_account_form"/>
+            <field name="arch" type="xml">
+                <field name="note" position="after">
+                    <field name="rule_line">
+                        <tree editable="bottom" string="Account Rules">
+                            <field name="location_id"/>
+                            <field name="category_id"/>
+                            <field name="ratio"/>
+                            <field name="product_id"/>
+                        </tree>
+                    </field>
+                </field>
+            </field>
+        </record>
+
+        <!--res.partner-->
+        <!--Add Email Notification to partners under Contacts tab-->
+        <record id="view_partner_form_inherit" model="ir.ui.view">
+            <field name="name">view.partner.form.inherit</field>
+            <field name="model">res.partner</field>
+            <field name="inherit_id" ref="base.view_partner_form"/>
+            <field name="arch" type="xml">
+                <field name="website" position="after">
+                    <field name="code"/>
+                </field>
+                <form string="Contact" position="inside">
+                    <sheet position="inside">
+                        <div>
+                            <field name="notification"/><label for="notification"/>
+                            <field name="audit_notification"/><label for="audit_notification"/>
+                        </div>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!--mail.mail-->
         <!--Add Email Settings to Accounting tab-->
         <record model="ir.ui.view" id="view_mail_tree_inherit">
             <field name="name">view.mail.tree.inherit</field>
@@ -531,7 +936,7 @@
             </field>
         </record>
 
-        <!--Set default groups-->
+        <!--Set default groups on filter-->
         <record model="ir.ui.view" id="view_mail_search">
             <field name="name">mail.mail.search</field>
             <field name="model">mail.mail</field>
@@ -565,6 +970,7 @@
             </field>
         </record>
 
+        <!--set view-->
         <record id="action_view_mail_mail" model="ir.actions.act_window">
             <field name="name">Emails</field>
             <field name="res_model">mail.mail</field>
@@ -591,6 +997,7 @@
             </field>
         </record>
 
+        <!--Modify email template search filter-->
         <record id="view_email_template_search" model="ir.ui.view">
            <field name="name">email.template.search</field>
            <field name="model">email.template</field>
@@ -607,6 +1014,7 @@
            </field>
         </record>
 
+        <!--set view-->
         <record model="ir.actions.act_window" id="action_email_template_tree_all">
             <field name="name">Templates</field>
             <field name="res_model">email.template</field>
@@ -616,185 +1024,32 @@
             <field name="search_view_id" ref="view_email_template_search"/>
         </record>
 
+        <!--Add views under accounting configuration tab-->
         <menuitem id="account_email_menu" name="Email Notification" parent="account.menu_finance_configuration" sequence="1"/>
         <menuitem name="Emails" id="menu_mail_mail" parent="account_email_menu" action="action_view_mail_mail" />
         <menuitem name="Templates" id="menu_email_templates" parent="account_email_menu" action="action_email_template_tree_all"/>
 
-        <!--Add Email Notification to partners under Contacts tab-->
-        <record id="view_partner_form_inherit" model="ir.ui.view">
-            <field name="name">view.partner.form.inherit</field>
-            <field name="model">res.partner</field>
-            <field name="inherit_id" ref="base.view_partner_form"/>
+        <!--account.invoice.ap-->
+        <!--Add AP tree-->
+        <record id="view_ap_tree" model="ir.ui.view">
+            <field name="name">account.invoice.ap.tree</field>
+            <field name="model">account.invoice.ap</field>
             <field name="arch" type="xml">
-                <field name="website" position="after">
-                    <field name="code"/>
-                </field>
-                <form string="Contact" position="inside">
-                    <sheet position="inside">
-                        <div>
-                            <field name="notification"/><label for="notification"/>
-                            <field name="audit_notification"/><label for="audit_notification"/>
-                        </div>
-                    </sheet>
-                </form>
+                <tree string="AP Default Values">
+                    <field name="name"/>
+                    <field name="paying_entity"/>
+                    <field name="control_number"/>
+                    <field name="operator_id"/>
+                    <field name="vendor_group_number"/>
+                    <field name="application_code"/>
+                    <field name="bank_payment_code"/>
+                    <field name="vendor_id"/>
+                    <field name="vendor_number"/>
+                </tree>
             </field>
         </record>
 
-
-        <record id="account_invoice_confirm_view" model="ir.ui.view">
-            <field name="name">account.invoice.allocate.form</field>
-            <field name="model">account.invoice.allocate</field>
-            <field name="arch" type="xml">
-                <form string="Prepare to Pay" version="7.0">
-                    <p class="oe_grey">
-                        Allocate the accounts information to each invoice.
-                    </p>
-                    <footer>
-                        <button string="Prepare Invoices" name="invoice_allocate" type="object" default_focus="1" class="oe_highlight"/>
-                        or
-                        <button string="Cancel" class="oe_link" special="cancel"/>
-                    </footer>
-                </form>
-            </field>
-        </record>
-
-        <act_window id="action_account_invoice_allocate"
-            multi="True"
-            key2="client_action_multi"
-            name="Prepare to Pay"
-            res_model="account.invoice.allocate"
-            src_model="account.invoice"
-            view_mode="form"
-            target="new"
-            view_type="form" />
-
-        <record id="account_invoice_calculate_form" model="ir.ui.view">
-            <field name="name">account.invoice.calculate.form</field>
-            <field name="model">account.invoice.calculate</field>
-            <field name="arch" type="xml">
-                <form string="Calculate Service Fee" version="7.0">
-                    <p class="oe_grey">
-                        Calculate service fee based on selected invoices.
-                    </p>
-                    <footer>
-                        <button string="Calculate" name="invoice_calculate" type="object" default_focus="1" class="oe_highlight"/>
-                        or
-                        <button string="Cancel" class="oe_link" special="cancel"/>
-                    </footer>
-                </form>
-            </field>
-        </record>
-
-        <act_window id="action_calculate_service_fee"
-            multi="True"
-            key2="client_action_multi"
-            name="Calculate Service Fee"
-            res_model="account.invoice.calculate"
-            src_model="account.invoice"
-            view_mode="form"
-            target="new"
-            view_type="form" />
-
-        <record id="view_generate_ap_file" model="ir.ui.view">
-            <field name="name">view.generate.ap.file</field>
-            <field name="model">account.invoice.generate</field>
-            <field name="arch" type="xml">
-                <form string="Generate AP File" version="7.0">
-                    <p class="oe_grey">
-                        Generate AP File based on selected invoices.
-                    </p>
-                    <group string="Upload To FTP Server">
-                        <field name="upload"/>
-                    </group>
-                    <footer>
-                        <button string="Generate" name="prepare_to_generate_ap_file" type="object" default_focus="1" class="oe_highlight"/>
-                        or
-                        <button string="Cancel" class="oe_link" special="cancel"/>
-                    </footer>
-                </form>
-            </field>
-        </record>
-
-        <act_window id="action_generate_ap_file"
-            multi="True"
-            key2="client_action_multi"
-            name="Generate AP File"
-            res_model="account.invoice.generate"
-            src_model="account.invoice"
-            view_mode="form"
-            target="new"
-            view_id="view_generate_ap_file"
-            view_type="form"/>
-
-        <record id="view_undo_invoices" model="ir.ui.view">
-            <field name="name">view.undo.invoices</field>
-            <field name="model">account.invoice.undo</field>
-            <field name="arch" type="xml">
-                <form string="Undo Invoices" version="7.0">
-                    <separator string="Undo the invoices to a previous status."/>
-                    <p >
-                        For invoices in 'Sent to AP' or 'Ready for AP' status will go back to 'Vendor Approved';
-                        <p class="oe_grey">
-                            Important: all accounts information attached to the invoices will be removed
-                        </p>
-                        For invoices in 'Vendor Approved' or 'Septa Manager Approved' status will go back to 'Draft';
-                        <p class="oe_grey">
-                            Important: Data in invoices won't be changed. If you need the original data from packaging slips, undo them again when they are in 'draft' status and generate new invoices.
-                        </p>
-                        For invoices in 'Draft' status will be 'cancelled'
-                        <p class="oe_grey">
-                            Important: All related packaging Slips will be marked as 'To Be Invoiced'
-                        </p>
-                    </p>
-                    <footer>
-                        <button string="Undo" name="undo_invoices" type="object" default_focus="1" class="oe_highlight"/>
-                        or
-                        <button string="Cancel" class="oe_link" special="cancel"/>
-                    </footer>
-                </form>
-            </field>
-        </record>
-
-        <act_window id="action_undo_invoices"
-            multi="True"
-            key2="client_action_multi"
-            name="Undo invoices"
-            res_model="account.invoice.undo"
-            src_model="account.invoice"
-            view_mode="form"
-            target="new"
-            view_id="view_undo_invoices"
-            view_type="form"/>
-
-        <record id="view_users_form_inherit" model="ir.ui.view">
-            <field name="name">res.users.form.inherit</field>
-            <field name="model">res.users</field>
-            <field name="inherit_id" ref="base.view_users_form"/>
-            <field name="arch" type="xml">
-                <field name="company_id" position="after">
-                    <field name="partner_id" widget="selection"/>
-                </field>
-            </field>
-        </record>
-
-        <record id="vmi_account_account_form" model="ir.ui.view">
-            <field name="name">vmi.account.account.form</field>
-            <field name="model">account.account</field>
-            <field name="inherit_id" ref="account.view_account_form"/>
-            <field name="arch" type="xml">
-                <field name="note" position="after">
-                    <field name="rule_line">
-                        <tree editable="bottom" string="Account Rules">
-                            <field name="location_id"/>
-                            <field name="category_id"/>
-                            <field name="ratio"/>
-                            <field name="product_id"/>
-                        </tree>
-                    </field>
-                </field>
-            </field>
-        </record>
-
+        <!--Add AP form-->
         <record id="view_ap_form" model="ir.ui.view">
             <field name="name">account.invoice.ap.form</field>
             <field name="model">account.invoice.ap</field>
@@ -816,23 +1071,8 @@
                 </form>
             </field>
         </record>
-        <record id="view_ap_tree" model="ir.ui.view">
-            <field name="name">account.invoice.ap.tree</field>
-            <field name="model">account.invoice.ap</field>
-            <field name="arch" type="xml">
-                <tree string="AP Default Values">
-                    <field name="name"/>
-                    <field name="paying_entity"/>
-                    <field name="control_number"/>
-                    <field name="operator_id"/>
-                    <field name="vendor_group_number"/>
-                    <field name="application_code"/>
-                    <field name="bank_payment_code"/>
-                    <field name="vendor_id"/>
-                    <field name="vendor_number"/>
-                </tree>
-            </field>
-        </record>
+
+        <!--Set view-->
         <record id="action_ap_form" model="ir.actions.act_window">
             <field name="name">AP Default Value</field>
             <field name="res_model">account.invoice.ap</field>
@@ -844,7 +1084,22 @@
               </p>
             </field>
         </record>
+
+        <!--Add view under accounting configuration tab-->
         <menuitem action="action_ap_form" id="menu_action_ap_form" parent="account.menu_finance_configuration" sequence="1"/>
+
+    <!--Modification under settings-->
+        <!--Modify user form-->
+        <record id="view_users_form_inherit" model="ir.ui.view">
+            <field name="name">res.users.form.inherit</field>
+            <field name="model">res.users</field>
+            <field name="inherit_id" ref="base.view_users_form"/>
+            <field name="arch" type="xml">
+                <field name="company_id" position="after">
+                    <field name="partner_id" widget="selection"/>
+                </field>
+            </field>
+        </record>
 
 	</data>			  
 </openerp>	
