@@ -211,6 +211,7 @@
             <field name="arch" type="xml">
                 <filter name="done" position="after">
                     <filter name="audit_location" string="To Be Audit" domain="[('audit', '=', True)]" help="Parts to be audited"/>
+                    <filter name="audit_overwritten" string="Audit Overwritten" domain="[('audit_overwritten', '=', True)]" help="Audit overwrite move"/>
                 </filter>
             </field>
         </record>
