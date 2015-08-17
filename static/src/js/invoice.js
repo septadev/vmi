@@ -71,11 +71,15 @@ $(document).ready(function() {
                     case "vendor_approved":
                         result = "Vendor Approved";
                         break;
+                    // To prevent confusion, mask 'ready' and 'sent' as Vendor Approved
+                    case "ready":
+                        result = "Vendor Approved";
+                        break;
+                    case "sent":
+                        result = "Vendor Approved";
+                        break;
                     case "vendor_denied":
                         result = "Vendor Denied";
-                        break;
-                    case "ready":
-                        result = "Ready to Pay";
                         break;
                     case "cancel":
                         result = "Cancelled";

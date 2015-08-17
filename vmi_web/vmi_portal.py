@@ -618,9 +618,14 @@ def get_account_invoice(req, pid):
     year = req.context['year']
     month = req.context['month']
     state = req.context['state']
-    filters = [('partner_id', '=', pid), ('date_invoice', 'like', '%(year)s-%(month)s-' % {'year': year, 'month': '%02d' % int(month)} + '%'), ('state', 'in', ['manager_approved', 'vendor_approved', 'vendor_denied'])]
-    if state != '0':
-        filters.pop()
+    filters = [('partner_id', '=', pid), ('date_invoice', 'like', '%(year)s-%(month)s-' % {'year': year, 'month': '%02d' % int(month)} + '%')]
+    # if the vendor select 'vendor_approved' invoices, return invoices in ['vendor_approved', 'ready', 'sent']
+    # and mask them as 'Vendor Approved' in the portal
+    if state == '0':
+        filters.append(('state', 'in', ['manager_approved', 'vendor_approved', 'vendor_denied', 'ready', 'sent']))
+    elif state == 'vendor_approved':
+        filters.append(('state', 'in', ['vendor_approved', 'ready', 'sent']))
+    else:
         filters.append(('state', '=', state))
 
     invoices = None
@@ -1166,7 +1171,7 @@ class VmiController(vmiweb.Controller):
                     return error_msg
 
                 # check product quantity, must > 0
-                product_qty = float(record['quantity_shipped'])
+                product_qty = float(record['quantity_shipped'].replace(',', ''))
                 if product_qty < 1:
                     error_msg['error'] += 'Quantity Shipped is at least 1!'
                     return error_msg
