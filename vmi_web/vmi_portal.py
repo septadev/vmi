@@ -43,7 +43,7 @@ def check_request(req, source):
     :return:
     """
     error = []
-    if 'id' not in req.jsonrequest.keys():
+    if 'id' not in req.jsonrequest:
         error.append('id')
     if error:
         res = {
@@ -1197,7 +1197,7 @@ class VmiController(vmiweb.Controller):
             for line in lines:
                 # Create stock.picking based on packaging slip number
                 # New Picking
-                if line['origin'] not in created_slips.keys():
+                if line['origin'] not in created_slips:
                     # create stock.picking
                     try:
                         picking_id = picking_model.create({'name': line['name'],
@@ -1844,7 +1844,7 @@ class VmiController(vmiweb.Controller):
             except Exception, e:
                 args.update({'error': str(e)})
                 _logger.debug('Error on line %s', sys.exc_traceback.tb_lineno)
-            if 'error' in result.keys():
+            if 'error' in result:
                 return {
                     'code': 400,
                     'message': "OpenERP WebClient Error",
