@@ -1033,6 +1033,7 @@ class vmi_account_invoice(osv.osv):
                                       ('vendor_approved', 'Vendor Approved'),
                                       ('ready', 'Ready for AP'),
                                       ('sent', 'AP File Generated'),
+                                      ('paid', 'Invoice Paid'),
                                       ('cancel', 'Cancelled'),
                                   ], 'Status', select=True, readonly=True, track_visibility='onchange',
                                   help=' * The \'Draft\' status is used when a user is encoding a new and unconfirmed Invoice, waiting for confirmation by manager. \
@@ -1422,13 +1423,23 @@ class vmi_account_invoice(osv.osv):
         Generate ap file and upload to ftp server if needed, ap file is text file with strict layout
         :param cr: database cursor
         :param uid: user id
-        :param ids: picking ids
+        :param ids: invoice ids
         :param context:
-        :return:
+        :return: a dict contains (vendor_name, PO_number): gross amount
         """
+
+        # Get AP default values and their PO numbers
         account_invoice_ap_obj = self.pool.get('account.invoice.ap')
+        account_invoice_ap_po_obj = self.pool.get('account.invoice.ap.po')
         invoice_ap_id = account_invoice_ap_obj.search(cr, uid, [])
         invoice_ap = account_invoice_ap_obj.read(cr, uid, invoice_ap_id, [], context)
+        for ap in invoice_ap:
+            ap['po'] = {}
+            po_numbers = account_invoice_ap_po_obj.read(cr, uid, ap['po_numbers'], [], context)
+            for po in po_numbers:
+                key = po['category_id'][1].split(' / ')[1]
+                ap['po'][key] = po['po_number']
+
 
         # Check if file exist, rename it before generate a new one
         if os.path.isfile(ap_file):
@@ -1509,6 +1520,9 @@ class vmi_account_invoice(osv.osv):
         sorted_invoices = sorted(invoices, key=lambda k: k['internal_number'])
         sorted_ids = [line['id'] for line in sorted_invoices]
 
+        # Initiate a dict for vendor and total
+        po_total = {}
+
         # generate lines based on selected sorted invoices
         for invoice in self.browse(cr, uid, sorted_ids, context):
             # Get default value based on vendor
@@ -1575,6 +1589,22 @@ class vmi_account_invoice(osv.osv):
             invoice_sequence_number += 1
             ap_lines += il_lines
             control_amount += round(line_total, 2)
+            # If this is a delivery fee invoice. get category name from each line
+            if invoice.category_id.code == '07':
+                for line in invoice.invoice_line:
+                    category_name = line.product_id.name.split('-')[0]
+                    if category_name in default_values['po']:
+                        # Store vendor info (vendor name and po_number) and invoice total for AP use
+                        if (invoice.partner_id.name, default_values['po'][category_name]) in po_total:
+                            po_total[(invoice.partner_id.name, default_values['po'][category_name])] += line.price_subtotal
+                        else:
+                            po_total[(invoice.partner_id.name, default_values['po'][category_name])] = line.price_subtotal
+            if invoice.category_id.name in default_values['po']:
+                # Store vendor info (vendor name and po_number) and invoice total for AP use
+                if (invoice.partner_id.name, default_values['po'][invoice.category_id.name]) in po_total:
+                    po_total[(invoice.partner_id.name, default_values['po'][invoice.category_id.name])] += line_total
+                else:
+                    po_total[(invoice.partner_id.name, default_values['po'][invoice.category_id.name])] = line_total
 
         # Generate cg dict based on all invoice header
         cg_values = {
@@ -1593,7 +1623,7 @@ class vmi_account_invoice(osv.osv):
         f.write(ap_lines)
         f.close()
 
-        return True
+        return po_total
 
     def _prepare_ap_line(self, position, value):
         """
@@ -1797,14 +1827,18 @@ class vmi_email_template(osv.osv):
         # process email_recipients field that is a comma separated list of partner_ids -> recipient_ids
         # NOTE: only usable if force_send is True, because otherwise the value is
         # not stored on the mail_mail, and therefore lost -> fixed in v8
+
+        #Add recipient id from context
         if 'recipient_ids' in context.keys():
             recipient_ids = context['recipient_ids']
-
         email_recipients = values.pop('email_recipients', '')
         if email_recipients:
             for partner_id in email_recipients.split(','):
                 if partner_id:  # placeholders could generate '', 3, 2 due to some empty field values
                     recipient_ids.append(int(partner_id))
+        # Overwrite email body
+        if 'body_html' in context.keys():
+            values['body_html'] = context['body_html']
 
         attachment_ids = values.pop('attachment_ids', [])
         attachments = values.pop('attachments', [])
@@ -1920,10 +1954,13 @@ class account_invoice_calculate(osv.osv_memory):
         for record in data_inv:
             if record.state not in ['vendor_approved', 'ready']:
                 raise osv.except_osv(_('Warning!'), _(
-                    "Selected invoice(s) cannot be allocated as they are not in 'Vendor Approved' state."))
+                    "Selected invoice(s) cannot be allocated as they are not in 'Vendor Approved' or 'Ready for AP' state."))
 
             # found invoice for service fee
             if record.category_id.id == category_delivery[0]:
+                if record.state != 'vendor_approved':
+                    raise osv.except_osv(_('Warning!'), _(
+                    "The Delivery Fee invoice is not approved by Vendor, or it has been calculated."))
                 invoice_delivery.append(record.id)
 
             # found normal invoice
@@ -1935,15 +1972,30 @@ class account_invoice_calculate(osv.osv_memory):
         if len(invoice_delivery) == 0:
             raise osv.except_osv(_('Warning!'), _('Please make sure to select at least one "Service Fee Invoice"!'))
 
+        # the number of categories does not match
+        invoices = account_invoice_obj.browse(cr, uid, invoice_delivery)
+        num_category_charged = 0
+        for invoice in invoices:
+            num_category_charged += len(invoice.invoice_line)
+        if len(category_sum) != num_category_charged:
+            raise osv.except_osv(_('Warning!'), _('The categories of the selected invoices do not match the items in '
+                                                  'delivery fee invoice! Please check the delivery fee invoice.'))
+
         # Calculate ratio
         for record in data_inv:
             if record.category_id.id in category_sum.keys():
-                location_ratio[(record.category_id.id, record.location_id.location_id.id)] = record.amount_total / \
+                if (record.category_id.id, record.location_id.location_id.id) not in location_ratio:
+                    location_ratio[(record.category_id.id, record.location_id.location_id.id)] = record.amount_total / \
+                                                                                             category_sum[
+                                                                                                 record.category_id.id]
+                #Normally, the (category, location) key is unique, the 'else' here is for the case the manager generates
+                #  additional invoices after the first run of the month
+                else:
+                    location_ratio[(record.category_id.id, record.location_id.location_id.id)] += record.amount_total / \
                                                                                              category_sum[
                                                                                                  record.category_id.id]
 
         # Match accounts
-        invoices = account_invoice_obj.browse(cr, uid, invoice_delivery)
         #for each delivery fee invoices (one for each partner)
         for invoice in invoices:
             values = []
@@ -1959,6 +2011,7 @@ class account_invoice_calculate(osv.osv_memory):
                                                                                 [('location_id', '=', cate_loc[1]), (
                                                                                     'category_id', '=',
                                                                                     category_delivery[0])])
+                    #found account
                     if account_rule_line_id:
                         account_rule_line = account_account_rule_line_obj.browse(cr, uid, account_rule_line_id, None)
                         account = account_rule_line[0].account_id.id
@@ -2008,7 +2061,7 @@ class account_invoice_generate(osv.osv_memory):
     """
 
     _name = "account.invoice.generate"
-    _description = "Generate AP File based on selected invoiced"
+    _description = "Generate AP File"
     _columns = {
         'upload': fields.boolean("Upload a copy to FTP server")
     }
@@ -2017,6 +2070,8 @@ class account_invoice_generate(osv.osv_memory):
         if context is None:
             context = {}
         account_invoice_obj = self.pool.get('account.invoice')
+        res_partner_obj = self.pool.get('res.partner')
+
         # valid_ids = []
         data_inv = self.pool.get('account.invoice').read(cr, uid, context['active_ids'], ['state'], context=context)
         flag = self.read(cr, uid, ids, ['upload'])
@@ -2025,7 +2080,7 @@ class account_invoice_generate(osv.osv_memory):
                 raise osv.except_osv(_('Warning!'), _(
                     "Selected invoice(s) cannot be allocated as they are not in 'Ready for AP' state."))
         try:
-            generate = account_invoice_obj.generate_ap_file(cr, uid, context['active_ids'])
+            generated = account_invoice_obj.generate_ap_file(cr, uid, context['active_ids'])
         except Exception, e:
             raise osv.except_osv(_('Error!'), _('Fail to generate AP file:', e))
         # Upload file to FTP server
@@ -2034,7 +2089,7 @@ class account_invoice_generate(osv.osv_memory):
         else:
             file_name = ap_file.split('\\')[-1]
 
-        if generate and flag[0]['upload']:
+        if generated and flag[0]['upload']:
             try:
                 ftp = FTP(ap_ftp, ap_ftp_username, ap_ftp_password)
                 ftp.cwd(ap_ftp_path)
@@ -2055,8 +2110,49 @@ class account_invoice_generate(osv.osv_memory):
                                           None)
         file_obj.close()
 
+        if generated:
+            template_obj = self.pool.get('email.template')
+
+            # Generate email_1 to IT_control to run the job
+            partner_it_id = res_partner_obj.search(cr, uid, [('name', '=', 'IT Control')])
+            partner_it = res_partner_obj.browse(cr, uid, partner_it_id)
+
+            # get email template, render it and send it
+            control_template_id = template_obj.search(cr, uid, [('name', '=', 'Email to IT Control')])
+            context['recipient_ids'] = [int(child_id.id) for child_id in partner_it[0].child_ids]
+            try:
+                it_mail = template_obj.send_mail(cr, uid, control_template_id[0], ids[0], True, context=context)
+            except:
+                raise osv.except_osv(_('Error!'), _(
+                    'No Email Template Found, Please configure a email template under Email tab and named "Email to IT Control"'))
+
+            # Generate email_2 to AP about the PO number
+            partner_ap_id = res_partner_obj.search(cr, uid, [('name', '=', 'AP')])
+            partner_ap = res_partner_obj.browse(cr, uid, partner_ap_id)
+
+            # get email template, render it and send it
+            ap_template_id = template_obj.search(cr, uid, [('name', '=', 'Email to AP')])
+            ap_template = template_obj.browse(cr, uid, ap_template_id, None)
+            template_body = ap_template[0].body_html
+            context['recipient_ids'] = [int(child_id.id) for child_id in partner_ap[0].child_ids]
+
+            # Append ap file info to email body
+            appended_body = ''
+            for vendor in generated:
+                appended_body += '<p>Vendor: %s ----- PO Number: %s ----- Gross Amount: %.2f</p>' % (vendor[0], vendor[1], generated[vendor])
+            closing_body = """<br/>
+                              <p>Thanks</p>
+                              <p>SEPTA VMI TEAM</p>"""
+            context['body_html'] = ''.join([template_body, '\n', appended_body, closing_body])
+
+            try:
+                ap_mail = template_obj.send_mail(cr, uid, ap_template_id[0], ids[0], True, context=context)
+            except:
+                raise osv.except_osv(_('Error!'), _(
+                        'No Email Template Found, Please configure a email template under Email tab and named "Email to AP"'))
+
         # Change status to 'sent'
-        if generate:
+        if generated:
             account_invoice_obj.write(cr, uid, context['active_ids'], {'state': 'sent'})
 
         return {'type': 'ir.actions.act_window_close'}
@@ -2088,6 +2184,9 @@ account_invoice_undo()
 
 
 class account_invoice_account_line(osv.osv):
+    """
+    A new class defines the which account is attach to the invoice
+    """
     _name = 'account.invoice.account.line'
     _description = 'Account Line'
     _columns = {
@@ -2097,18 +2196,33 @@ class account_invoice_account_line(osv.osv):
         'total': fields.float('Total Amount', digits_compute=dp.get_precision('Account'))
     }
 
-
 account_invoice_account_line()
+
+
+class account_invoice_ap_po(osv.osv):
+    """
+    A new class defines the which po line is attach to the ap default value
+    """
+    _name = 'account.invoice.ap.po'
+    _description = 'PO Numbers'
+    _columns = {
+        'ap_default_id': fields.many2one('account.invoice.ap', 'AP Default Value', required=True,
+                                      help="AP Default Value"),
+        'category_id': fields.many2one('product.category', 'Category', help="Categories that match the po number"),
+        'po_number': fields.char('PO Number', size=64, help="Purchase Order Number")
+    }
+
+account_invoice_ap_po()
 
 
 class account_invoice_ap(osv.osv):
     """
-    This wizard will Generate AP File
+    A new class store the default value of ap
     """
 
     _name = "account.invoice.ap"
     _table = 'account_invoice_ap'
-    _description = "Generate AP File based on selected invoiced"
+    _description = "AP default value"
     _columns = {
         'name': fields.char('Name', size=64),
         'paying_entity': fields.char('Paying Entity', size=64),
@@ -2119,6 +2233,7 @@ class account_invoice_ap(osv.osv):
         'bank_payment_code': fields.char('Bank Payment Code', size=64),
         'vendor_id': fields.many2one('res.partner', 'Vendor', required=True, readonly=False),
         'vendor_number': fields.char('Vendor Number', size=64),
+        'po_numbers': fields.one2many('account.invoice.ap.po', 'ap_default_id', 'PO Numbers', help="PO Numbers", domain=[])
     }
 
 
@@ -2126,6 +2241,9 @@ account_invoice_ap()
 
 
 class account_account_rule_line(osv.osv):
+    """
+    A new class store the account rules
+    """
     _name = 'account.account.rule.line'
     _description = 'Rule Line'
     _columns = {
@@ -2137,17 +2255,23 @@ class account_account_rule_line(osv.osv):
         'ratio': fields.float('Ratio',
                               help="Attached account only pay this ratio of total amount for relevant location and "
                                    "category. It is defined by AP"),
-        'product_id': fields.many2one('product.product', 'Product', help="Products that use this rule")
+        'product_id': fields.many2one('product.product', 'Product', help="Products that use this rule"),
+
     }
+
+
 
 account_account_rule_line()
 
 
 class vmi_account_account(osv.osv):
+    """
+    Overwrite of account.account and add rule_line field which define the rules for this account
+    """
     _name = 'account.account'
     _inherit = 'account.account'
     _columns = {
-        'rule_line': fields.one2many('account.account.rule.line', 'account_id', 'Rule Lines', help="Account Rules"),
+        'rule_line': fields.one2many('account.account.rule.line', 'account_id', 'Rule Lines', help="Account Rules", domain=[]),
     }
 
 vmi_account_account()
