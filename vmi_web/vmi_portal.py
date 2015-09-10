@@ -566,6 +566,7 @@ def get_stock_pickings(req, pid):
             filters.append(('contains_audit', '=', context['audit']))
         if context['invoice'] != '0':
             filters.append(('invoice_state', '=', context['invoice']))
+    filters.append(('partner_id', '=', int(pid)))
     fields = ['date_done', 'origin', 'invoice_state', 'state', 'partner_id', 'move_lines', 'contains_audit',
               'location_dest_id']
     try:
