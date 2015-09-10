@@ -1411,6 +1411,12 @@ class vmi_account_invoice(osv.osv):
 
         # Create account line
         if accounts:
+            # compare invoice total and total after allocating account. if doesn't match, something wrong with the accounts
+            account_total = sum(accounts.values())
+            if abs(total - account_total) > 1:
+                raise osv.except_osv(_('Error!'), _(
+                        'Please check the accounts for this location and category in "Account Rule Line" section'))
+            # create account line
             for account in accounts:
                 account_invoice_account_line_obj.create(cr, uid, {'invoice_id': ids, 'account_id': account,
                                                                   'total': accounts[account]}, None)
