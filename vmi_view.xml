@@ -116,6 +116,8 @@
                     <filter string="Delivery Date" icon="terp-go-month" domain="[]" context="{'group_by':'date_done'}"/>
                     <filter string="Supplier" domain="[]" context="{'group_by':'partner_id'}"/>
                     <filter name="group_location_cate_id" string="Destination" domain="[]" context="{'group_by':'location_dest_id'}"/>
+                    <filter string="Audit Status" name="groupby_contains_audit" domain="[]" context="{'group_by':'contains_audit'}"/>
+                    <filter string="Invoice Status" name="groupby_invoice_state" domain="[]" context="{'group_by':'invoice_state'}"/>
                 </filter>
                 <filter string="Journal" position="replace"/>
             </field>
@@ -307,6 +309,35 @@
 			<field name="target">new</field>
 		</record>
 
+        <!--Add Group Audit Overwrite option-->
+        <record id="stock_group_audit_overwrite" model="ir.ui.view">
+            <field name="name">stock.group.audit.overwrite</field>
+            <field name="model">stock.audit.overwrite</field>
+            <field name="arch" type="xml">
+                <form string="Overwrite Selected Products" version="7.0">
+                    <p class="oe_grey">
+                        Overwrite Selected Products
+                    </p>
+                    <footer>
+                        <button string="overwrite" name="overwrite_all" type="object" default_focus="1" class="oe_highlight"/>
+                        or
+                        <button string="Cancel" class="oe_link" special="cancel"/>
+                    </footer>
+                </form>
+            </field>
+        </record>
+
+        <!--Add button under 'more'-->
+        <act_window id="action_stock_group_audit_overwrite"
+            multi="True"
+            key2="client_action_multi"
+            name="Overwrite Selected Products"
+            res_model="stock.audit.overwrite"
+            src_model="stock.move"
+            view_mode="form"
+            target="new"
+            view_type="form" />
+
         <!--Tree-->
         <record id="view_picking_in_tree_overwrite" model="ir.ui.view">
             <field name="name">stock.picking.in.tree</field>
@@ -384,6 +415,21 @@
             </field>
         </record>
 
+        <record id="view_picking_in_search_overwrite" model="ir.ui.view">
+            <field name="name">stock.picking.in.search</field>
+            <field name="model">stock.picking</field>
+            <field name="inherit_id" ref="stock.view_picking_in_search"/>
+            <field name="arch" type="xml">
+                <filter string="Order Date" position="replace"/>
+                <filter string="Expected Date" position="replace">
+                    <filter string="Delivery Date" icon="terp-go-month" domain="[]" context="{'group_by':'date_done'}"/>
+                    <filter string="Supplier" domain="[]" context="{'group_by':'partner_id'}"/>
+                    <filter name="group_location_cate_id" string="Destination" domain="[]" context="{'group_by':'location_dest_id'}"/>
+                </filter>
+                <filter string="Journal" position="replace"/>
+            </field>
+        </record>
+
         <!--Set View-->
         <record id="action_overwrite_picking_view" model="ir.actions.act_window">
             <field name="name">Overwrite Picking</field>
@@ -391,7 +437,7 @@
             <field name="type">ir.actions.act_window</field>
             <field name="view_type">form</field>
             <field name="view_id" ref="view_picking_in_tree_overwrite"/>
-            <field name="search_view_id" ref="view_picking_in_search_inherit"/>
+            <field name="search_view_id" ref="view_picking_in_search_overwrite"/>
             <field name="context">{}</field>
             <field name="domain">[('contains_audit', 'in', ['yes', 'overwritten'])]</field>
             <field name="help" type="html">
@@ -478,6 +524,25 @@
             </field>
         </record>
 
+        <record id="view_move_search_overwrite" model="ir.ui.view">
+            <field name="name">stock.move.search</field>
+            <field name="model">stock.move</field>
+            <field name="inherit_id" ref="stock.view_move_search"/>
+            <field name="arch" type="xml">
+                <filter name="done" position="after">
+                    <filter name="audit_location" string="To Be Audit" domain="[('audit', '=', True)]" help="Parts to be audited"/>
+                    <filter name="audit_overwritten" string="Audit Overwritten" domain="[('audit_overwritten', '=', True)]" help="Audit overwrite move"/>
+                </filter>
+                <filter name="groupby_picking_id" position="replace">
+                    <filter string="Picking" name="groupby_origin" icon="terp-accessories-archiver" domain="[]"  context="{'group_by':'origin'}"/>
+                </filter>
+                <filter name="groupby_prodlot_id" position="replace"/>
+                <filter name="groupby_location_id" position="replace">
+                    <filter string="Supplier" name="groupby_partner_id" icon="terp-gtk-jump-to-rtl" domain="[]" context="{'group_by':'partner_id'}"/>
+                </filter>
+            </field>
+        </record>
+
         <!--Set View-->
         <record id="action_overwrite_product_view" model="ir.actions.act_window">
             <field name="name">Audit Overwrite</field>
@@ -485,7 +550,7 @@
             <field name="type">ir.actions.act_window</field>
             <field name="view_type">form</field>
             <field name="view_id" ref="view_stock_move_tree_overwrite"/>
-            <field name="search_view_id" ref="view_move_search_inherit"/>
+            <field name="search_view_id" ref="view_move_search_overwrite"/>
             <field name="context">{}</field>
             <field name="domain">[('audit', '=', True)]</field>
             <field name="help" type="html">

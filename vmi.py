@@ -1021,6 +1021,30 @@ class vmi_stock_invoice_onshipping(osv.osv):
         return res
 
 
+class stock_audit_overwrite(osv.osv_memory):
+    """
+    This wizard will overwrite all selected stock moves
+    """
+
+    _name = "stock.audit.overwrite"
+    _description = "Overwrite All Incoming Products"
+
+    def overwrite_all(self, cr, uid, ids, context=None):
+        if context is None:
+            context = {}
+
+        stock_move_obj = self.pool.get('stock.move')
+        data_inv = self.pool.get('stock.move').read(cr, uid, context['active_ids'], ['audit'], context=context)
+
+        for record in data_inv:
+            #check if the selected product needs audit
+            if not record['audit']:
+                raise osv.except_osv(_('Warning!'), _(
+                    "Selected product(s) have been audited"))
+            stock_move_obj.action_audit_overwrite(cr, uid, [record['id']], context)
+
+        return {'type': 'ir.actions.act_window_close'}
+
 class vmi_account_invoice(osv.osv):
     _name = 'account.invoice'
     _inherit = 'account.invoice'
