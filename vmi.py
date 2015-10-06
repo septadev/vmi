@@ -116,6 +116,7 @@ class vmi_stock_location(osv.osv):
         'code': fields.char('Location Code', size=2, help="code' for creating invoice number")
     }
 
+
 vmi_stock_location()
 
 
@@ -463,7 +464,7 @@ class vmi_stock_picking_in(osv.osv):
                     sql_res = cr.dictfetchall()
                     # _logger.debug('<action_flag_audit> select result: %s', str(sql_res))
                     total_qty = sum(item['product_qty'] for item in sql_res)
-                    #_logger.debug('<action_flag_audit> total_qty: %s', total_qty)
+                    # _logger.debug('<action_flag_audit> total_qty: %s', total_qty)
                     last_record = max(id['id'] for id in sql_res)
 
                     if sql_res > 0:
@@ -845,10 +846,10 @@ class vmi_stock_picking(osv.osv):
             invoice_obj.button_compute(cr, uid, [invoice_id], context=context,
                                        set_total=(inv_type in ('in_invoice', 'in_refund')))
             # Change state
-            self.write(cr, uid, [picking.id], {'invoice_state': 'invoiced',}, context=context)
+            self.write(cr, uid, [picking.id], {'invoice_state': 'invoiced', }, context=context)
             self._invoice_hook(cr, uid, picking, invoice_id)
 
-        self.write(cr, uid, res.keys(), {'invoice_state': 'invoiced',}, context=context)
+        self.write(cr, uid, res.keys(), {'invoice_state': 'invoiced', }, context=context)
 
         return res
 
@@ -1037,13 +1038,14 @@ class stock_audit_overwrite(osv.osv_memory):
         data_inv = self.pool.get('stock.move').read(cr, uid, context['active_ids'], ['audit'], context=context)
 
         for record in data_inv:
-            #check if the selected product needs audit
+            # check if the selected product needs audit
             if not record['audit']:
                 raise osv.except_osv(_('Warning!'), _(
                     "Selected product(s) have been audited"))
             stock_move_obj.action_audit_overwrite(cr, uid, [record['id']], context)
 
         return {'type': 'ir.actions.act_window_close'}
+
 
 class vmi_account_invoice(osv.osv):
     _name = 'account.invoice'
@@ -1072,7 +1074,8 @@ class vmi_account_invoice(osv.osv):
                                                 'vendor_approved': [('readonly', True)]}),
         'account_line': fields.one2many('account.invoice.account.line', 'invoice_id', 'Account Lines',
                                         states={'ready': [('readonly', True)],
-                                                'vendor_approved': [('readonly', True)]}, help="Accounts will be used to pay for this invoice"),
+                                                'vendor_approved': [('readonly', True)]},
+                                        help="Accounts will be used to pay for this invoice"),
         'location_id': fields.many2one('stock.location', 'Location', states={'vendor_approved': [('readonly', True)],
                                                                              'vendor_approved': [('readonly', True)]},
                                        select=True, track_visibility='always',
@@ -1411,6 +1414,8 @@ class vmi_account_invoice(osv.osv):
                                                          ('category_id', '=', invoice.category_id.id)], None)
         if account_rules_id:
             account_rules = account_rule_line_obj.browse(cr, uid, account_rules_id, None)
+        else:
+            account_rules = []
 
         accounts = {}
         total = 0
@@ -1426,25 +1431,30 @@ class vmi_account_invoice(osv.osv):
                 total += line.price_subtotal
 
         # Match account and calculate total by ratio
-        if total > 0:
+        if total > 0 and account_rules:
             for rule in account_rules:
                 if rule.account_id.id in accounts.keys():
                     accounts[rule.account_id.id] += total * rule.ratio
                 else:
                     accounts[rule.account_id.id] = total * rule.ratio
 
-        # Create account line
+        # Check if account line exists and the total
         if accounts:
             # compare invoice total and total after allocating account. if doesn't match, something wrong with the accounts
             account_total = sum(accounts.values())
             if abs(total - account_total) > 1:
                 raise osv.except_osv(_('Error!'), _(
-                        'Please check the accounts for this location and category in "Account Rule Line" section'))
-            # create account line
-            for account in accounts:
-                account_invoice_account_line_obj.create(cr, uid, {'invoice_id': ids, 'account_id': account,
-                                                                  'total': accounts[account]}, None)
-            change_state = self.write(cr, uid, ids, {'state': 'ready'}, None)
+                    'Please check the accounts for location %s and category %s in "Account Rule Line" section'
+                    % (invoice.location_id.name, invoice.category_id.name)))
+        else:
+            raise osv.except_osv(_('Error!'), _(
+                'Please check the accounts for location %s and category %s in "Account Rule Line" section'
+                % (invoice.location_id.name, invoice.category_id.name)))
+        # create account line
+        for account in accounts:
+            account_invoice_account_line_obj.create(cr, uid, {'invoice_id': ids, 'account_id': account,
+                                                              'total': accounts[account]}, None)
+        self.write(cr, uid, ids, {'state': 'ready'}, None)
 
         return True
 
@@ -1524,7 +1534,7 @@ class vmi_account_invoice(osv.osv):
             'operator_id': (335, 340),
         }
 
-        #get control date
+        # get control date
         control_date = '%02d' % date.today().month + '%02d' % date.today().day + str(date.today().year)
         timedelta = 6 - date.today().isoweekday()
         gl_effective_date = '%02d' % date.today().month + '%02d' % (date.today().day + timedelta) + str(
@@ -1626,9 +1636,11 @@ class vmi_account_invoice(osv.osv):
                     if category_name in default_values['po']:
                         # Store vendor info (vendor name and po_number) and invoice total for AP use
                         if (invoice.partner_id.name, default_values['po'][category_name]) in po_total:
-                            po_total[(invoice.partner_id.name, default_values['po'][category_name])] += line.price_subtotal
+                            po_total[
+                                (invoice.partner_id.name, default_values['po'][category_name])] += line.price_subtotal
                         else:
-                            po_total[(invoice.partner_id.name, default_values['po'][category_name])] = line.price_subtotal
+                            po_total[
+                                (invoice.partner_id.name, default_values['po'][category_name])] = line.price_subtotal
             if invoice.category_id.name in default_values['po']:
                 # Store vendor info (vendor name and po_number) and invoice total for AP use
                 if (invoice.partner_id.name, default_values['po'][invoice.category_id.name]) in po_total:
@@ -1858,7 +1870,7 @@ class vmi_email_template(osv.osv):
         # NOTE: only usable if force_send is True, because otherwise the value is
         # not stored on the mail_mail, and therefore lost -> fixed in v8
 
-        #Add recipient id from context
+        # Add recipient id from context
         if 'recipient_ids' in context.keys():
             recipient_ids = context['recipient_ids']
         email_recipients = values.pop('email_recipients', '')
@@ -1990,7 +2002,7 @@ class account_invoice_calculate(osv.osv_memory):
             if record.category_id.id == category_delivery[0]:
                 if record.state != 'vendor_approved':
                     raise osv.except_osv(_('Warning!'), _(
-                    "The Delivery Fee invoice is not approved by Vendor, or it has been calculated."))
+                        "The Delivery Fee invoice is not approved by Vendor, or it has been calculated."))
                 invoice_delivery.append(record.id)
 
             # found normal invoice
@@ -2016,17 +2028,17 @@ class account_invoice_calculate(osv.osv_memory):
             if record.category_id.id in category_sum.keys():
                 if (record.category_id.id, record.location_id.location_id.id) not in location_ratio:
                     location_ratio[(record.category_id.id, record.location_id.location_id.id)] = record.amount_total / \
-                                                                                             category_sum[
-                                                                                                 record.category_id.id]
-                #Normally, the (category, location) key is unique, the 'else' here is for the case the manager generates
+                                                                                                 category_sum[
+                                                                                                     record.category_id.id]
+                # Normally, the (category, location) key is unique, the 'else' here is for the case the manager generates
                 #  additional invoices after the first run of the month
                 else:
                     location_ratio[(record.category_id.id, record.location_id.location_id.id)] += record.amount_total / \
-                                                                                             category_sum[
-                                                                                                 record.category_id.id]
+                                                                                                  category_sum[
+                                                                                                      record.category_id.id]
 
         # Match accounts
-        #for each delivery fee invoices (one for each partner)
+        # for each delivery fee invoices (one for each partner)
         for invoice in invoices:
             values = []
             account_amount = {}
@@ -2169,7 +2181,8 @@ class account_invoice_generate(osv.osv_memory):
             # Append ap file info to email body
             appended_body = ''
             for vendor in generated:
-                appended_body += '<p>Vendor: %s ----- PO Number: %s ----- Gross Amount: %.2f</p>' % (vendor[0], vendor[1], generated[vendor])
+                appended_body += '<p>Vendor: %s ----- PO Number: %s ----- Gross Amount: %.2f</p>' % (
+                    vendor[0], vendor[1], generated[vendor])
             closing_body = """<br/>
                               <p>Thanks</p>
                               <p>SEPTA VMI TEAM</p>"""
@@ -2179,7 +2192,7 @@ class account_invoice_generate(osv.osv_memory):
                 ap_mail = template_obj.send_mail(cr, uid, ap_template_id[0], ids[0], True, context=context)
             except:
                 raise osv.except_osv(_('Error!'), _(
-                        'No Email Template Found, Please configure a email template under Email tab and named "Email to AP"'))
+                    'No Email Template Found, Please configure a email template under Email tab and named "Email to AP"'))
 
         # Change status to 'sent'
         if generated:
@@ -2226,6 +2239,7 @@ class account_invoice_account_line(osv.osv):
         'total': fields.float('Total Amount', digits_compute=dp.get_precision('Account'))
     }
 
+
 account_invoice_account_line()
 
 
@@ -2237,10 +2251,11 @@ class account_invoice_ap_po(osv.osv):
     _description = 'PO Numbers'
     _columns = {
         'ap_default_id': fields.many2one('account.invoice.ap', 'AP Default Value', required=True,
-                                      help="AP Default Value"),
+                                         help="AP Default Value"),
         'category_id': fields.many2one('product.category', 'Category', help="Categories that match the po number"),
         'po_number': fields.char('PO Number', size=64, help="Purchase Order Number")
     }
+
 
 account_invoice_ap_po()
 
@@ -2263,7 +2278,8 @@ class account_invoice_ap(osv.osv):
         'bank_payment_code': fields.char('Bank Payment Code', size=64),
         'vendor_id': fields.many2one('res.partner', 'Vendor', required=True, readonly=False),
         'vendor_number': fields.char('Vendor Number', size=64),
-        'po_numbers': fields.one2many('account.invoice.ap.po', 'ap_default_id', 'PO Numbers', help="PO Numbers", domain=[])
+        'po_numbers': fields.one2many('account.invoice.ap.po', 'ap_default_id', 'PO Numbers', help="PO Numbers",
+                                      domain=[])
     }
 
 
@@ -2290,7 +2306,6 @@ class account_account_rule_line(osv.osv):
     }
 
 
-
 account_account_rule_line()
 
 
@@ -2301,7 +2316,9 @@ class vmi_account_account(osv.osv):
     _name = 'account.account'
     _inherit = 'account.account'
     _columns = {
-        'rule_line': fields.one2many('account.account.rule.line', 'account_id', 'Rule Lines', help="Account Rules", domain=[]),
+        'rule_line': fields.one2many('account.account.rule.line', 'account_id', 'Rule Lines', help="Account Rules",
+                                     domain=[]),
     }
+
 
 vmi_account_account()
