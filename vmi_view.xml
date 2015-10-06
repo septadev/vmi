@@ -539,7 +539,9 @@
                 <filter name="groupby_prodlot_id" position="replace"/>
                 <filter name="groupby_location_id" position="replace">
                     <filter string="Supplier" name="groupby_partner_id" icon="terp-gtk-jump-to-rtl" domain="[]" context="{'group_by':'partner_id'}"/>
+                    <filter string="Destination" name="groupby_location_dest_id" icon="terp-gtk-jump-to-rtl" domain="[]" context="{'group_by':'location_dest_id'}"/>
                 </filter>
+                <filter name="groupby_dest_location_id" position="replace"/>
             </field>
         </record>
 
