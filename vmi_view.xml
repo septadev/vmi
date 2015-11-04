@@ -847,7 +847,8 @@
             view_mode="form"
             target="new"
             view_id="view_generate_ap_file"
-            view_type="form"/>
+            view_type="form"
+            context="{'default_upload': 1}"/>
 
         <!--form action for undo invoices-->
         <record id="view_undo_invoices" model="ir.ui.view">
