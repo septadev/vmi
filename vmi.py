@@ -1732,8 +1732,8 @@ class vmi_account_invoice(osv.osv):
             # cancel the invoice
             elif state == 'draft':
                 self.invoice_cancel(cr, uid, invoice.id, context)
-            else:
-                raise ('Error: You can not cancel a cancelled invoice')
+            '''else:
+                raise osv.except_osv(_('Error!'), _('You can not cancel a cancelled invoice'))'''
 
         if len(account_line_ids) > 0:
             # Delete all account line attached to this invoice
