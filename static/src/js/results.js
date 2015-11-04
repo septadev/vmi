@@ -126,6 +126,7 @@ $(document).ready(function(){
             alert('please select specify both year and month')
         }
         else {
+            // Get parameter from filter
             var context = '{' +
                 '"year": "' + $('#year').val() + '",' +
                 '"month": "' + $('#month').val() + '",' +
@@ -173,8 +174,7 @@ $(document).ready(function(){
     $('#contents td.control').live('click', function () {
         var nTr = this.parentNode;
         var i = $.inArray(nTr, anOpen);
-
-        if (i === -1) {
+        if (i === -1) { //
             $('img', this).attr('src', "/vmi/static/src/img/details_close.png");
             var aData = oTable.fnGetData(nTr);
             var line_ids = aData.move_lines;
@@ -218,6 +218,7 @@ $(document).ready(function(){
         }
     });
 
+
     function generate_detail_table(rowDetails) {
         var classRow = 'detailRow';
         var sOut = '<div class="innerDetails"><table cellpadding="5" cellspacing="0" border="0" style="padding-left:50px;">';
@@ -250,42 +251,42 @@ $(document).ready(function(){
         return sOut;
     }
 
-function fnFormatDetails (oTable, nTr )
-{
+    // Get line details
+    function fnFormatDetails (oTable, nTr )
+    {
+        var aData = oTable.fnGetData( nTr );
+        var classRow = 'detailRow';
+        var sOut = '<div class="innerDetails"><table cellpadding="5" cellspacing="0" border="0" style="padding-left:50px;">';
+        sOut += '<tr class="detailHead"><td>SEPTA P/N</td>';
+        sOut += '<td>Quantity</td>';
+        sOut += '<td>U of M</td>';
+        sOut += '<td>Discrepency</td>';
+        sOut += '<td>Category</td>';
+        sOut += '<td>Location</td>';
+        sOut += '<td>Vendor P/N</td>';
+        sOut += '<td>Description</td></tr>\n';
+        for(var i in aData.line_items){
+            if(aData.line_items[i].audit_fail == true){
+                classRow = 'badAudit'
+            }else{
+                classRow = 'detailRow'
+            }
+            if(i % 2 == 0){
+                classRow = 'detailRowOdd'
+            }
+            sOut += '<tr class="'+classRow+'"><td>'+aData.line_items[i].product_details[0].default_code+'</td>';
+            sOut += '<td>'+aData.line_items[i].product_qty+'</td>';
+            sOut += '<td>'+aData.line_items[i].product_uom[1]+'</td>';
+            sOut += '<td>'+aData.line_items[i].audit_fail+'</td>';
+            sOut += '<td>'+aData.line_items[i].product_details[0].categ_id[1]+'</td>';
+            sOut += '<td>'+aData.line_items[i].location_dest_id[1]+'</td>';
+            sOut += '<td>'+aData.line_items[i].product_details[0].vendor_part_number+'</td>';
+            sOut += '<td>'+aData.line_items[i].product_details[0].description+'</td></tr>\n';
+        }
+        sOut += '</table></div>';
 
-    var aData = oTable.fnGetData( nTr );
-    var classRow = 'detailRow';
-    var sOut = '<div class="innerDetails"><table cellpadding="5" cellspacing="0" border="0" style="padding-left:50px;">';
-    sOut += '<tr class="detailHead"><td>SEPTA P/N</td>';
-    sOut += '<td>Quantity</td>';
-    sOut += '<td>U of M</td>';
-    sOut += '<td>Discrepency</td>';
-    sOut += '<td>Category</td>';
-    sOut += '<td>Location</td>';
-    sOut += '<td>Vendor P/N</td>';
-    sOut += '<td>Description</td></tr>\n';
-    for(var i in aData.line_items){
-        if(aData.line_items[i].audit_fail == true){
-            classRow = 'badAudit'
-        }else{
-            classRow = 'detailRow'
-        }
-        if(i % 2 == 0){
-            classRow = 'detailRowOdd'
-        }
-        sOut += '<tr class="'+classRow+'"><td>'+aData.line_items[i].product_details[0].default_code+'</td>';
-        sOut += '<td>'+aData.line_items[i].product_qty+'</td>';
-        sOut += '<td>'+aData.line_items[i].product_uom[1]+'</td>';
-        sOut += '<td>'+aData.line_items[i].audit_fail+'</td>';
-        sOut += '<td>'+aData.line_items[i].product_details[0].categ_id[1]+'</td>';
-        sOut += '<td>'+aData.line_items[i].location_dest_id[1]+'</td>';
-        sOut += '<td>'+aData.line_items[i].product_details[0].vendor_part_number+'</td>';
-        sOut += '<td>'+aData.line_items[i].product_details[0].description+'</td></tr>\n';
+        return sOut;
     }
-    sOut += '</table></div>';
-
-    return sOut;
-}
 
 });
 

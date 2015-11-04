@@ -49,6 +49,7 @@ $(document).ready(function(){
                         $('div#loginResult').fadeIn();
                         $('div#contactContent').fadeIn();
                         $('div#vendor').fadeIn();
+                        //Store the login data to DOM
                         responseData = data.result;
                         sessionid = data.result.session_id;
                         partnerid = data.result.partner_id;
@@ -102,7 +103,6 @@ function getSessionInfo(){
             } // if
             else { // successful transaction
                 sessionid = data.result.session_id;
-                console.log( sessionid );
             } //else
         } // success
     }); // ajax

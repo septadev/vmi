@@ -31,7 +31,7 @@ $(document).ready(function() {
     var anOpen = [];
     var oTable = $('#contents').dataTable({
         "aoColumns": [
-            // Add pic to a datatable
+            // Add expand button and save button to the first column
             {
                 "mDataProp": null,
                 "sClass": "control center",
@@ -88,7 +88,7 @@ $(document).ready(function() {
                 return result
             }
             },
-            // Using a function, add pics to dataTable
+            // Add approved button icon and deny button icon to the last column
             {
                 "mData": null,
                 "mRender": function (data, type, full) {
@@ -105,10 +105,10 @@ $(document).ready(function() {
         "sPaginationType": "full_numbers"
     });
 
-    //call function to get data
+    //call function to get data based on default filter
     updateData();
 
-    //functions when submit the filter. An ajax call to pass parameters to the server. Year and month are mandatory.
+    //When filter's modified, call function pass the new parameters to the server. Year and month are mandatory.
     $('#filter').click(function() {
         updateData()
     });

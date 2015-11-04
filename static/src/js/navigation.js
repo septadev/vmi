@@ -3,7 +3,7 @@
  */
 $(document).ready(function() {
 
-    /* append session_id and pid to every hyperlink*/
+    /* append session_id and company id to every hyperlink*/
     var sessionid = sessionStorage.getItem("session_id");
     var companyid = sessionStorage.getItem("company_id");
     console.log("session id = ", sessionid);
@@ -14,7 +14,6 @@ $(document).ready(function() {
     });
     /* show company name*/
     var companyname = sessionStorage.getItem("company_name");
-    console.log("company name: ", companyname);
     $('#vendor').html("Hi, " + companyname);
     // Logout
     $("#logout").click(function () {

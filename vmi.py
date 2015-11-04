@@ -3,7 +3,6 @@ import time
 import sys
 import os
 import random
-import ldap
 import base64
 from datetime import date
 from ftplib import FTP
@@ -14,7 +13,6 @@ from openerp import netsvc
 from openerp.tools.translate import _
 import openerp.addons.decimal_precision as dp
 from openerp.tools.config import configmanager
-
 
 _logger = logging.getLogger(__name__)
 
@@ -144,57 +142,7 @@ class vmi_stock_move(osv.osv):
     }
     _order = 'date desc'
 
-
-    def action_flag_audit_old(self, cr, uid, vals, context=None):
-
-        """
-        flag 10% of total quantity of shipped products.
-        @param self:
-        @param cr: database cursor
-        @param uid: user id
-        @param vals: parse result
-        @param context:
-        """
-        result = []
-        pickings = []
-        stock_picking_obj = self.pool.get('stock.picking')
-        # get audit history
-        if 'pid' in vals:
-            res_partner_obj = self.pool.get('res.partner')
-            partner = res_partner_obj.browse(cr, uid, int(vals['pid']), None)
-            remained_audit = partner.mobile  # how many products left over from last uploading
-            last_record = partner.birthdate  # last uploaded product
-
-        if 'parse_result' in vals:
-            p = vals.get('parse_result')
-            if 'move_lines' in p:
-                # Get all new moves from this vendor
-                new_moves_id = self.search(cr, uid,
-                                           [('vendor_id', '=', int(vals['pid'])), ('id', '>', int(last_record)),
-                                            ('audit_fail', '=', False)], None)
-                new_moves = self.browse(cr, uid, new_moves_id, None)
-                total_qty = sum(move.product_qty for move in new_moves)
-                last_record = max(move.id for move in new_moves)
-                number_to_flag = int(round(total_qty * 0.1) + float(remained_audit))
-                # sort the moves by quantity in desc order, select the closest one respectively
-                new_moves = sorted(new_moves, key=lambda k: k.product_qty, reverse=True)
-                for move in new_moves:
-                    if number_to_flag > 0 and move.product_qty <= number_to_flag:
-                        result.append(move.id)
-                        number_to_flag -= move.product_qty
-                        if move.picking_id.id not in pickings:
-                            pickings.append(move.picking_id.id)
-                # change the audit state
-                if result:
-                    self.write(cr, uid, result, {'audit': True}, None)
-                stock_picking_obj.write(cr, uid, pickings, {'contains_audit': 'yes'}, None)
-                res_partner_obj.write(cr, uid, int(vals['pid']),
-                                      {'mobile': str(int(number_to_flag)), 'birthdate': last_record}, None)
-
-        return result
-
     def action_flag_audit(self, cr, uid, vals, context=None):
-
         """
         flag 10% of total lines in one packaging slip.
         @param self:
@@ -328,7 +276,7 @@ class vmi_stock_move(osv.osv):
 
     def action_audit_overwrite(self, cr, uid, ids, context=None):
         """
-        Audit overwritting by manager
+        Audit overwrite by manager
         :param cr: database cursor
         :param uid: user id
         :param ids: Stock.move id
@@ -345,6 +293,7 @@ class vmi_stock_move(osv.osv):
             # set move to audit_overwritten
             manager = user_obj.browse(cr, uid, uid).login
             note = "Audit overwritten at %s by %s." % (str(time.strftime('%Y-%m-%d %H:%M:%S')), manager.capitalize())
+            _logger.info("Audit overwritten at %s by %s. from IP: %s" % (str(time.strftime('%Y-%m-%d %H:%M:%S')), manager.capitalize()))
             self.write(cr, uid, ids, {'audit': False, 'note': note, 'audit_overwritten': True}, context=context)
 
             # mark the stock.move as done and change the audit status of picking
@@ -353,6 +302,7 @@ class vmi_stock_move(osv.osv):
 
         return True
 
+    #TODO rewrite the function using ORM
     def action_done(self, cr, uid, unflagged, context=None):
         """
         Mark the move as done
@@ -798,12 +748,14 @@ class vmi_stock_picking(osv.osv):
                                           invoice_date[0][2:] + \
                                           invoice_date[1]
                         seq = ''
+                        # check if there is a sequence number created in the same date
                         old_seq = invoice_obj.search(cr, uid, [('internal_number', 'like', internal_number)],
                                                      order='internal_number')
+                        # if found old sequence number, add 1
                         if old_seq:
                             old_num = invoice_obj.read(cr, uid, old_seq[-1], ['internal_number'])
                             seq = str(int(old_num['internal_number'][7:10]) + 1)
-
+                        # append the sequence, partner code, location code, category code
                         internal_number += seq.rjust(3, '0') + \
                                            partner.code.rjust(2, '0') + \
                                            picking.location_dest_id.location_id.code.rjust(2, '0') + \
@@ -1083,7 +1035,7 @@ class vmi_account_invoice(osv.osv):
         'category_id': fields.many2one('product.category', 'Category', states={'vendor_approved': [('readonly', True)],
                                                                                'vendor_approved': [('readonly', True)]},
                                        select=True, track_visibility='always',
-                                       help="Select category for the current product"),
+                                        help="Select category for the current product"),
     }
 
     def action_move_create(self, cr, uid, ids, context=None):
@@ -1446,6 +1398,9 @@ class vmi_account_invoice(osv.osv):
                 raise osv.except_osv(_('Error!'), _(
                     'Please check the accounts for location %s and category %s in "Account Rule Line" section'
                     % (invoice.location_id.name, invoice.category_id.name)))
+            # check up the rounding issue
+            elif abs(total-account_total) > 0.00001 and abs(total - account_total) < 1:
+                accounts[rule.account_id.id] += (total - account_total)
         else:
             raise osv.except_osv(_('Error!'), _(
                 'Please check the accounts for location %s and category %s in "Account Rule Line" section'

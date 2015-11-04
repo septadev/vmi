@@ -7,28 +7,11 @@ $(document).ready(function() {
     sessionid = sessionStorage.getItem('session_id');
     company_id = sessionStorage.getItem(('company_id'));
     uid = sessionStorage.getItem(('user_id'));
+
     // Validate API and file
-    file_selected = false;
     if(isAPIAvailable()) {
         $('#files').bind('change', handleFileSelect);
-        $('#files').bind('change', function(){
-            if (file_selected){
-                //$('#list').empty();
-                //oTable.fnClearTable(0);
-            }
-            else{
-                file_selected = true;
-            }
-            handleFileSelect;
-        });
     }
-    $(':file').change(function(){
-        var file = this.files[0];
-        var name = file.name;
-        var size = file.size;
-        var type = file.type;
-        //Your validation
-    });
 
     //Upload data
     $('#list').on('click', '#OBEY', function(){
@@ -44,7 +27,8 @@ $(document).ready(function() {
                     console.log(XMLHttpRequest, textStatus, errorThrown);
                 },
                 success: function (data) {
-                    if (data.result && data.result.code) { // script returned error
+                    if (data.result && data.result.code) {
+                        // script returned error
                         var output = '<div id="error" title="Upload Failed" style="color: #ff0000">';
                         output += 'Error code: ' + data.result.code + '<br />\n';
                         output += 'Error type: ' + data.result.data.type + '<br />\n';
@@ -54,7 +38,8 @@ $(document).ready(function() {
                         $('#list').append(output);
                         $('.overlay').hide();
                     }
-                    else if (data.error) { // OpenERP error
+                    else if (data.error) {
+                        // OpenERP error
                         var output = '<div id="error" title="Upload Failed" style="color: #ff0000">';
                         output += 'Server Error' + '<br />\n';
                         output += '</div>';
@@ -150,6 +135,7 @@ function printTable(file) {
         }
         var json = JSON.stringify(objArray);
         str = json.replace(/},/g, "},\r\n");
+        //TODO below
         // html for table header - this should be dynamic...
         var header = '<thead><tr><th rowspan="2">Month</th><th rowspan="2">Day</th><th rowspan="2">Year</th><th rowspan="2">Vendor P/N</th> ' +
             '<th rowspan="2">Bin</th><th rowspan="2">Description</th><th rowspan="2">UOM</th><th colspan="3">Quantity</th>' +

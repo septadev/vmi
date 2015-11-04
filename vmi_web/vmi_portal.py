@@ -21,6 +21,8 @@ import openerp.addons.web.http as vmiweb
 
 _logger = logging.getLogger(__name__)
 
+#TODO wrap get db info to a function
+
 # read config file to get db info
 command = sys.argv
 if '-c' in command:
@@ -57,6 +59,12 @@ def check_request(req, source):
         return res
 
 def fields_get(req, model):
+    """
+    Get all fields for the given model
+    :param req:
+    :param model: model name
+    :return: list of fields
+    """
     Model = req.session.model(model)
     fields = Model.fields_get(False, req.context)
     return fields
@@ -203,8 +211,6 @@ def get_partner_id(req, uid=None, **kwargs):
         parent = p['records'][0]
         record['company'] = parent['name']
         record['company_id'] = parent['id']
-        # record['remained_audit'] = parent['mobile']
-        # record['last_record'] = parent['birthdate']
         partner_ids['records'].append(record)
         partner_ids['records'].pop(0)
 
@@ -214,7 +220,7 @@ def get_partner_id(req, uid=None, **kwargs):
 
 def get_stock_locations(req, pid, **kwargs):
     """
-
+    Get all locations
     @param req: object
     @param pid: partner ID
     @param kwargs:
@@ -235,7 +241,7 @@ def get_stock_locations(req, pid, **kwargs):
 
 def get_stock_locations_by_name(req, pid, name):
     """
-
+    Get location by location name
     @param req: object
     @param pid: partner ID
     @param kwargs:
@@ -278,7 +284,7 @@ def get_stocks(req, ids):
 
 def get_stock_location_by_id(req, ids, all=False):
     """
-
+    Get location by their ID
     @param req: object
     @param ids: location_ids
     @param kwargs:
@@ -322,7 +328,7 @@ def get_uom_by_id(req, ids):
 
 def get_product_by_pn(req, pn, all=False):
     """
-    Search for products with specific ids.
+    Search for products by their ID.
     @param req: object
     @param pn: location_ids
     @param all: selects all fields in result
@@ -346,7 +352,7 @@ def get_product_by_pn(req, pn, all=False):
 
 def search_products_by_septa_pn(req, pn, all=False):
     """
-    Search for products with specific part numbers.
+    Search for products with septa part numbers.
     @param req: object
     @param pn: part number string
     @param all: selects all fields in result
@@ -383,7 +389,7 @@ def search_products_by_septa_pn(req, pn, all=False):
 
 def search_products_by_vendor_pn(req, pn, all=False):
     """
-    Search for products with specific part numbers.
+    Search for products by vendor part numbers.
     @param req: object
     @param pn: part number string
     @param all: selects all fields in result
@@ -453,7 +459,7 @@ def get_stock_moves_by_id(req, ids):
         # moves = do_search_read(req, 'stock.move', fields, 0, False, [('id', 'in', ids)], None)
     except Exception:
         _logger.debug('<get_stock_moves_by_id> Moves not found for ids: %s', ids)
-
+    # Get product info
     for line in moves:
         if line['product_id']:
             product = product_obj.read(line['product_id'][0],
@@ -490,6 +496,7 @@ def get_invoice_line(req, ids, uid):
     if not lines:
         raise Exception("Access Denied")
 
+    #get stock move info for each invoice line
     for line in lines:
         if line['stock_move_id']:
 
@@ -505,32 +512,6 @@ def get_invoice_line(req, ids, uid):
             line['quantity_received'] = move['product_qty']
 
     return lines
-
-
-'''def get_stock_pickings_ori(req, pid):
-    """
-    Search for last 100 packing slip uploads for the vendor.
-    @param req: object
-    @param pid: partner_id
-    @return: dict
-    """
-    today = date.today()
-    two_years_before = str(today.replace(year=today.year - 2))
-    pickings = None
-    _logger.debug('<get_stock_pickings> partner ID: %s', pid)
-    fields = ['date', 'origin', 'invoice_state', 'state', 'partner_id', 'move_lines', 'product_id']
-    try:
-        pickings = do_search_read(req, 'stock.picking.in', fields, 0, False, [('partner_id.id', '=', pid),
-                                                                              ('type', '=', 'in'),
-                                                                              ('date_done', '>', two_years_before)
-        ], None)
-    except Exception:
-        _logger.debug('<get_stock_pickings> No stock.picking.in instances found for partner ID: %s', pid)
-
-    if not pickings:
-        raise Exception("AccessDenied")
-
-    return pickings'''
 
 
 def get_stock_pickings(req, pid):
@@ -552,6 +533,7 @@ def get_stock_pickings(req, pid):
                                                                   'month': '%02d' % int(context['month'])} + '%')]
     # get user requested data
     else:
+        #different filters if date is provided
         if context['day'] != '0':
             filters = [('date_done', 'like', '%(year)s-%(month)s-%(day)s' % {'year': str(context['year']),
                                                                              'month': '%02d' % int(context['month']),
@@ -560,6 +542,7 @@ def get_stock_pickings(req, pid):
         else:
             filters = [('date_done', 'like', '%(year)s-%(month)s-' % {'year': str(context['year']),
                                                                       'month': '%02d' % int(context['month'])} + '%')]
+        # Add other parameter if provided
         if context['location'] != '0':
             filters.append(('location_dest_id', '=', context['location']))
         if context['audit'] != '0':
@@ -784,10 +767,6 @@ class Session(vmiweb.Controller):
 
 
 # -----------------------------------------------| VMI Controller Methods.
-
-
-
-
 class VmiController(vmiweb.Controller):
     _cp_path = '/vmi'
     import csv
@@ -935,142 +914,6 @@ class VmiController(vmiweb.Controller):
             args.update({'error': e.faultCode})
         return args
 
-    def _validate_products_old(self, req, csv_rows, pid):
-        """
-        validate products from csv file
-        @param req: object
-        @param csv_rows: list
-        @param pid: partner id
-        @return: @raise IndexError:
-        """
-        res = {}
-        results = {}
-        args = {}
-        csv_part_numbers = []
-        fields = ['id', 'default_code', 'uom_id']
-        db_part_numbers = []
-        for row in csv_rows:
-            csv_part_numbers.append(row['septa_part_number'].strip())
-
-        if len(csv_part_numbers) == 0:
-            # _logger.debug('<_validate_products> Packing slip missing part numbers for partner: %s', str(pid))
-            raise IndexError("<_validate_products> Product not found in (%r)!" % str(csv_part_numbers))
-        else:
-            unique_part_numbers = list(set(csv_part_numbers))
-            try:
-                res = do_search_read(req, 'product.product', fields, 0, False,
-                                     [('default_code', 'in', unique_part_numbers)], None)
-            except xmlrpclib.Fault, e:
-                args.update({'error': e.faultCode})
-                _logger.debug('<_validate_products> Error finding products in: %s', str(unique_part_numbers))
-                return args
-
-            if res is not None:
-                for record in res['records']:
-                    db_part_numbers.append(record['default_code'])
-            else:
-                raise IndexError("<_validate_products> No products returned from search: (%r)!" % str(res))
-
-            # _logger.debug('<_validate_products> db_part_numbers: %s', db_part_numbers)
-            #_logger.debug('<_validate_products> csv_part_numbers: %s', unique_part_numbers)
-            if cmp(db_part_numbers.sort(), unique_part_numbers.sort()) == 0:
-                results.update({'records': res['records'], 'length': len(res), 'valid': True})
-            else:
-                bad_products = [x for x in unique_part_numbers if x not in db_part_numbers]
-                results.update({'records': bad_products, 'length': len(bad_products), 'valid': False})
-                _logger.debug('<_validate_products> Invalid products found in packing slip: %s', str(bad_products))
-
-        return results
-
-    '''def _create_stock_picking(self, req, csv_rows, pid):
-        """
-        Create stock.picking.in instances for each unique packing slip # in the CSV file data.
-        @param req: object
-        @param csv_rows: list (each line of CSV file)
-        @param pid: int
-        @return: list
-        """
-        model_name = 'stock.picking.in'
-        Model = req.session.model(model_name)
-        destination_id = None
-        location_id = None
-        location_partner = None
-        locations = get_stock_locations(req, pid)
-        all_locations = []
-        pickings = []
-        res = []
-        error = []
-        if len(csv_rows) > 0:
-            for row in csv_rows:  # Each unique packing slip number becomes a stock.picking.in instance.
-                rnd = random_string(8, 'digits')
-                vendor = str(row['supplier']).strip()
-                try:
-                    partner = get_vendor_by_name(req, vendor)['records'][0]
-                except Exception, e:
-                    error.append('Supplier')
-                    return [{'error': (
-                        error, 'Supplier does not exist for Packaging Slip: ' + row['packing_list_number'].strip())}]
-                destination_name = str(row['destination']).strip() + self._default_stock_location_suffix
-                try:
-                    destination = get_stock_locations_by_name(req, pid, destination_name)
-                    destination_id = destination['records'][0]['id']
-                except Exception, e:
-                    error.append('Destination')
-                    return [{'error': (
-                        error, 'Destination does not exist for Packaging Slip: ' + row['packing_list_number'].strip())}]
-                location_name = str(row['supplier']).strip()
-                try:
-                    location = get_stock_locations_by_name(req, pid, location_name)
-                    location_id = location['records'][0]['id']
-                except Exception, e:
-                    error.append('Destination')
-                    return [{'error': (
-                        error, 'Location does not exist for Packaging Slip: ' + row['packing_list_number'].strip())}]
-                # if partner['id'] != pid: # Check if supplier is the same as current user's parent partner.
-                #    _logger.debug('<_create_stock_picking> Supplier ID does not match PID: %s | %s', partner, pid)
-                #    continue
-                # Construct date from individual M D Y fields in CSV data.
-                try:
-                    datetime.datetime(int(str(row['year']).strip()), int(str(row['month']).strip()),
-                                      int(str(row['day']).strip()))
-                    delivery_date = str(row['year']).strip() + '/' + str(row['month']).strip() + '/' + str(
-                        row['day']).strip()
-                except Exception, e:
-                    error.append('date')
-                    return [
-                        {'error': (error, 'Invalid date for Packaging Slip: ' + row['packing_list_number'].strip())}]
-                pickings.append({
-                    'name': row['packing_list_number'].strip() + '.' + delivery_date + '.' + rnd,
-                    'date_done': delivery_date,
-                    'min_date': delivery_date,
-                    'partner_id': partner['id'],
-                    'origin': row['packing_list_number'].strip(),
-                    'location_id': location_id,
-                    'location_dest_id': destination_id,
-                    'note': row['purchase_order'].strip(),
-
-                })
-            if len(pickings) > 0:
-                for picking in pickings:
-                    picking_id = Model.create({
-                                                  'name': picking['name'],
-                                                  'date_done': picking['date_done'],
-                                                  'min_date': picking['min_date'],
-                                                  'partner_id': picking['partner_id'],
-                                                  'origin': picking['origin'],
-                                                  'invoice_state': '2binvoiced',
-                                                  'state': 'done',
-                                                  'contains_audit': 'no',
-                                                  'location_id': picking['location_id'],
-                                                  'location_dest_id': picking['location_dest_id'],
-                                                  'note': picking['note'],
-
-                                              }, req.context)
-                    res.append({'picking_id': picking_id, 'packing_list': picking['origin'],
-                                'partner': partner['id']})
-                    # _logger.debug('<_create_stock_picking> picking_id: %s', res)
-
-        return res'''
 
     def _create_move_line(self, req, line):
         """
@@ -1504,7 +1347,7 @@ class VmiController(vmiweb.Controller):
     @vmiweb.httprequest
     def invoice(self, req, mod=None, **kwargs):
         """
-        Controller for VMI Packing Slip Upload Page
+        Controller for Invoice Page
         @param req: request object
         @param mod: mode selector (N, D, T)
         @param kwargs:
@@ -1767,66 +1610,7 @@ class VmiController(vmiweb.Controller):
         template.expand(context, output)
         return output.getvalue()
 
-
-    @vmiweb.httprequest
-    def invoice_processing(self, req, uid, company_id, callback, invoice_id, comment, result):
-
-        """
-        An old way to process the invoice, like function upload_document
-        :param req: object
-        :param uid: user id
-        :param company_id: partner id
-        :param callback:
-        :param invoice_id: invoice id that need to be processed
-        :param comment: a comment that explained why vendor denied the current invoice
-        :param result: vendor's decision on current invoice
-        :return:
-        """
-        page_name = 'invoice_processing'
-        # session_data = Session.session_info(req.session)
-        req.session.ensure_valid()
-
-        mod = None
-        args = {}
-        args.update({'company_id': company_id})
-        args.update({'uid': uid})
-        #uid = req.session._uid
-        _logger.debug('This is uid %s!', str(uid))
-        vmi_client_page = self._get_vmi_client_page(req, page_name)['records']
-        if vmi_client_page:  # Set the mode for the controller and template.
-            temp_globals = dict.fromkeys(self._template_keys, None)
-            for key in temp_globals:
-                temp_globals[key] = vmi_client_page[0][key]
-
-            if mod is None:
-                mod = vmi_client_page[0]['mode']
-        else:
-            _logger.debug('No vmi.client.page record found for page name %s!', page_name)
-            return req.not_found()
-
-        if mod is not None:
-            if mod not in self._modes:
-                _logger.debug('<invoice_processing>The mode is not set to a recognized value: %s!', str(mod))
-                raise KeyError
-                #            else:
-                #                args.update({'mod': mod})
-
-        req.session.ensure_valid()
-        uid = req.session._uid
-        if invoice_id:
-            res = None
-            ids = invoice_id
-            # invoice processing
-            if result == "approved":
-                res = self._call_methods(req, 'account.invoice', 'invoice_vendor_approve', [ids, None])
-            elif result == "denied":
-                res = self._call_methods(req, 'account.invoice', 'invoice_vendor_deny', [ids, {'comment': comment}])
-            else:
-                _logger.debug('<invoice_processing>Unrecognized action!')
-                raise KeyError
-
-        kwargs = args.copy()
-        return self.invoice(req, mod, **kwargs)
+    #TODO change API name
 
     @vmiweb.jsonrequest
     def upload_file(self, req, company_id, data):
