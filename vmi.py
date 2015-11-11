@@ -293,7 +293,8 @@ class vmi_stock_move(osv.osv):
             # set move to audit_overwritten
             manager = user_obj.browse(cr, uid, uid).login
             note = "Audit overwritten at %s by %s." % (str(time.strftime('%Y-%m-%d %H:%M:%S')), manager.capitalize())
-            _logger.info("Audit overwritten at %s by %s. from IP: %s" % (str(time.strftime('%Y-%m-%d %H:%M:%S')), manager.capitalize()))
+            _logger.info("Audit overwritten at %s by %s. from IP: %s" % (
+                str(time.strftime('%Y-%m-%d %H:%M:%S')), manager.capitalize()))
             self.write(cr, uid, ids, {'audit': False, 'note': note, 'audit_overwritten': True}, context=context)
 
             # mark the stock.move as done and change the audit status of picking
@@ -302,7 +303,7 @@ class vmi_stock_move(osv.osv):
 
         return True
 
-    #TODO rewrite the function using ORM
+    # TODO rewrite the function using ORM
     def action_done(self, cr, uid, unflagged, context=None):
         """
         Mark the move as done
@@ -418,7 +419,7 @@ class vmi_stock_picking_in(osv.osv):
                     last_record = max(id['id'] for id in sql_res)
 
                     if sql_res > 0:
-                        #calculate number of product to be flagged this time and get them
+                        # calculate number of product to be flagged this time and get them
                         number_to_flag = int(round(total_qty * 0.1) + remained_audit)
                         #_logger.debug('<action_flag_audit> number_to_flag: %s', number_to_flag)
                         while i < len(sql_res) and number_to_flag > 0:
@@ -1035,7 +1036,7 @@ class vmi_account_invoice(osv.osv):
         'category_id': fields.many2one('product.category', 'Category', states={'vendor_approved': [('readonly', True)],
                                                                                'vendor_approved': [('readonly', True)]},
                                        select=True, track_visibility='always',
-                                        help="Select category for the current product"),
+                                       help="Select category for the current product"),
     }
 
     def action_move_create(self, cr, uid, ids, context=None):
@@ -1399,7 +1400,7 @@ class vmi_account_invoice(osv.osv):
                     'Please check the accounts for location %s and category %s in "Account Rule Line" section'
                     % (invoice.location_id.name, invoice.category_id.name)))
             # check up the rounding issue
-            elif abs(total-account_total) > 0.00001 and abs(total - account_total) < 1:
+            elif abs(total - account_total) > 0.00001 and abs(total - account_total) < 1:
                 accounts[rule.account_id.id] += (total - account_total)
         else:
             raise osv.except_osv(_('Error!'), _(
@@ -1538,6 +1539,14 @@ class vmi_account_invoice(osv.osv):
                 project_number = ''
                 if len(account) == 5:
                     project_number = account[4]
+
+                # adjust the line amount if there is rounding issue from %.4f to %.2f
+                line_amount = account_line.total
+                if line_number == len(invoice.account_line):
+                    diff = round(invoice.amount_total, 2) - round(line_total+account_line.total, 2)
+                    if diff != 0:
+                        line_amount += diff
+
                 il_values = {
                     'paying_entity': default_values['paying_entity'],
                     'control_date': control_date,
@@ -1554,12 +1563,12 @@ class vmi_account_invoice(osv.osv):
                     'expense_company': account[0],
                     'expense_account': account[1].rjust(18, ' '),
                     'expense_center': (account[2] + account[3]).rjust(12, ' '),
-                    'expense_amount': (('%.2f' % account_line.total).replace('.', '')).rjust(15, '0'),
+                    'expense_amount': (('%.2f' % line_amount).replace('.', '')).rjust(15, '0'),
                 }
 
                 il_lines += self._prepare_ap_line(il_fields, il_values) + '\r\n'
                 line_number += 1
-                line_total += round(account_line.total, 2)
+                line_total += round(line_amount, 2)
 
             # Generate invoice header dict based on all il values
             ih_values = {
@@ -1946,12 +1955,19 @@ class account_invoice_calculate(osv.osv_memory):
         invoice_delivery = []
         category_sum = {}
         location_ratio = {}
-
+        invoice_date = None
         # Check if selections are valid, record service fee invoice and calculate sum for each category
         for record in data_inv:
-            if record.state not in ['vendor_approved', 'ready']:
+            if record.state not in ['vendor_approved', 'ready', 'sent']:
                 raise osv.except_osv(_('Warning!'), _(
-                    "Selected invoice(s) cannot be allocated as they are not in 'Vendor Approved' or 'Ready for AP' state."))
+                    "Selected invoice(s) cannot be allocated as they are not in 'Vendor Approved', 'Ready for AP' or 'AP File Generated'state."))
+
+            # check if the invoice date match
+            if not invoice_date:
+                invoice_date = record.date_invoice
+            elif record.date_invoice != invoice_date:
+                raise osv.except_osv(_('Warning!'), _(
+                    "Selected invoice(s) cannot be allocated. Invoice Date doesn't match!"))
 
             # found invoice for service fee
             if record.category_id.id == category_delivery[0]:
@@ -1986,7 +2002,7 @@ class account_invoice_calculate(osv.osv_memory):
                                                                                                  category_sum[
                                                                                                      record.category_id.id]
                 # Normally, the (category, location) key is unique, the 'else' here is for the case the manager generates
-                #  additional invoices after the first run of the month
+                # additional invoices after the first run of the month
                 else:
                     location_ratio[(record.category_id.id, record.location_id.location_id.id)] += record.amount_total / \
                                                                                                   category_sum[
@@ -1997,7 +2013,7 @@ class account_invoice_calculate(osv.osv_memory):
         for invoice in invoices:
             values = []
             account_amount = {}
-            #for different category in one delivery fee invoice
+            # for different category in one delivery fee invoice
             for line in invoice['invoice_line']:
                 line_info = str(line.product_id.name).split('-')
                 line_category = product_category_obj.search(cr, uid, [('name', '=', line_info[0])])
