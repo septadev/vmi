@@ -544,7 +544,7 @@ def get_stock_pickings(req, pid):
                                                                       'month': '%02d' % int(context['month'])} + '%')]
         # Add other parameter if provided
         if context['location'] != '0':
-            filters.append(('location_dest_id', '=', context['location']))
+            filters.append(('location_dest_id', '=', int(context['location'])))
         if context['audit'] != '0':
             filters.append(('contains_audit', '=', context['audit']))
         if context['invoice'] != '0':
@@ -706,7 +706,7 @@ class Session(vmiweb.Controller):
 
     @vmiweb.jsonrequest
     def get_session_info(self, req):
-        # An RESTful API to check request and respond a session_id
+        # RPC API to check request and respond a session_id
         check = check_request(req, 'get_session_info')
         if check:
             return check
@@ -716,7 +716,7 @@ class Session(vmiweb.Controller):
     @vmiweb.jsonrequest
     def authenticate(self, req, login, password, base_location=None):
         """
-        An RESTful API for vendor authentication
+        RPC API for vendor authentication
         :param req:
         :param login: username
         :param password: password
@@ -1610,12 +1610,12 @@ class VmiController(vmiweb.Controller):
         template.expand(context, output)
         return output.getvalue()
 
-    #TODO change API name
 
+# -----------------------------------------------| VMI RPC APIs.
     @vmiweb.jsonrequest
     def upload_file(self, req, company_id, data):
         """
-        A RESTful API to upload the csv file
+        RPC API to upload the csv file
         :param req:
         :param company_id: Vendor's id
         :param data: csv data
@@ -1688,7 +1688,7 @@ class VmiController(vmiweb.Controller):
     @vmiweb.jsonrequest
     def process_invoice(self, req, ids, company_id, decision, comment):
         """
-        A RESTful API to process invoice.
+        A TPC API to process invoice.
         :param req:
         :param ids: invoice id
         :param company_id: Vendor id
