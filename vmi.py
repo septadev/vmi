@@ -240,8 +240,7 @@ class vmi_stock_move(osv.osv):
                 new_move = self.copy(cr, uid, move.id, default_val)
 
                 # update currenct move and picking
-                self.write(cr, uid, ids, {'product_qty': quantity, 'note': note, 'audit': False}, context)
-                self.action_done(cr, uid, ids, context)
+                self.write(cr, uid, ids, {'product_qty': quantity, 'note': note, 'audit': False, 'state': 'done'}, context)
                 res += [new_move]
                 stock_picking_obj.change_picking_audit_result(cr, uid, move.picking_id.id, False, None)
 
@@ -268,8 +267,7 @@ class vmi_stock_move(osv.osv):
                 storekeeper = user_obj.browse(cr, uid, uid).login
                 note = "Audit conducted at %s by %s." % (
                     str(time.strftime('%Y-%m-%d %H:%M:%S')), storekeeper.capitalize())
-                self.write(cr, uid, ids, {'audit': False, 'note': note}, context=context)
-                move.action_done()
+                self.write(cr, uid, ids, {'audit': False, 'note': note, 'state': 'done'}, context=context)
                 stock_picking_obj.change_picking_audit_result(cr, uid, move.picking_id.id, True, None)
 
         return res
@@ -293,38 +291,11 @@ class vmi_stock_move(osv.osv):
             # set move to audit_overwritten
             manager = user_obj.browse(cr, uid, uid).login
             note = "Audit overwritten at %s by %s." % (str(time.strftime('%Y-%m-%d %H:%M:%S')), manager.capitalize())
-            _logger.info("Audit overwritten at %s by %s. from IP: %s" % (
+            _logger.info("Audit overwritten at %s by %s." % (
                 str(time.strftime('%Y-%m-%d %H:%M:%S')), manager.capitalize()))
-            self.write(cr, uid, ids, {'audit': False, 'note': note, 'audit_overwritten': True}, context=context)
-
-            # mark the stock.move as done and change the audit status of picking
-            move.action_done()
+            self.write(cr, uid, ids, {'audit': False, 'note': note, 'audit_overwritten': True, 'state': 'done'}, context=context)
+            #change the audit status of picking
             stock_picking_obj.change_picking_audit_result(cr, uid, move.picking_id.id, True, None)
-
-        return True
-
-    # TODO rewrite the function using ORM
-    def action_done(self, cr, uid, unflagged, context=None):
-        """
-        Mark the move as done
-        @param self:
-        @param cr:
-        @param user:
-        @param unflagged: id to be unflagged
-        @param context:
-        """
-
-        ids = ', '.join(str(x) for x in unflagged)
-        if len(unflagged) > 0:
-            update_sql = """
-                UPDATE
-                    stock_move
-                SET
-                    state = 'done'
-                WHERE
-                    id in (%s);
-                """ % ids
-            cr.execute(update_sql)
 
         return True
 

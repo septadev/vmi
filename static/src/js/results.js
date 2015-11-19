@@ -40,6 +40,9 @@ $(document).ready(function(){
                     case "fail":
                         result = "Fail Audit";
                         break;
+                    case "overwritten":
+                        result = "Pass Audit";
+                        break;
                 }
                 return result;
             }
