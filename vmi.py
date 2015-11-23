@@ -16,20 +16,24 @@ from openerp.tools.config import configmanager
 
 _logger = logging.getLogger(__name__)
 
-# get configs
-command = sys.argv
-if '-c' in command:
-    config_file = command[command.index('-c') + 1]
-    config = configmanager()
-    config.parse_config(['-c', config_file])
-    db = config.options['client_db']
-    ap_file = config.options['ap_file']
-    ap_ftp = config.options['ap_ftp']
-    ap_ftp_path = config.options['ap_ftp_path']
-    ap_ftp_username = config.options['ap_ftp_username']
-    ap_ftp_password = config.options['ap_ftp_password']
-else:
-    raise Exception("Please specify the config file")
+
+def get_config():
+    # get configs
+    result = {}
+    command = sys.argv
+    if '-c' in command:
+        config_file = command[command.index('-c') + 1]
+        config = configmanager()
+        config.parse_config(['-c', config_file])
+        result['db'] = config.options['client_db']
+        result['ap_file'] = config.options['ap_file']
+        result['ap_ftp'] = config.options['ap_ftp']
+        result['ap_ftp_path'] = config.options['ap_ftp_path']
+        result['ap_ftp_username'] = config.options['ap_ftp_username']
+        result['ap_ftp_password'] = config.options['ap_ftp_password']
+    else:
+        raise Exception("Please specify the config file")
+    return result
 
 
 class vmi_client_page(osv.osv):
@@ -1409,10 +1413,12 @@ class vmi_account_invoice(osv.osv):
 
 
         # Check if file exist, rename it before generate a new one
-        if os.path.isfile(ap_file):
+        ap_config = get_config()
+        if os.path.isfile(ap_config['ap_file']):
             today = date.today()
-            os.rename(ap_file, ap_file[:-4] + '-' + str(today) + '.' + str(random.randrange(0, 99, 2)) + ap_file[-4:])
-        f = open(ap_file, 'w+')
+            os.rename(ap_config['ap_file'], ap_config['ap_file'][:-4] + '-' + str(today) + '.' +
+                      str(random.randrange(0, 99, 2)) + ap_config['ap_file'][-4:])
+        f = open(ap_config['ap_file'], 'w+')
 
         # positions for CG, IH, IL
         ih_fields = {
@@ -2055,7 +2061,7 @@ class account_invoice_generate(osv.osv_memory):
             context = {}
         account_invoice_obj = self.pool.get('account.invoice')
         res_partner_obj = self.pool.get('res.partner')
-
+        ap_config = get_config()
         # valid_ids = []
         data_inv = self.pool.get('account.invoice').read(cr, uid, context['active_ids'], ['state'], context=context)
         flag = self.read(cr, uid, ids, ['upload'])
@@ -2068,16 +2074,16 @@ class account_invoice_generate(osv.osv_memory):
         except Exception, e:
             raise osv.except_osv(_('Error!'), _('Fail to generate AP file:', e))
         # Upload file to FTP server
-        if '/' in ap_file:
-            file_name = ap_file.split('/')[-1]
+        if '/' in ap_config['ap_file']:
+            file_name = ap_config['ap_file'].split('/')[-1]
         else:
-            file_name = ap_file.split('\\')[-1]
+            file_name = ap_config['ap_file'].split('\\')[-1]
 
         if generated and flag[0]['upload']:
             try:
-                ftp = FTP(ap_ftp, ap_ftp_username, ap_ftp_password)
-                ftp.cwd(ap_ftp_path)
-                ftp.storbinary('STOR %s' % file_name, open(ap_file, 'rb'))
+                ftp = FTP(ap_config['ap_ftp'], ap_config['ap_ftp_username'], ap_config['ap_ftp_password'])
+                ftp.cwd(ap_config['ap_ftp_path'])
+                ftp.storbinary('STOR %s' % file_name, open(ap_config['ap_file'], 'rb'))
                 ftp.quit()
             except Exception, e:
                 raise osv.except_osv(_('Error!'), _('Upload to FTP error:', e))
@@ -2085,7 +2091,7 @@ class account_invoice_generate(osv.osv_memory):
         # Create a attachment in ir.attachment for future use
         today = date.today()
         attachment_name = file_name.split('.')[0] + '-' + str(today) + '.' + file_name.split('.')[1]
-        file_obj = open(ap_file, 'rb')
+        file_obj = open(ap_config['ap_file'], 'rb')
         file_string = file_obj.read()
         file_val = base64.encodestring(file_string)
         attachment_obj = self.pool.get('ir.attachment')

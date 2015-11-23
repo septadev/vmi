@@ -135,14 +135,14 @@ function printTable(file) {
         }
         var json = JSON.stringify(objArray);
         str = json.replace(/},/g, "},\r\n");
-        //TODO below
-        // html for table header - this should be dynamic...
+
+        // html for table header
         var header = '<thead><tr><th rowspan="2">Month</th><th rowspan="2">Day</th><th rowspan="2">Year</th><th rowspan="2">Vendor P/N</th> ' +
             '<th rowspan="2">Bin</th><th rowspan="2">Description</th><th rowspan="2">UOM</th><th colspan="3">Quantity</th>' +
             '<th rowspan="2">SEPTA P/N</th><th rowspan="2">Line</th><th rowspan="2">PO</th><th rowspan="2">Supplier</th>' +
             '<th rowspan="2">Packing List</th><th rowspan="2">Destination</th><th rowspan="2">Ship Type</th></tr>' +
             '<tr><th>Ordered</th><th>Shipped</th><th>Backordered</th></tr></thead>\r\n';
-        // html for table footer - this should be dynamic...
+        // html for table footer
         var footer = '<tfoot><tr><th rowspan="2">Month</th><th rowspan="2">Day</th><th rowspan="2">Year</th><th rowspan="2">Vendor P/N</th> ' +
             '<th rowspan="2">Bin</th><th rowspan="2">Description</th><th rowspan="2">UOM</th><th>Ordered</th><th>Shipped</th><th>Backordered</th>' +
             '<th rowspan="2">SEPTA P/N</th><th rowspan="2">Line</th><th rowspan="2">PO</th><th rowspan="2">Supplier</th>' +
@@ -154,8 +154,8 @@ function printTable(file) {
         for (var row = 1; row < csv_data.length; row++) {
             html += '<tr>\r\n';
             for (var item in csv_data[row]) {
+                //check the mandatory fields
                 if ([0, 1, 2, 8, 10, 13, 14, 15].indexOf(parseInt(item)) > -1 && csv_data[row][item] == "") {
-                    //var error_msg =  'Invalid data in row: ' + row+1 + ", item: " +  data[0][item];
                     html += '<td>' + csv_data[row][item] + '</td>\r\n';
                     alert('Invalid data in row: ' + row + ", item: " + csv_data[0][item]);
                     $("#OBEY").hide();

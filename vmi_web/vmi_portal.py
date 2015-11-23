@@ -21,21 +21,22 @@ import openerp.addons.web.http as vmiweb
 
 _logger = logging.getLogger(__name__)
 
-#TODO wrap get db info to a function
-
-# read config file to get db info
-command = sys.argv
-if '-c' in command:
-    config_file = command[command.index('-c') + 1]
-    config = configmanager()
-    config.parse_config(['-c', config_file])
-    db = config.options['client_db']
-    login = config.options['client_user'] or 'admin'
-    password = config.options['client_password'] or 'admin'
-else:
-    raise Exception("Please specify the config file")
-
 # -----------------------------------------------| VMI Global Methods.
+def get_args():
+    # read config file to get db info
+    command = sys.argv
+    result = {}
+    if '-c' in command:
+        config_file = command[command.index('-c') + 1]
+        config = configmanager()
+        config.parse_config(['-c', config_file])
+        result['db'] = config.options['client_db']
+        result['login'] = config.options['client_user'] or 'admin'
+        result['password'] = config.options['client_password'] or 'admin'
+    else:
+        raise Exception("Please specify the config file")
+    return result
+
 
 def check_request(req, source):
     """
@@ -116,8 +117,8 @@ def newSession(req):
     :param req:
     :return: admin's id
     """
-
-    return req.session.authenticate(db, login, password)
+    admin = get_args()
+    return req.session.authenticate(admin['db'], admin['login'], admin['password'])
 
 
 def check_partner_parent(req, pid):
@@ -732,6 +733,7 @@ class Session(vmiweb.Controller):
             HTTP_HOST=wsgienv['HTTP_HOST'],
             REMOTE_ADDR=wsgienv['REMOTE_ADDR'],
         )
+        db = get_args()['db']
         req.session.authenticate(db, login, password, env)
 
         return self.session_info(req)
@@ -1156,6 +1158,7 @@ class VmiController(vmiweb.Controller):
             if mod not in self._modes:
                 raise KeyError
         # javascript var
+        db = get_args()['db']
         js = 'var db = "%s"\n' % db
         js += 'var mode = "%s";\n' % mod
 
@@ -1273,12 +1276,11 @@ class VmiController(vmiweb.Controller):
 
         # get session info and make sure user logged in.
         uid = req.session._uid
-        pid = None
         local_vals = {}
         if kwargs is not None:
             local_vals.update(kwargs)
             pid = local_vals.get('pid')
-            _logger.debug('Partner found ID: %s', pid)
+            #_logger.debug('Partner found ID: %s', pid)
         else:
             try:  # Get Partner ID for session
                 vendor_record = get_partner_id(req, uid)['records'][0]
@@ -1363,7 +1365,7 @@ class VmiController(vmiweb.Controller):
         if kwargs is not None:
             local_vals.update(kwargs)
             pid = local_vals.get('company_id')
-            _logger.debug('Partner found ID: %s', pid)
+            #_logger.debug('Partner found ID: %s', pid)
         else:
             try:  # Get Partner ID for session
                 vendor_record = get_partner_id(req, uid)['records'][0]
