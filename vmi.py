@@ -2100,7 +2100,7 @@ class account_invoice_generate(osv.osv_memory):
                                           None)
         file_obj.close()
 
-        if generated:
+        if generated and flag[0]['upload']:
             template_obj = self.pool.get('email.template')
 
             # Generate email_1 to IT_control to run the job
