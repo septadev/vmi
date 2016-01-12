@@ -7,6 +7,7 @@ import base64
 from datetime import date
 from ftplib import FTP
 
+from openerp import tools
 from openerp.osv import osv
 from openerp.osv import fields
 from openerp import netsvc
